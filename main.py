@@ -31,6 +31,14 @@ GREATER_THAN = "GREATER_THEN"
 GT = GREATER_THAN
 LESS_THAN = "LESS_THAN"
 LT = LESS_THAN
+LTE = "LESS_THEN_OR_EQ"
+GTE = "LESS_THEN_OR_EQ"
+EQUAL_TO = "EQUAL_TO"
+NOT_EQUAL_TO = "NOT_EQUAL_TO"
+IF = "IF"
+ELSE = "ELSE"
+OR = "OR"
+AND = "AND"
 
 VALUES = [
     INT,
@@ -43,13 +51,26 @@ OPERATORS = {
     SUB: lambda a, b: a - b,
     MUL: lambda a, b: a * b,
     DIV: lambda a, b: a / b,
-    POW: lambda a, b: a**b,
+    POW: lambda a, b: a ** b,
+    LT: lambda a, b: a < b,
+    GT: lambda a, b: a > b,
+    GTE: lambda a,b: a >= b,
+    LTE: lambda a,b: a <= b,
+    EQUAL_TO: lambda a, b: a == b,
+    NOT_EQUAL_TO: lambda a, b: a != b,
+    OR: lambda a, b: a or b,
+    AND: lambda a, b: a and b
 }
 
 KEYWORDS = {
     "func": FUNC,
-    "return":RETURN
+    "return":RETURN,
+    "if":IF,
+    "else":ELSE,
+    "or":OR,
+    "and":AND
 }
+
 
 
 class Callable:
@@ -124,7 +145,9 @@ class Tokenizer:
             return self.string[self.current_idx + 1]
         else:
             return None
-
+    def check(self, text: str) -> bool:
+        end = self.current_idx + len(text)
+        return self.string[self.current_idx:end] == text
     def get_next_token(self):
         self.skip_whitespace()
 
@@ -145,18 +168,36 @@ class Tokenizer:
             self.current_idx += 1
             # self.current_token
             return Token(ADD, None)
+        elif self.check("true"):
+            self.current_idx += 4
+            return Token(BOOL, True)
+        elif self.check("false"):
+            self.current_idx += 5
+            return Token(BOOL, False)
+        elif self.check("=="):
+            self.current_idx += 2
+            return Token(EQUAL_TO, None)
         elif current_char == "=":
             self.current_idx += 1
             return Token(ASSIGN, None)
         elif current_char == "-":
             self.current_idx += 1
             return Token(SUB, None)
-        elif current_char == "*" and self.peek() == "*":
+        elif self.check("**"):
             self.current_idx += 2
             return Token(POW, None)
         elif current_char == "*":
             self.current_idx += 1
             return Token(MUL, None)
+        elif self.check ("!="):
+            self.current_idx += 2
+            return Token(NOT_EQUAL_TO, None)
+        elif self.check("<="):
+            self.current_idx += 2
+            return Token(LTE, None)
+        elif self.check(">="):
+            self.current_idx += 2
+            return Token(GTE, None)
         elif current_char == "\n":
             self.current_idx += 1
             return Token(NEWLINE, None)
@@ -178,13 +219,30 @@ class Tokenizer:
         elif current_char == ",":
             self.current_idx += 1
             return Token(COMMA, None)
+        elif current_char == "<":
+            self.current_idx += 1
+            return Token(LESS_THAN, None)
+        elif current_char == ">":
+            self.current_idx += 1
+            return Token(GREATER_THAN, None)
         elif current_char == '"':
             self.current_idx += 1
             value = ""
             while (
                 self.get_current_char() is not None and self.get_current_char() != '"'
             ):
-                value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+
+                if self.get_current_char() == "\\":
+                    self.current_idx+=1
+                    match self.get_current_char():
+                        case "n":
+                            value += "\n"
+                        case "t":
+                            value += "\t"
+                        case _: 
+                            value += self.get_current_char() # pyright: ignore[reportOperatorIssue]
+                else:
+                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.current_idx += 1
             if self.get_current_char() != '"':
                 raise SyntaxError("Unterminated string literal")
@@ -228,14 +286,43 @@ class Parser:
         else:
             self.current_token = Token(EOF, None)
 
-    def expr(self):
+    def arithmetic_expr(self):
         node = self.term()
         while self.current_token and self.current_token.type in (ADD, SUB):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(node, op, self.term())
         return node
-
+    def expr(self):
+        node = self.logical_and()
+        while self.current_token.type == OR:
+            op = self.current_token.type
+            self.eat(op)
+            node = BinOp(node, op, self.logical_and())
+        
+        return node
+    def logical_and(self):
+        node = self.equality()
+        while self.current_token.type == AND:
+            op = self.current_token.type
+            self.eat(op)
+            node = BinOp(node, op, self.equality())
+        return node
+    def comparision(self):
+        node = self.arithmetic_expr()
+        while self.current_token.type in (LT, GT, LTE, GTE):
+            op = self.current_token.type
+            self.eat(op)
+            node = BinOp(node, op, self.arithmetic_expr())
+        return node
+    
+    def equality(self):
+        node = self.comparision()
+        while self.current_token.type in (EQUAL_TO, NOT_EQUAL_TO):
+            op = self.current_token.type
+            self.eat(op)
+            node = BinOp(node, op, self.comparision())
+        return node
     def term(self):
         node = self.power()
         while self.current_token and self.current_token.type in (MUL, DIV):
@@ -260,6 +347,9 @@ class Parser:
         elif token.type == STRING:
             self.eat(STRING)
             return String(token.value)
+        elif token.type == BOOL:
+            self.eat(BOOL)
+            return Bool(token.value)
         elif token.type == IDENTIFIER:
             self.eat(IDENTIFIER)
             name = token.value
@@ -301,6 +391,8 @@ class Parser:
             return self.block()
         if self.current_token.type == FUNC:
             return self.function_decl()
+        if self.current_token.type == IF:
+            return self.if_decl()
         elif self.current_token.type == RETURN:
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
@@ -316,7 +408,22 @@ class Parser:
                 value = self.expr()
                 return Assign(name, value)
         return self.expr()
-
+    def if_decl(self):
+        self.eat(IF)
+        if self.current_token.type == EOF:
+            raise IncompleteInput
+        self.eat(LPAREN)
+        expr = self.expr()
+        if self.current_token.type == EOF:
+            raise IncompleteInput
+        self.eat(RPAREN)
+        body = self.block()
+        if self.current_token.type == ELSE:
+            self.eat(ELSE)
+            else_body = self.block()
+        else:
+            else_body = None
+        return If(expr, body, else_body)
     def function_decl(self):
         self.eat(FUNC)
 
@@ -366,10 +473,13 @@ class Parser:
         statements = []
 
         while self.current_token.type != RBRACE:
+            if self.current_token.type == EOF:
+                raise IncompleteInput
             stmt = self.statement()
             if stmt is not None:
                 statements.append(stmt)
-
+        if self.current_token.type == EOF:
+            raise IncompleteInput
         self.eat(RBRACE)
         return Block(statements)
 
@@ -398,6 +508,11 @@ class Number(ASTNode):
     def __repr__(self) -> str:
         return f"Number({self.value})"
 
+class Bool(ASTNode):
+    def __init__(self, value:bool):
+        self.value = value
+    def __repr__(self) -> str:
+        return f"Bool({self.value})"
 
 class Call(ASTNode):
     def __init__(self, func, args):
@@ -478,8 +593,16 @@ class Function(ASTNode):
     def __repr__(self):
         return f"Function({self.params}, {self.body})"
 
-
+class If(ASTNode): #TODO: Implement else if and multiple elses
+    def __init__(self, expr:ASTNode, body:Block, else_body:Block | None):
+        self.expr = expr
+        self.body = body
+        self.else_body = else_body
+class NOP(ASTNode):
+    pass
 def eval_ast(node: ASTNode, env: Environment):
+    if isinstance(node, NOP):
+        pass
     if isinstance(node, Number):
         return node.value
     if isinstance(node, BinOp):
@@ -529,6 +652,16 @@ def eval_ast(node: ASTNode, env: Environment):
         )
     if isinstance(node, Return):
         raise ReturnSignal(eval_ast(node.value, env))
+    if isinstance(node, Bool):
+        return node.value
+    if isinstance(node, If):
+        if eval_ast(node.expr, env):
+            return eval_ast(node.body, env)
+        elif node.else_body:
+            return eval_ast(node.else_body, env)
+        else:
+            return NOP()
+        
     raise RuntimeError(f"Unknown node {node}")
 
 

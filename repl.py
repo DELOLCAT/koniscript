@@ -1,8 +1,11 @@
 from main import Tokenizer, Parser, EOF, eval_ast, IncompleteInput
 from rich import print
+from rich.traceback import install
 import copy
 from base_env import env
 buffer = ""
+
+install()
 
 while True:
     current_env = copy.copy(env)
@@ -19,9 +22,10 @@ while True:
             tkns.append(tkn)
         psr = Parser(tkns)
         ast = psr.statement()
-        print(eval_ast(ast, env))
+        if ast is not None:
+            print(eval_ast(ast, env))
         buffer = ""
     except IncompleteInput:
         continue
-    except SyntaxError as e:
-        print(f"[red i b u]Syntax Error: {e}")
+    #except SyntaxError as e:
+    #    print(f"[red i b u]Syntax Error: {e}")

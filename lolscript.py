@@ -37,6 +37,5 @@ def interpret(filepath:Path):
 
 
 
-
 if __name__ == "__main__":
     app()
