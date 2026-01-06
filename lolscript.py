@@ -1,6 +1,6 @@
 from typer import Typer
 from pathlib import Path
-from main import Tokenizer, Parser, EOF, eval_ast, Token
+from main import Tokenizer, Parser, EOF, eval_ast, Token, Program, Compiler
 from base_env import env
 import copy
 
@@ -36,6 +36,27 @@ def interpret(filepath:Path):
         raise
 
 
+
+@app.command()
+def compile(filepath:Path):
+    current_env = copy.copy(env)  # noqa: F841
+    with open(filepath) as file:
+        file_content = file.read()
+    tknr = Tokenizer(file_content)
+    tkns: list[Token] = []
+    while True:
+        tkn = tknr.get_next_token()
+        tkns.append(tkn)
+        if tkn.type == EOF:
+            break
+    psr:Parser = Parser(tkns)
+    program:Program = psr.program()
+    compiler = Compiler(current_env)
+    instructions = compiler.compile(program)
+    with open("test.lsc", "w") as file:
+        file.write("\n".join(instructions))
+
+    
 
 if __name__ == "__main__":
     app()

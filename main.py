@@ -1,6 +1,6 @@
 from typing import Any
 # from rich import print
-
+from runtime import BuiltinFunction
 ADD = "ADD"
 INTEGER = "INT"
 INT = INTEGER
@@ -489,8 +489,10 @@ class ASTNode:
 
 
 class Block(ASTNode):
-    def __init__(self, statements):
+    def __init__(self, statements:list[ASTNode]):
         self.statements = statements
+    def __repr__(self):
+        return f"Block({self.statements})"
 
 
 class Program(ASTNode):
@@ -550,13 +552,6 @@ class Assign(ASTNode):
         return f"Assign({self.name}, {self.value})"
 
 
-class BuiltinFunction(Call):
-    def __init__(self, name, func):
-        self.name = name
-        self.func = func
-
-    def __call__(self, args) -> Any:
-        return self.func(*args)
 
 
 class UserFunction(Call):
@@ -598,6 +593,8 @@ class If(ASTNode): #TODO: Implement else if and multiple elses
         self.expr = expr
         self.body = body
         self.else_body = else_body
+    def __repr__(self):
+        return f"If({self.expr}, {self.body}, {self.else_body})"
 class NOP(ASTNode):
     pass
 def eval_ast(node: ASTNode, env: Environment):
@@ -618,15 +615,16 @@ def eval_ast(node: ASTNode, env: Environment):
         fn = eval_ast(node.func, env)
         args = [eval_ast(arg, env) for arg in node.args]
 
-        if isinstance(fn, BuiltinFunction):
-            return fn(args)
+        if isinstance(fn, BuiltinFunction) or type(fn):
+            return fn(*args)
+        if isinstance(fn, UserFunction):
+            call_env = Environment(parent=fn.closure)
 
-        call_env = Environment(parent=fn.closure)
+            for name, value in zip(fn.params, args):
+                call_env.set(name, value)
 
-        for name, value in zip(fn.params, args):
-            call_env.set(name, value)
-
-        return eval_ast(fn.body, call_env)
+            return eval_ast(fn.body, call_env)
+        raise SyntaxError(f"{type(fn).__name__} is not callable")
     if isinstance(node, Variable):
         return env.get(node.name)
     if isinstance(node, Assign):
@@ -665,9 +663,135 @@ def eval_ast(node: ASTNode, env: Environment):
     raise RuntimeError(f"Unknown node {node}")
 
 
+OP_SET_VAR = "STORE"
+OP_GET_VAR = "RETRIEVE"
+OP_PUSH_CONST = "PUSH_CONST"
+OP_ADD = ADD
+OP_SUB = SUB
+OP_MUL = MUL
+OP_DIV = DIV
+OP_POW = POW
+OP_GT = GT
+OP_GTE = GTE
+OP_LT = LT
+OP_LTE = LTE
+OP_EQUAL_TO = EQUAL_TO
+OP_NOT_EQUAL_TO = NOT_EQUAL_TO
+OP_OR = OR
+OP_AND = AND
+OP_CALL = "CALL"
+OPCODE_MAP = {
+    ADD: OP_ADD,
+    SUB: OP_SUB,
+    MUL: OP_MUL,
+    DIV: OP_DIV,
+    POW: OP_POW,
+    LT: OP_LT,
+    GT: OP_GT,
+    GTE: OP_GTE,
+    LTE: OP_LTE,
+    EQUAL_TO: OP_EQUAL_TO,
+    NOT_EQUAL_TO: OP_NOT_EQUAL_TO,
+    OR: OP_OR,
+    AND: OP_AND
+}
+BUILTIN = "BUILTIN"
+NULL = "NULL"
+TYPES = {
+    INT: 1,
+    STRING: 2,
+    BOOL: 3,
+    FUNC: 4,
+    BUILTIN: 5,
+    NULL: 6
+}
+class Compiler():
+    def __init__(self, env: Environment):
+        self.constants = []
+        self.vars = []
+        self.var_map = {}
+        self.const_map = {}
+        self.code = []
+        for item in env.values:
+            self.set_var(item)
+
+    def add_constant(self, value):
+        if value in self.const_map:
+            return self.const_map[value]
+        index = len(self.constants)
+        self.constants.append(value)
+        self.const_map[value] = index
+        return index
+    def set_var(self, name):
+        if name in self.var_map:
+            index = self.var_map[name]
+            return index
+        index = len(self.var_map)
+        self.var_map[name] = index
+        return index
+    def get_var(self, name):
+        if name not in self.var_map:
+            raise RuntimeError(f"Variable {name} not declared")
+        return self.var_map[name]
+    def emit(self, opcode, operand=None):
+        if operand is None:
+            self.code.append((opcode,))
+        else:
+            self.code.append((opcode, operand))
+    def compile(self, program:Program):
+        for node in program.statements:
+            self.compile_ins(node)
+        output = []
+        
+        output.append(".const")
+        for const in self.constants:
+            output.append(f'"{str(const).replace("\n", "\\n").replace(r"\\", r"\\")}"')
+        output.append(".code")
+        for instr in self.code:
+            output.append(" ".join(map(str, instr)))
+        return output
+    def compile_ins(self, node:ASTNode):
+        if isinstance(node, String):
+            idx = self.add_constant(node.value)
+            self.emit(OP_PUSH_CONST, idx)
+        elif isinstance(node, Number):
+            idx = self.add_constant(node.value)
+            self.emit(OP_PUSH_CONST, idx)
+        elif isinstance(node, Variable):
+            idx = self.get_var(node.name)
+            self.emit(OP_GET_VAR, idx)
+        elif isinstance(node, Assign):
+            self.compile_ins(node.value)
+            idx = self.set_var(node.name)
+            self.emit(OP_SET_VAR, idx)
+        elif isinstance(node, BinOp):
+            self.compile_ins(node.left)
+            self.compile_ins(node.right)
+            self.emit(OPCODE_MAP[node.op])
+        elif isinstance(node, Block):
+            for statement in node.statements:
+                self.compile_ins(statement)
+        elif isinstance(node, Bool):
+            idx = self.add_constant(node.value)
+            self.emit(OP_PUSH_CONST, idx)
+        elif isinstance(node, Call):
+            self.compile_ins(node.func)
+            for arg in node.args:
+                self.compile_ins(arg)
+            self.emit(OP_CALL, len(node.args))
+        else:
+            raise NotImplementedError(f"Did not implement {node}")
+
+
+
 def main():
-    pass
-
-
+    tkns = [Token(IDENTIFIER, "print"), Token(LPAREN, None), Token(STRING, "hi"), Token(RPAREN, None), Token(EOF, None)]
+    psr = Parser(tkns)
+    program = psr.program()
+    import base_env
+    env = base_env.env
+    compiler = Compiler(env)
+    print(compiler.compile(program))
+    
 if __name__ == "__main__":
     main()

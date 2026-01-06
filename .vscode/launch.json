@@ -1,11 +1,11 @@
 {
     "configurations": [
         {
-            "name": "Python Debugger: Python File",
+            "name": "VM",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
-            "args": ["./test.ls"]
+            "program": "./VM.py",
+            "args": ["run", "./test.lsc"]
         }
     ]
 }

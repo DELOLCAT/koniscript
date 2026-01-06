@@ -1,0 +1,12 @@
+.const
+"hi\n>>> "
+"there"
+.code
+RETRIEVE 2
+PUSH_CONST 0
+CALL 1
+STORE 3
+RETRIEVE 0
+RETRIEVE 3
+PUSH_CONST 1
+CALL 2

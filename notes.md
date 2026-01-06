@@ -4,4 +4,12 @@ Instruction set:
 PUSH
 LOAD
 STORE
-AD
+ADD
+SUB
+MUL
+DIV
+POW
+CALL
+RET
+JMP
+JMP_IF_FALSE
