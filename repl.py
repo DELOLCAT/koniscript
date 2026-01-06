@@ -1,13 +1,11 @@
-from main import Tokenizer, Parser, EOF, eval_ast, BuiltinFunction, IncompleteInput
-from rich.prompt import Prompt
+from main import Tokenizer, Parser, EOF, eval_ast, IncompleteInput
 from rich import print
-import time
+import copy
+from base_env import env
 buffer = ""
-env = {
-    "print":BuiltinFunction('print', print),
-    "sleep":BuiltinFunction('sleep', time.sleep)
-}
+
 while True:
+    current_env = copy.copy(env)
     line = input(">>> " if not buffer else "... ")
     buffer += line
     try:

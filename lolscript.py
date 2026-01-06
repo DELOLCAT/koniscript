@@ -1,7 +1,8 @@
 from typer import Typer
 from pathlib import Path
-from main import Tokenizer, Parser, EOF, eval_ast, BuiltinFunction, Token
-import time
+from main import Tokenizer, Parser, EOF, eval_ast, Token
+from base_env import env
+import copy
 
 app = Typer()
 
@@ -11,11 +12,7 @@ class FileNotReadable(Exception):
     
 @app.command()
 def interpret(filepath:Path):
-    env = {
-        'print': BuiltinFunction('print', print),
-        'sleep': BuiltinFunction('sleep', time.sleep),
-        'input': BuiltinFunction('input', input)
-    }
+    current_env = copy.copy(env)
     with open(filepath) as file:
         if not file.readable():
             raise FileNotReadable(filepath)
@@ -27,11 +24,16 @@ def interpret(filepath:Path):
         tkns.append(tkn)
         if tkn.type == EOF:
             break
-    #print(tkns)
     psr = Parser(tkns)
     program = psr.program()
-    for ast in program.statements:
-        eval_ast(ast, env)
+    pos = 1
+    try:
+        for ast in program.statements:
+            eval_ast(ast, current_env)
+            pos+=1
+    except Exception as e:
+        print(f"[red i b u]{e} on line {pos}")
+        raise
 
 
 

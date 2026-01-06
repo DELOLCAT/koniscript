@@ -21,7 +21,9 @@ LPAREN = "LPAREN"
 STRING = "STRING"
 COMMA = "COMMA"
 PRECEDENCE = {ADD: 1, SUB: 1, MUL: 2, DIV: 2, POW: 3}
-
+LBRACE = "LBRACE"
+RBRACE = "RBRACE"
+FUNC = "FUNC"
 OPERATORS = {
     ADD: lambda a, b: a + b,
     SUB: lambda a, b: a - b,
@@ -30,6 +32,8 @@ OPERATORS = {
     POW: lambda a, b: a**b,
 }
 
+KEYWORDS = {"func": FUNC}
+
 
 class Callable:
     pass
@@ -37,6 +41,32 @@ class Callable:
 
 class IncompleteInput(Exception):
     pass
+class ReturnSignal(Exception):
+    def __init__(self, value):
+        self.value = value
+
+class Environment:
+    def __init__(self, parent=None):
+        self.values = {}
+        self.parent = parent
+
+    def get(self, name):
+        if name in self.values:
+            return self.values[name]
+        if self.parent:
+            return self.parent.get(name)
+        raise NameError(f"Undefined variable '{name}'")
+
+    def set(self, name, value):
+        self.values[name] = value
+
+    def assign(self, name, value):
+        if name in self.values:
+            self.values[name] = value
+        elif self.parent:
+            self.parent.assign(name, value)
+        else:
+            raise NameError(f"Undefined variable '{name}'")
 
 
 class Token:
@@ -116,6 +146,12 @@ class Tokenizer:
         elif current_char == ")":
             self.current_idx += 1
             return Token(RPAREN, None)
+        elif current_char == "{":
+            self.current_idx += 1
+            return Token(LBRACE, None)
+        elif current_char == "}":
+            self.current_idx += 1
+            return Token(RBRACE, None)
         elif current_char == "/":
             self.current_idx += 1
             return Token(DIV, None)
@@ -135,16 +171,18 @@ class Tokenizer:
             self.current_idx += 1
             return Token(STRING, value)
 
-        elif current_char.isalpha():
+        elif current_char.isalpha() or current_char=="_":
             to_return = current_char
             self.current_idx += 1
             while (
                 self.get_current_char() is not None
-                and self.get_current_char().isalnum()  # pyright: ignore[reportOptionalMemberAccess]
+                and self.get_current_char().isalnum() # pyright: ignore[reportOptionalMemberAccess]
+                or self.get_current_char()=="_"
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.current_idx += 1
-            return Token(IDENTIFIER, to_return)
+            tok_type = KEYWORDS.get(to_return, IDENTIFIER)
+            return Token(tok_type, to_return)
 
         raise SyntaxError(f'Unexpected token "{current_char}"')
 
@@ -234,7 +272,16 @@ class Parser:
             raise SyntaxError(f"Unexpected token {token}")
 
     def statement(self):
-        if self.current_token.type == IDENTIFIER:
+        while self.current_token.type == NEWLINE:
+            self.eat(NEWLINE)
+
+        if self.current_token.type == RBRACE:
+            return None
+        if self.current_token.type == LBRACE:
+            return self.block()
+        if self.current_token.type == FUNC:
+            return self.function_decl()
+        elif self.current_token.type == IDENTIFIER:
             next_tok = self.peek()
             if next_tok and next_tok.type == ASSIGN:
                 name = self.current_token.value
@@ -243,6 +290,27 @@ class Parser:
                 value = self.expr()
                 return Assign(name, value)
         return self.expr()
+
+    def function_decl(self):
+        self.eat(FUNC)
+
+        name = self.current_token.value
+        self.eat(IDENTIFIER)
+
+        self.eat(LPAREN)
+        params = []
+
+        if self.current_token.type == IDENTIFIER:
+            params.append(self.current_token.value)
+            self.eat(IDENTIFIER)
+            while self.current_token.type == COMMA:
+                self.eat(COMMA)
+                params.append(self.current_token.value)
+                self.eat(IDENTIFIER)
+        self.eat(RPAREN)
+
+        body = self.block()
+        return Assign(name, Function(params, body))
 
     def peek(self):
         idx = self.pos + 1
@@ -267,9 +335,26 @@ class Parser:
             statements.append(self.statement())
         return Program(statements)
 
+    def block(self):
+        self.eat(LBRACE)
+        statements = []
+
+        while self.current_token.type != RBRACE:
+            stmt = self.statement()
+            if stmt is not None:
+                statements.append(stmt)
+
+        self.eat(RBRACE)
+        return Block(statements)
+
 
 class ASTNode:
     pass
+
+
+class Block(ASTNode):
+    def __init__(self, statements):
+        self.statements = statements
 
 
 class Program(ASTNode):
@@ -332,7 +417,13 @@ class BuiltinFunction(Call):
     def __call__(self, args) -> Any:
         return self.func(*args)
 
-
+class UserFunction(Call):
+    def __init__(self, params, body, closure):
+        self.params = params
+        self.body = body
+        self.closure = closure
+    def __repr__(self):
+        return f"UserFunction({self.params}, {self.body}, {self.closure})"
 class String(ASTNode):
     def __init__(self, value):
         self.value = value
@@ -340,8 +431,20 @@ class String(ASTNode):
     def __repr__(self):
         return f"String({self.value})"
 
+class Return(ASTNode):
+    def __init__(self, value):
+        self.value = value
+    def __repr__(self):
+        return f"Return({self.value})"
+class Function(ASTNode):
+    def __init__(self, params, body):
+        self.params = params
+        self.body = body
+    def __repr__(self):
+        return f"Function({self.params}, {self.body})"
 
-def eval_ast(node: ASTNode, env: dict):
+
+def eval_ast(node: ASTNode, env: Environment):
     if isinstance(node, Number):
         return node.value
     if isinstance(node, BinOp):
@@ -360,20 +463,35 @@ def eval_ast(node: ASTNode, env: dict):
         if isinstance(fn, BuiltinFunction):
             return fn(args)
 
-        call_env = env.copy()
+        call_env = Environment(parent=fn.closure)
+
         for name, value in zip(fn.params, args):
-            call_env[name] = value
+            call_env.set(name, value)
+
         return eval_ast(fn.body, call_env)
     if isinstance(node, Variable):
-        if node.name not in env.keys():
-            raise NameError(f"Could not find a variable called {node.name}")
-        return env[node.name]
+        return env.get(node.name)
     if isinstance(node, Assign):
         value = eval_ast(node.value, env)
-        env[node.name] = value
+        env.set(node.name, value)
         return value
     if isinstance(node, String):
         return node.value
+    if isinstance(node, Block):
+        local_env = Environment(parent=env)
+        result = None
+        try:
+            for stmt in node.statements:
+                result = eval_ast(stmt, local_env)
+        except ReturnSignal as r:
+            return r.value
+        return result
+    if isinstance(node, Function):
+        return UserFunction(
+            node.params,
+            node.body,
+            env  # capture closure
+        )
     raise RuntimeError(f"Unknown node {node}")
 
 

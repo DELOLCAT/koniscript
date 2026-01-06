@@ -1,2 +1,4 @@
-hi = input("hello\n>>> ")
-print(hi)
+func hello_world(name) {
+    print("Hello,", name)
+}
+hello_world("Ayan")
