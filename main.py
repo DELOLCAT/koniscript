@@ -16,7 +16,10 @@ POWER = "POWER"
 POW = POWER
 SUBTRACT = "SUBTRACT"
 SUB = SUBTRACT
-
+CLOSE_PAREN = "CLOSE_PAREN"
+OPEN_PAREN = "OPEN_PAREN"
+DOUBLE_QUOTE = 'DOUBLE_QUOTE"'
+SINGLE_QUOTE = "SINGLE_QUOTE"
 PRECEDENCE = {
     ADD:1,
     SUB:1,
@@ -80,7 +83,7 @@ class Tokenizer():
             self.current_idx+=1
             return Token(SUB, None)
         elif current_char == "*" and self.peek()=="*":
-            self.current_idx+=1
+            self.current_idx+=2
             return Token(POW, None)
         elif current_char == "*":
             self.current_idx+=1
@@ -88,6 +91,21 @@ class Tokenizer():
         elif current_char == "\n":
             self.current_idx+=1
             return Token(NEWLINE, None)
+        elif current_char == "(":
+            self.current_idx += 1
+            return Token(OPEN_PAREN, None)
+        elif current_char == ")":
+            self.current_idx += 1
+            return Token(CLOSE_PAREN, None)
+        elif current_char == "/":
+            self.current_idx += 1
+            return Token(DIV, None)
+        elif current_char == "'":
+            self.current_idx+=1
+            return Token(SINGLE_QUOTE, None)
+        elif current_char == '"':
+            self.current_idx += 1
+            return Token(DOUBLE_QUOTE, None)
         elif current_char.isalpha():
             to_return = current_char
             self.current_idx+=1
@@ -151,21 +169,136 @@ def eval_rpm(tokens: list[Token | None]):
     return stack[0]
 
 class Parser:
-    def __init__(self, tokenizer: Tokenizer):
-        self.tokenizer = tokenizer
-        self.current_token = self.tokenizer.get_next_token()
+    def __init__(self, tokens:list[Token]):
+        self.tokens = tokens
+        self.current_token = self.tokens[0]
+        self.pos = 0
 
-    def eat(self, expected_type: str):
-        if self.current_token.type != expected_type:
+    def eat(self, token_type):
+        if self.current_token.type != token_type:
             raise SyntaxError(
-                f"Expected {expected_type}, got {self.current_token.type}"
+                f"Expected {token_type}, got {self.current_token.type}"
             )
-        self.current_token = self.tokenizer.get_next_token()
+        self.advance()
+    
+    def advance(self):
+        self.pos +=1
+        if self.pos < len(self.tokens):
+            self.current_token = self.tokens[self.pos]
+        else:
+            self.current_token = Token(EOF, None)
+    def expr(self):
+        node = self.term()
+        while self.current_token and self.current_token.type in (ADD, SUB):
+            op = self.current_token.type
+            self.eat(op)
+            node = BinOp(node, op, self.term())
+        return node
 
+    def term(self):
+        node = self.power()
+        while self.current_token and self.current_token.type in (MUL, DIV):
+            op = self.current_token.type
+            self.eat(op)
+            node = BinOp(node, op, self.power())
+        return node
 
+    def power(self):
+        node = self.factor()
+        if self.current_token and self.current_token.type == POW:
+            op = self.current_token.type
+            self.eat(POW)
+            node = BinOp(node, op, self.power())  # right-associative
+        return node
 
+    def factor(self):
+        token = self.current_token
+        if token.type == INT:
+            self.eat(INT)
+            return Number(token.value)
+        elif token.type == IDENTIFIER:
+            self.eat(IDENTIFIER)
+            return Variable(token.value)
+        elif token.type == OPEN_PAREN:
+            self.eat(OPEN_PAREN)
+            node=self.expr()
+            self.eat(CLOSE_PAREN)
+            return node
+        else:
+            raise SyntaxError(f"Unexpected token {token.value}")
 
+    def statement(self):
+        if self.current_token.type == IDENTIFIER:
+            next_tok = self.peek()
+            if next_tok and next_tok.type == ASSIGN:
+                name = self.current_token.value
+                self.eat(IDENTIFIER)
+                self.eat(ASSIGN)
+                value = self.expr()
+                return Assign(name, value)
+        return self.expr()
+    def peek(self):
+        idx = self.pos+1
+        if idx < len(self.tokens):
+            return self.tokens[idx]
+        return Token(EOF, None)
+            
+def eval_ast(node, env:dict):
+    if isinstance(node, Number):
+        return node.value
+    if isinstance(node, BinOp):
+        left = eval_ast(node.left, env)
+        right = eval_ast(node.right, env)
 
+        if node.op == ADD:
+            return left + right
+        elif node.op == MUL:
+            return left * right
+        elif node.op == SUB:
+            return left - right
+        elif node.op == DIV:
+            return left / right
+        elif node.op == POW:
+            return left ** right
+    if isinstance(node, Variable):
+        if node.name not in env.keys():
+            raise NameError(f"Could not find a variable called {node.name}")
+        return env[node.name]
+    if isinstance(node, Assign):
+        value = eval_ast(node.value, env)
+        env[node.name] = value
+        return value
+    raise RuntimeError("Unknown node")
+
+class ASTNode:
+    pass
+
+class Number(ASTNode):
+    def __init__(self, value:int):
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f"Number({self.value})"
+class BinOp(ASTNode):
+    def __init__(self, left:ASTNode, op:str, right:ASTNode):
+        self.op = op
+        self.left = left
+        self.right = right
+    
+    def __repr__(self) -> str:
+        return f"BinOp({self.left}, {self.op}, {self.right})"
+
+class Variable(ASTNode):
+    def __init__(self, name:str):
+        self.name = name
+    def __repr__(self):
+        return f"Variable({self.name})"
+class Assign(ASTNode):
+    def __init__(self, name:str, value:ASTNode):
+        self.name = name
+        self.value = value
+    def __repr__(self):
+        return f"Assign({self.name}, {self.value})"
 def main():
     pass
 if __name__ == "__main__":
