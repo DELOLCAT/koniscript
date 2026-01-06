@@ -24,6 +24,20 @@ PRECEDENCE = {ADD: 1, SUB: 1, MUL: 2, DIV: 2, POW: 3}
 LBRACE = "LBRACE"
 RBRACE = "RBRACE"
 FUNC = "FUNC"
+RETURN = "RETURN"
+BOOLEAN = "BOOLEAN"
+BOOL = BOOLEAN
+GREATER_THAN = "GREATER_THEN"
+GT = GREATER_THAN
+LESS_THAN = "LESS_THAN"
+LT = LESS_THAN
+
+VALUES = [
+    INT,
+    STRING,
+    IDENTIFIER      
+]
+
 OPERATORS = {
     ADD: lambda a, b: a + b,
     SUB: lambda a, b: a - b,
@@ -32,7 +46,10 @@ OPERATORS = {
     POW: lambda a, b: a**b,
 }
 
-KEYWORDS = {"func": FUNC}
+KEYWORDS = {
+    "func": FUNC,
+    "return":RETURN
+}
 
 
 class Callable:
@@ -41,9 +58,12 @@ class Callable:
 
 class IncompleteInput(Exception):
     pass
+
+
 class ReturnSignal(Exception):
     def __init__(self, value):
         self.value = value
+
 
 class Environment:
     def __init__(self, parent=None):
@@ -171,13 +191,13 @@ class Tokenizer:
             self.current_idx += 1
             return Token(STRING, value)
 
-        elif current_char.isalpha() or current_char=="_":
+        elif current_char.isalpha() or current_char == "_":
             to_return = current_char
             self.current_idx += 1
             while (
                 self.get_current_char() is not None
-                and self.get_current_char().isalnum() # pyright: ignore[reportOptionalMemberAccess]
-                or self.get_current_char()=="_"
+                and self.get_current_char().isalnum()  # pyright: ignore[reportOptionalMemberAccess]
+                or self.get_current_char() == "_"
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.current_idx += 1
@@ -281,6 +301,12 @@ class Parser:
             return self.block()
         if self.current_token.type == FUNC:
             return self.function_decl()
+        elif self.current_token.type == RETURN:
+            self.eat(RETURN)
+            if self.current_token.type in (NEWLINE, RBRACE):
+                return Return(None)
+            value = self.expr()
+            return Return(value)
         elif self.current_token.type == IDENTIFIER:
             next_tok = self.peek()
             if next_tok and next_tok.type == ASSIGN:
@@ -417,13 +443,17 @@ class BuiltinFunction(Call):
     def __call__(self, args) -> Any:
         return self.func(*args)
 
+
 class UserFunction(Call):
     def __init__(self, params, body, closure):
         self.params = params
         self.body = body
         self.closure = closure
+
     def __repr__(self):
         return f"UserFunction({self.params}, {self.body}, {self.closure})"
+
+
 class String(ASTNode):
     def __init__(self, value):
         self.value = value
@@ -431,15 +461,20 @@ class String(ASTNode):
     def __repr__(self):
         return f"String({self.value})"
 
+
 class Return(ASTNode):
     def __init__(self, value):
         self.value = value
+
     def __repr__(self):
         return f"Return({self.value})"
+
+
 class Function(ASTNode):
     def __init__(self, params, body):
         self.params = params
         self.body = body
+
     def __repr__(self):
         return f"Function({self.params}, {self.body})"
 
@@ -490,8 +525,10 @@ def eval_ast(node: ASTNode, env: Environment):
         return UserFunction(
             node.params,
             node.body,
-            env  # capture closure
+            env,  # capture closure
         )
+    if isinstance(node, Return):
+        raise ReturnSignal(eval_ast(node.value, env))
     raise RuntimeError(f"Unknown node {node}")
 
 
