@@ -1,10 +1,15 @@
-from main import Tokenizer, Parser, EOF, eval_ast
+from main import Tokenizer, Parser, EOF, eval_ast, BuiltinFunction, IncompleteInput
 from rich import print
 from rich.pretty import pprint
+import time
 
-env = {}
+env = {
+    "print":BuiltinFunction('print', print),
+    "sleep":BuiltinFunction('sleep', time.sleep)
+}
 while True:
-    tknr = Tokenizer(input("Gimme some input\n>>> "))
+    buffer = ""
+    tknr = Tokenizer(input(">>> "))
     tkns = []
 
     while True:
@@ -14,7 +19,13 @@ while True:
         tkns.append(tkn)
 
     psr = Parser(tkns)
-    ast = psr.statement()
+    try:
+        ast = psr.statement()
+    except IncompleteInput:
+        
     #pprint(ast)
-    print(eval_ast(ast, env))
-    print(env)
+    try:
+        print(eval_ast(ast, env))
+    except Exception as e:
+        print(f"[red b i u]Encountered error: {e}")
+    #print(env)
