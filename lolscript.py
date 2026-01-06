@@ -1,6 +1,6 @@
 from typer import Typer
 from pathlib import Path
-from main import Tokenizer, Parser, EOF, eval_ast, BuiltinFunction, IncompleteInput, Token
+from main import Tokenizer, Parser, EOF, eval_ast, BuiltinFunction, Token
 import time
 
 app = Typer()

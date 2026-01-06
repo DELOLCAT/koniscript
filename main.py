@@ -1,5 +1,5 @@
 from typing import Any
-#from rich import print
+# from rich import print
 
 ADD = "ADD"
 INTEGER = "INT"
@@ -35,10 +35,9 @@ class Callable:
     pass
 
 
-    
-
 class IncompleteInput(Exception):
     pass
+
 
 class Token:
     def __init__(self, cat: str, value: Any):
@@ -87,7 +86,7 @@ class Tokenizer:
             value = ""
             while (
                 self.get_current_char() is not None
-                and self.get_current_char().isdigit() # pyright: ignore[reportOptionalMemberAccess]
+                and self.get_current_char().isdigit()  # pyright: ignore[reportOptionalMemberAccess]
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.current_idx += 1
@@ -141,7 +140,7 @@ class Tokenizer:
             self.current_idx += 1
             while (
                 self.get_current_char() is not None
-                and self.get_current_char().isalnum() # pyright: ignore[reportOptionalMemberAccess]
+                and self.get_current_char().isalnum()  # pyright: ignore[reportOptionalMemberAccess]
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.current_idx += 1
@@ -250,11 +249,15 @@ class Parser:
         if idx < len(self.tokens):
             return self.tokens[idx]
         return Token(EOF, None)
+
     def parse(self):
         node = self.statement()
         if self.current_token.type != EOF:
-            raise SyntaxError(f"Unexpected token of type {self.current_token.type}: {self.current_token.value}")
+            raise SyntaxError(
+                f"Unexpected token of type {self.current_token.type}: {self.current_token.value}"
+            )
         return node
+
     def program(self):
         statements = []
         while self.current_token.type != EOF:
@@ -268,11 +271,15 @@ class Parser:
 class ASTNode:
     pass
 
+
 class Program(ASTNode):
     def __init__(self, statements):
-        self.statements=statements
+        self.statements = statements
+
     def __repr__(self) -> str:
         return f"Program({self.statements})"
+
+
 class Number(ASTNode):
     def __init__(self, value: int):
         self.value = value
@@ -280,12 +287,16 @@ class Number(ASTNode):
     def __repr__(self) -> str:
         return f"Number({self.value})"
 
+
 class Call(ASTNode):
     def __init__(self, func, args):
         self.func = func
         self.args = args
+
     def __repr__(self) -> str:
         return f"Call({self.func}, {self.args})"
+
+
 class BinOp(ASTNode):
     def __init__(self, left: ASTNode, op: str, right: ASTNode):
         self.op = op
@@ -312,6 +323,7 @@ class Assign(ASTNode):
     def __repr__(self):
         return f"Assign({self.name}, {self.value})"
 
+
 class BuiltinFunction(Call):
     def __init__(self, name, func):
         self.name = name
@@ -319,6 +331,7 @@ class BuiltinFunction(Call):
 
     def __call__(self, args) -> Any:
         return self.func(*args)
+
 
 class String(ASTNode):
     def __init__(self, value):
@@ -346,7 +359,7 @@ def eval_ast(node: ASTNode, env: dict):
 
         if isinstance(fn, BuiltinFunction):
             return fn(args)
-        
+
         call_env = env.copy()
         for name, value in zip(fn.params, args):
             call_env[name] = value
