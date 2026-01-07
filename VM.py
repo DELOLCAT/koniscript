@@ -120,6 +120,9 @@ def run(filepath: Path):
                 if not cond[1]:
                     i = op
                     continue
+            case "JMP":
+                i = op
+                continue
             case _:
                 if ins in main.OPCODE_MAP:
                     rhs = stack.pop()

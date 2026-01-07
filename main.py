@@ -782,11 +782,18 @@ class Compiler():
             for arg in node.args:
                 self.compile_ins(arg)
             self.emit(OP_CALL, len(node.args))
-        elif isinstance(node, If) and not node.else_body:
+        elif isinstance(node, If):
             self.compile_ins(node.expr)
             jmp = self.emit("JMPIFF", None)
             self.compile_ins(node.body)
-            self.code[jmp] = ("JMPIFF", len(self.code))
+            if node.else_body:
+                jmp2 = self.emit("JMP", None)
+                self.code[jmp] = ("JMPIFF", len(self.code))
+                self.compile_ins(node.else_body)
+                self.code[jmp2] = ("JMP",len(self.code))
+            else:
+                self.code[jmp] = ("JMPIFF", len(self.code))
+
         elif isinstance(node, NOP):
             self.emit("NOP")
         else:
