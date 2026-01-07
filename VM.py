@@ -5,7 +5,7 @@ from pathlib import Path
 import base_env 
 import main
 from enum import Enum
-
+from main import TYPES
 
 app = Typer()
 PUSH = "PUSH"
@@ -13,10 +13,22 @@ LOAD = "LOAD"
 CALL = "CALL"
 
 def eval_str(string:str):
-    i = 1
+    i = 0
     output = ""
-    if string[0] != '"':
-        raise RuntimeError(f"Expected string, got {string[0]}")
+    if not string[0].isdigit():
+        RuntimeError(f"Expected type annotation, got {string[0]}")
+    type_annot = ""
+    term = False
+    while i < len(string):
+        if string[i] == '"':
+            term=True
+            i+=1
+            break
+        type_annot += string[i]
+        i+=1
+    if not term:
+        raise RuntimeError("String never started")
+    
     term = False
     while i < len(string):
         if string[i] == '"':
@@ -34,7 +46,7 @@ def eval_str(string:str):
         i+=1
     if not term:
         raise RuntimeError("Unterminated string literal in VM code")
-    return output
+    return type_annot, output
         
 def set_var(var, value, vars):
     if len(vars)+1 > var:
@@ -60,8 +72,9 @@ def run(filepath: Path):
         const_pool.append(eval_str(content[i]))
         i+=1
 
-    
-    vars = list(base_env.env.values.values())
+    content = content[i:]
+    i=0
+    vars = base_env.VMenv
     ###.code
     while i < len(content):
         while content[i].strip() == "":
@@ -69,30 +82,54 @@ def run(filepath: Path):
         
         ins = content[i].split()[0]
         if len(content[i].strip().split()) > 1:
-            v = int(" ".join(content[i].strip().split()[1:]))
+            op = int(" ".join(content[i].strip().split()[1:]))
         match ins:
+            case "NOP":
+                pass
             case "PUSH_CONST":  # noqa: F841
-                stack.append(const_pool[v])
+                stack.append(const_pool[op])
             case "RETRIEVE": # noqa: F841
-                stack.append(vars[v])
+                stack.append(vars[op])
             case "CALL":
                 #to_call = stack.pop(0)
                 args = []
-                for _ in range(v):
+                for _ in range(op):
                     args.append(stack.pop())
                 args.reverse()
                 to_call = stack.pop()
-                if isinstance(to_call, main.BuiltinFunction):
-                    stack.append(to_call.func(*args))
+                if to_call[0] != TYPES[main.FUNC]:
+                    raise RuntimeError("Not a function")
+                to_call = to_call[1]
+                if to_call["type"] == "builtin":
+                    stack.append((to_call["func"](*args)))
                 else:
                     raise NotImplementedError()
             case "STORE":
-                set_var(v, stack[len(stack)-1], vars)
+                set_var(op, stack.pop(), vars)
+            case "JMPIF":
+                cond = stack.pop()
+                if cond[0] != TYPES[main.BOOL]:
+                    raise RuntimeError(f"Invalid type: {cond[0]}")
+                if cond[1]:
+                    i = op + 1
+                    continue
+            case "JMPIFF":
+                cond = stack.pop()
+                if cond[0] != TYPES[main.BOOL]:
+                    raise RuntimeError(f"Invalid type: {cond[0]}")
+                if not cond[1]:
+                    i = op
+                    continue
             case _:
                 if ins in main.OPCODE_MAP:
                     rhs = stack.pop()
                     lhs = stack.pop()
-                    stack.append(main.OPERATORS[main.OPCODE_MAP[ins]](lhs, rhs))
+                    key = (ins, int(lhs[0]), int(rhs[0]))
+                    if key not in base_env.OP_TYPES:
+                        raise RuntimeError("Invalid operand types")
+                    ans = main.OPERATORS[main.OPCODE_MAP[ins]](lhs[1], rhs[1])
+                    res_type = base_env.OP_TYPES[key]
+                    stack.append((res_type,ans))
                 else:
                     raise NotImplementedError()
         i+=1

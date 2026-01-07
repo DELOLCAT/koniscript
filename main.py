@@ -716,11 +716,12 @@ class Compiler():
             self.set_var(item)
 
     def add_constant(self, value):
-        if value in self.const_map:
-            return self.const_map[value]
+        value_tuple = tuple(value)
+        if value_tuple in self.const_map:
+            return self.const_map[value_tuple]
         index = len(self.constants)
-        self.constants.append(value)
-        self.const_map[value] = index
+        self.constants.append(value_tuple)
+        self.const_map[value_tuple] = index
         return index
     def set_var(self, name):
         if name in self.var_map:
@@ -734,28 +735,30 @@ class Compiler():
             raise RuntimeError(f"Variable {name} not declared")
         return self.var_map[name]
     def emit(self, opcode, operand=None):
+        idx = len(self.code)
         if operand is None:
             self.code.append((opcode,))
         else:
             self.code.append((opcode, operand))
+        return idx
     def compile(self, program:Program):
         for node in program.statements:
             self.compile_ins(node)
+        self.emit("NOP")
         output = []
-        
         output.append(".const")
         for const in self.constants:
-            output.append(f'"{str(const).replace("\n", "\\n").replace(r"\\", r"\\")}"')
+            output.append(f'{const[0]}"{str(const[1]).replace("\n", "\\n").replace(r"\\", r"\\")}"')
         output.append(".code")
         for instr in self.code:
             output.append(" ".join(map(str, instr)))
         return output
     def compile_ins(self, node:ASTNode):
         if isinstance(node, String):
-            idx = self.add_constant(node.value)
+            idx = self.add_constant([TYPES[STRING], node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
-            idx = self.add_constant(node.value)
+            idx = self.add_constant([TYPES[INT],node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Variable):
             idx = self.get_var(node.name)
@@ -772,13 +775,20 @@ class Compiler():
             for statement in node.statements:
                 self.compile_ins(statement)
         elif isinstance(node, Bool):
-            idx = self.add_constant(node.value)
+            idx = self.add_constant([TYPES[BOOL],node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             self.compile_ins(node.func)
             for arg in node.args:
                 self.compile_ins(arg)
             self.emit(OP_CALL, len(node.args))
+        elif isinstance(node, If) and not node.else_body:
+            self.compile_ins(node.expr)
+            jmp = self.emit("JMPIFF", None)
+            self.compile_ins(node.body)
+            self.code[jmp] = ("JMPIFF", len(self.code))
+        elif isinstance(node, NOP):
+            self.emit("NOP")
         else:
             raise NotImplementedError(f"Did not implement {node}")
 
