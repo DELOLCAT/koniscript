@@ -418,7 +418,10 @@ class Parser:
             raise IncompleteInput
         self.eat(RPAREN)
         body = self.block()
-        if self.current_token.type == ELSE:
+        if self.current_token.type == ELSE and self.peek().type == IF:
+            self.eat(ELSE)
+            else_body = self.if_decl()
+        elif self.current_token.type == ELSE:
             self.eat(ELSE)
             else_body = self.block()
         else:

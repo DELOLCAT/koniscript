@@ -1,6 +1,8 @@
-myvar = input(">>> ")
-if (myvar == "hi") {
-    print("yay")
-} else {
-    print("aw man")
+
+
+func something(hi) {
+    print(hi)
+    return hi + " there"
 }
+
+print(something("wow"))
