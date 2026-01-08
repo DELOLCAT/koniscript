@@ -1,8 +1,7 @@
-
-
-func something(hi) {
-    print(hi)
-    return hi + " there"
+func something(a) {
+    print(a)
+    print("wow")
+    return "hi ig"
 }
 
-print(something("wow"))
+print(something("hi"))

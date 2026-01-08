@@ -1,0 +1,126 @@
+╭───────────────────────────────────────────────────────────────────── Traceback (most recent call last) ──────────────────────────────────────────────────────────────────────╮
+│ /home/ahmad/coding/rpn/./lolscript.py:55 in compile                                                                                                                          │
+│                                                                                                                                                                              │
+│   52 │   psr:Parser = Parser(tkns)                                                                                                                                           │
+│   53 │   program:Program = psr.program()                                                                                                                                     │
+│   54 │   compiler =  Compiler(current_env)                                                                                                                                   │
+│ ❱ 55 │   instructions = compiler.compile(program)                                                                                                                            │
+│   56 │   with open("test.lsc", "w") as file:                                                                                                                                 │
+│   57 │   │   file.write("\n".join(instructions))                                                                                                                             │
+│   58                                                                                                                                                                         │
+│                                                                                                                                                                              │
+│ ╭────────────────────────────────────────────────────── locals ──────────────────────────────────────────────────────╮                                                       │
+│ │     compiler = <main.Compiler object at 0x74af5761c440>                                                            │                                                       │
+│ │  current_env = ['print', 'sleep', 'input', 'to_str', 'to_int']                                                     │                                                       │
+│ │         file = <_io.TextIOWrapper name='test.ls' mode='r' encoding='UTF-8'>                                        │                                                       │
+│ │ file_content = 'func something() {\n    print("Hello, world!")\n}'                                                 │                                                       │
+│ │     filepath = PosixPath('test.ls')                                                                                │                                                       │
+│ │      program = Program([Assign(something, Function([], Block([Call(Variable(print), [String(Hello, world!)])])))]) │                                                       │
+│ │          psr = <main.Parser object at 0x74af577cf8c0>                                                              │                                                       │
+│ │          tkn = Token(EOF, None)                                                                                    │                                                       │
+│ │         tknr = <main.Tokenizer object at 0x74af577cf4d0>                                                           │                                                       │
+│ │         tkns = [                                                                                                   │                                                       │
+│ │                │   Token(FUNC, func),                                                                              │                                                       │
+│ │                │   Token(IDENTIFIER, something),                                                                   │                                                       │
+│ │                │   Token(LPAREN, None),                                                                            │                                                       │
+│ │                │   Token(RPAREN, None),                                                                            │                                                       │
+│ │                │   Token(LBRACE, None),                                                                            │                                                       │
+│ │                │   Token(NEWLINE, None),                                                                           │                                                       │
+│ │                │   Token(IDENTIFIER, print),                                                                       │                                                       │
+│ │                │   Token(LPAREN, None),                                                                            │                                                       │
+│ │                │   Token(STRING, Hello, world!),                                                                   │                                                       │
+│ │                │   Token(RPAREN, None),                                                                            │                                                       │
+│ │                │   ... +3                                                                                          │                                                       │
+│ │                ]                                                                                                   │                                                       │
+│ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                       │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/main.py:750 in compile                                                                                                                                │
+│                                                                                                                                                                              │
+│   747 │   │   return idx                                                                                                                                                     │
+│   748 │   def compile(self, program:Program):                                                                                                                                │
+│   749 │   │   for node in program.statements:                                                                                                                                │
+│ ❱ 750 │   │   │   self.compile_ins(node)                                                                                                                                     │
+│   751 │   │   self.emit("NOP")                                                                                                                                               │
+│   752 │   │   output = []                                                                                                                                                    │
+│   753 │   │   output.append(".const")                                                                                                                                        │
+│                                                                                                                                                                              │
+│ ╭─────────────────────────────────────────────────── locals ────────────────────────────────────────────────────╮                                                            │
+│ │    node = Assign(something, Function([], Block([Call(Variable(print), [String(Hello, world!)])])))            │                                                            │
+│ │ program = Program([Assign(something, Function([], Block([Call(Variable(print), [String(Hello, world!)])])))]) │                                                            │
+│ │    self = <main.Compiler object at 0x74af5761c440>                                                            │                                                            │
+│ ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                            │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/main.py:771 in compile_ins                                                                                                                            │
+│                                                                                                                                                                              │
+│   768 │   │   │   idx = self.get_var(node.name)                                                                                                                              │
+│   769 │   │   │   self.emit(OP_GET_VAR, idx)                                                                                                                                 │
+│   770 │   │   elif isinstance(node, Assign):                                                                                                                                 │
+│ ❱ 771 │   │   │   self.compile_ins(node.value)                                                                                                                               │
+│   772 │   │   │   idx = self.declare_local(node.name)                                                                                                                        │
+│   773 │   │   │   self.emit(OP_SET_VAR, idx)                                                                                                                                 │
+│   774 │   │   elif isinstance(node, BinOp):                                                                                                                                  │
+│                                                                                                                                                                              │
+│ ╭──────────────────────────────────────────── locals ─────────────────────────────────────────────╮                                                                          │
+│ │ node = Assign(something, Function([], Block([Call(Variable(print), [String(Hello, world!)])]))) │                                                                          │
+│ │ self = <main.Compiler object at 0x74af5761c440>                                                 │                                                                          │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                          │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/main.py:812 in compile_ins                                                                                                                            │
+│                                                                                                                                                                              │
+│   809 │   │   │   for param in node.params:                                                                                                                                  │
+│   810 │   │   │   │   self.declare_local(param)                                                                                                                              │
+│   811 │   │   │                                                                                                                                                              │
+│ ❱ 812 │   │   │   self.compile_ins(node.body)                                                                                                                                │
+│   813 │   │   │                                                                                                                                                              │
+│   814 │   │   │   self.emit("PUSH_CONST", self.add_constant((base_env.T_NULL, None)))                                                                                        │
+│   815 │   │   │   self.emit("RET")                                                                                                                                           │
+│                                                                                                                                                                              │
+│ ╭───────────────────────────────────── locals ─────────────────────────────────────╮                                                                                         │
+│ │ fn_entry = 2                                                                     │                                                                                         │
+│ │      jmp = 1                                                                     │                                                                                         │
+│ │     node = Function([], Block([Call(Variable(print), [String(Hello, world!)])])) │                                                                                         │
+│ │     self = <main.Compiler object at 0x74af5761c440>                              │                                                                                         │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                                         │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/main.py:780 in compile_ins                                                                                                                            │
+│                                                                                                                                                                              │
+│   777 │   │   │   self.emit(OPCODE_MAP[node.op])                                               ╭────────────────────────────── locals ───────────────────────────────╮       │
+│   778 │   │   elif isinstance(node, Block):                                                    │      node = Block([Call(Variable(print), [String(Hello, world!)])]) │       │
+│   779 │   │   │   for statement in node.statements:                                            │      self = <main.Compiler object at 0x74af5761c440>                │       │
+│ ❱ 780 │   │   │   │   self.compile_ins(statement)                                              │ statement = Call(Variable(print), [String(Hello, world!)])          │       │
+│   781 │   │   elif isinstance(node, Bool):                                                     ╰─────────────────────────────────────────────────────────────────────╯       │
+│   782 │   │   │   idx = self.add_constant([TYPES[BOOL], node.value])                                                                                                         │
+│   783 │   │   │   self.emit(OP_PUSH_CONST, idx)                                                                                                                              │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/main.py:787 in compile_ins                                                                                                                            │
+│                                                                                                                                                                              │
+│   784 │   │   elif isinstance(node, Call):                                                     ╭─────────────────────── locals ────────────────────────╮                     │
+│   785 │   │   │   self.compile_ins(node.func)                                                  │  arg = String(Hello, world!)                          │                     │
+│   786 │   │   │   for arg in node.args:                                                        │ node = Call(Variable(print), [String(Hello, world!)]) │                     │
+│ ❱ 787 │   │   │   │   self.compile_ins(arg)                                                    │ self = <main.Compiler object at 0x74af5761c440>       │                     │
+│   788 │   │   │   self.emit(OP_CALL, len(node.args))                                           ╰───────────────────────────────────────────────────────╯                     │
+│   789 │   │   elif isinstance(node, If):                                                                                                                                     │
+│   790 │   │   │   self.compile_ins(node.expr)                                                                                                                                │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/main.py:762 in compile_ins                                                                                                                            │
+│                                                                                                                                                                              │
+│   759 │   │   return output                                                                    ╭──────────────────── locals ─────────────────────╮                           │
+│   760 │   def compile_ins(self, node:ASTNode):                                                 │ node = String(Hello, world!)                    │                           │
+│   761 │   │   if isinstance(node, String):                                                     │ self = <main.Compiler object at 0x74af5761c440> │                           │
+│ ❱ 762 │   │   │   idx = self.add_constant([TYPES[STRING], base_env.vm_to_str(node.value)])     ╰─────────────────────────────────────────────────╯                           │
+│   763 │   │   │   self.emit(OP_PUSH_CONST, idx)                                                                                                                              │
+│   764 │   │   elif isinstance(node, Number):                                                                                                                                 │
+│   765 │   │   │   idx = self.add_constant([TYPES[INT], base_env.vm_to_int((TYPES[INT], node.va                                                                               │
+│                                                                                                                                                                              │
+│ /home/ahmad/coding/rpn/base_env.py:24 in vm_to_str                                                                                                                           │
+│                                                                                                                                                                              │
+│    21 │   out = input(vm_to_str(prompt)[1])                                                    ╭──────── locals ─────────╮                                                   │
+│    22 │   return (TYPES[STRING], out)                                                          │ input = 'Hello, world!' │                                                   │
+│    23 def vm_to_str(input: tuple[int, Any]) -> tuple[int, str]:                                ╰─────────────────────────╯                                                   │
+│ ❱  24 │   tag, value = input                                                                                                                                                 │
+│    25 │   if tag == TYPES[INT]:                                                                                                                                              │
+│    26 │   │   return (TYPES[STRING], str(value))                                                                                                                             │
+│    27 │   elif tag == TYPES[BOOL]:                                                                                                                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ValueError: too many values to unpack (expected 2)
+c

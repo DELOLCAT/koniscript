@@ -1,6 +1,7 @@
 from typing import Any
+import base_env
 # from rich import print
-from runtime import BuiltinFunction
+from runtime import BuiltinFunction, TYPES, Environment
 ADD = "ADD"
 INTEGER = "INT"
 INT = INTEGER
@@ -86,28 +87,6 @@ class ReturnSignal(Exception):
         self.value = value
 
 
-class Environment:
-    def __init__(self, parent=None):
-        self.values = {}
-        self.parent = parent
-
-    def get(self, name):
-        if name in self.values:
-            return self.values[name]
-        if self.parent:
-            return self.parent.get(name)
-        raise NameError(f"Undefined variable '{name}'")
-
-    def set(self, name, value):
-        self.values[name] = value
-
-    def assign(self, name, value):
-        if name in self.values:
-            self.values[name] = value
-        elif self.parent:
-            self.parent.assign(name, value)
-        else:
-            raise NameError(f"Undefined variable '{name}'")
 
 
 class Token:
@@ -700,25 +679,34 @@ OPCODE_MAP = {
 }
 BUILTIN = "BUILTIN"
 NULL = "NULL"
-TYPES = {
-    INT: 1,
-    STRING: 2,
-    BOOL: 3,
-    FUNC: 4,
-    BUILTIN: 5,
-    NULL: 6
-}
+class Scope():
+    def __init__(self, var_map={}, args = {}):
+        self.var_map: dict = var_map
+        self.next_local = len(var_map)
+        self.args = args
+    def __repr__(self):
+        return f"Scope({self.var_map}, {self.next_local})"
 class Compiler():
-    def __init__(self, env: Environment):
+    def __init__(self, env: list):
         self.constants = []
         self.vars = []
         self.var_map = {}
         self.const_map = {}
         self.code = []
-        for item in env.values:
-            self.set_var(item)
+        self.passed_env = env
+        self.scopes:list[Scope] = []
+        self.var_count = 0
+        self.enter_scope()
+        
+        for item in env:
+            self.declare_local(item)
 
-    def add_constant(self, value):
+
+    def enter_scope(self, var_map={}, args={}):
+        self.scopes.append(Scope(var_map, args))
+    def exit_scope(self):
+        self.scopes.pop()
+    def add_constant(self, value:tuple | list):
         value_tuple = tuple(value)
         if value_tuple in self.const_map:
             return self.const_map[value_tuple]
@@ -726,23 +714,35 @@ class Compiler():
         self.constants.append(value_tuple)
         self.const_map[value_tuple] = index
         return index
-    def set_var(self, name):
-        if name in self.var_map:
-            index = self.var_map[name]
-            return index
-        index = len(self.var_map)
-        self.var_map[name] = index
+    #def set_var(self, name):
+    #    if name in self.var_map:
+    #        index = self.var_map[name]
+    #        return index
+    #    index = len(self.var_map)
+    #    self.var_map[name] = index
+    #    return index
+    def declare_local(self, name):
+        scope = self.scopes[-1]
+        if name in scope.var_map:
+            return scope.var_map[name]
+        index = self.var_count
+        scope.var_map[name] = index
+        scope.next_local += 1
+        self.var_count+=1
         return index
     def get_var(self, name):
-        if name not in self.var_map:
-            raise RuntimeError(f"Variable {name} not declared")
-        return self.var_map[name]
-    def emit(self, opcode, operand=None):
+        # walk outward for nested scopes (later)
+        for scope in reversed(self.scopes):
+            if name in scope.var_map:
+                return scope.var_map[name]
+        raise RuntimeError(f"Undefined variable {name}")
+    #def get_var(self, name):
+    #    if name not in self.var_map:
+    #        raise RuntimeError(f"Variable {name} not declared")
+    #    return self.var_map[name]
+    def emit(self, opcode, *operands):
         idx = len(self.code)
-        if operand is None:
-            self.code.append((opcode,))
-        else:
-            self.code.append((opcode, operand))
+        self.code.append((opcode, *operands))
         return idx
     def compile(self, program:Program):
         for node in program.statements:
@@ -761,14 +761,15 @@ class Compiler():
             idx = self.add_constant([TYPES[STRING], node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
-            idx = self.add_constant([TYPES[INT],node.value])
+            idx = self.add_constant([TYPES[INT], node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Variable):
             idx = self.get_var(node.name)
+
             self.emit(OP_GET_VAR, idx)
         elif isinstance(node, Assign):
             self.compile_ins(node.value)
-            idx = self.set_var(node.name)
+            idx = self.declare_local(node.name)
             self.emit(OP_SET_VAR, idx)
         elif isinstance(node, BinOp):
             self.compile_ins(node.left)
@@ -778,7 +779,7 @@ class Compiler():
             for statement in node.statements:
                 self.compile_ins(statement)
         elif isinstance(node, Bool):
-            idx = self.add_constant([TYPES[BOOL],node.value])
+            idx = self.add_constant([TYPES[BOOL], node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             self.compile_ins(node.func)
@@ -799,8 +800,28 @@ class Compiler():
 
         elif isinstance(node, NOP):
             self.emit("NOP")
+        elif isinstance(node, Function):
+            jmp  = self.emit("JMP", None)
+            fn_entry = len(self.code)
+            self.enter_scope(self.scopes[-1].var_map, node)
+
+            for param in node.params:
+                self.declare_local(param)
+            self.compile_ins(node.body)
+
+            self.emit("PUSH_CONST", self.add_constant((base_env.T_NULL, None)))
+            self.emit("RET")
+
+            local_count = self.scopes[-1].next_local
+            self.exit_scope()
+            self.code[jmp] = ("JMP", len(self.code))
+            self.emit("MAKE_FUNCTION", fn_entry, local_count, len(node.params))
+        elif isinstance(node, Return):
+            assert len(self.scopes) > 1
+            self.compile_ins(node.value)
+            self.emit("RET")
         else:
-            raise NotImplementedError(f"Did not implement {node}")
+            raise NotImplementedError(f"Did not implement {node} yet :<")
 
 
 
@@ -809,7 +830,7 @@ def main():
     psr = Parser(tkns)
     program = psr.program()
     import base_env
-    env = base_env.env
+    env = base_env.VMenv
     compiler = Compiler(env)
     print(compiler.compile(program))
     
