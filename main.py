@@ -2,6 +2,7 @@ from typing import Any
 import base_env
 # from rich import print
 from runtime import BuiltinFunction, TYPES, Environment
+from warnings import warn
 ADD = "ADD"
 INTEGER = "INT"
 INT = INTEGER
@@ -143,6 +144,10 @@ class Tokenizer:
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.current_idx += 1
             return Token(INT, int(value))
+        elif current_char == "#":
+            while not self.get_current_char() == "\n":
+                self.current_idx+=1
+            return self.get_next_token()
         elif current_char == "+":
             self.current_idx += 1
             # self.current_token
@@ -734,13 +739,13 @@ class Compiler():
         return index
     def get_var(self, name):
         # walk outward for nested scopes (later)
-        for scope in reversed(self.scopes):
+        for depth, scope in enumerate(reversed(self.scopes)):
             if name in scope.var_map:
-                return scope.var_map[name], 'user'
+                return scope.var_map[name], 'user', depth
         for i, item in enumerate(self.passed_env):
             if item == name:
-                return i, "builtin"
-        raise RuntimeError(f"Undefined variable {name}")
+                return i, "builtin", None
+        return None
     #def get_var(self, name):
     #    if name not in self.var_map:
     #        raise RuntimeError(f"Variable {name} not declared")
@@ -771,8 +776,10 @@ class Compiler():
         elif isinstance(node, Variable):
             #if node.name in self.scopes[-1].var_map:
                 idx = self.get_var(node.name)
+                if idx is None:
+                    raise RuntimeError(f"Variable {node.name} not declared")
                 if idx[1] == 'user':
-                    self.emit(OP_GET_VAR, idx[0])
+                    self.emit(OP_GET_VAR, idx[0], idx[2])
                 else:
                     self.emit("PUSH_BUILTIN", idx[0])
             #else:
@@ -785,13 +792,32 @@ class Compiler():
             #    if not found:
             #        raise RuntimeError(f"Could not find var {node.name}")
         elif isinstance(node, Assign) and isinstance(node.value, Function):
-            idx = self.declare_local(node.name)
-            self.compile_ins(node.value)
-            self.emit(OP_SET_VAR, idx)
+            res = self.get_var(node.name)
+            if res is None:
+                idx = self.declare_local(node.name)
+                self.compile_ins(node.value)
+                self.emit(OP_SET_VAR, idx, 0)
+            else:
+                idx, cat, depth = res
+                if cat == "builtin":
+                    raise RuntimeError("Attempted to assign a value to a builtin")
+                self.compile_ins(node.value)
+                idx = self.declare_local(node.name)
+                self.emit(OP_SET_VAR, idx, depth)
+                warn(f"Reassignment to a function attempted for {node.name}. This is usually not reccomended.") #TODO: somehow get the line number
         elif isinstance(node, Assign):
-            self.compile_ins(node.value)
-            idx = self.declare_local(node.name)
-            self.emit(OP_SET_VAR, idx)
+            res = self.get_var(node.name)
+            if res is None:
+                self.compile_ins(node.value)
+                idx = self.declare_local(node.name)
+                self.emit(OP_SET_VAR, idx, 0)
+            else:
+                idx, cat, depth = res
+                if cat == "builtin":
+                    raise RuntimeError("Attempted to assign a value to a builtin")
+                self.compile_ins(node.value)
+                idx = self.declare_local(node.name)
+                self.emit(OP_SET_VAR, idx, depth)
         elif isinstance(node, BinOp):
             self.compile_ins(node.left)
             self.compile_ins(node.right)
@@ -800,7 +826,7 @@ class Compiler():
             for statement in node.statements:
                 self.compile_ins(statement)
         elif isinstance(node, Bool):
-            idx = self.add_constant([TYPES[BOOL], node.value])
+            idx = self.add_constant([TYPES[BOOL], "true" if node.value else "false"])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             self.compile_ins(node.func)

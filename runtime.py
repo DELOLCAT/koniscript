@@ -129,11 +129,11 @@ def to_type(value:tuple[int, Any]) -> Any:
     tag, val = value
     match tag:
         case 1:
-            return int(val)
+            return int(base_env.vm_to_int(value)[1])
         case 2:
-            return str(val)
+            return str(base_env.vm_to_str(value)[1])
         case 3:
-            return bool(val)
+            return bool(base_env.vm_to_bool(value)[1])
         case 4:
             raise NotImplementedError
         case 5:

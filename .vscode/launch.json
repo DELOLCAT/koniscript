@@ -1,12 +1,23 @@
 {
     "configurations": [
         {
+            "name": "both",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "lolscript.py",
+            "console": "integratedTerminal",
+            "args": ["run", "test.ls"]
+        },
+        {
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
             "program": "./lolscript.py",
             "console": "integratedTerminal",
-            "args": ["compile", "test.ls"],
+            "args": [
+                "compile",
+                "test.ls"
+            ],
         },
         {
             "name": "VM",
@@ -14,9 +25,8 @@
             "request": "launch",
             "program": "./VM.py",
             "args": [
-                "run",
                 "./test.lsc"
             ]
-        }
+        },
     ]
 }

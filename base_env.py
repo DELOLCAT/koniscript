@@ -41,7 +41,7 @@ def vm_to_int(input:tuple[int, Any]) -> tuple[int, int]:
     elif tag == TYPES[BOOL]:
         return (TYPES[INT], int(1 if value else 0))
     elif tag == TYPES[INT]:
-        return input
+        return (int(tag), int(value))
     else:
         raise RuntimeError(f"{tag}:{value} cannot be converted to an integer") #TODO: make this better
 def vm_to_bool(value: tuple[int, Any]) -> tuple[int, bool]:
@@ -52,7 +52,11 @@ def vm_to_bool(value: tuple[int, Any]) -> tuple[int, bool]:
         return (T_BOOL, val != 0)
 
     if tag == T_BOOL:
-        return value
+        if str(val).strip().isdigit():
+            return (T_BOOL, str(val).strip() != 0)
+        if str(val).lower() == "true":
+            return (T_BOOL, True)
+        return (T_BOOL, False)
 
     if tag == T_STRING:
         s = val.strip().lower()
