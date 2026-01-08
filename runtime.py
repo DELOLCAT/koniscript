@@ -1,4 +1,5 @@
 from typing import Any
+import base_env
 class BuiltinFunction:
     def __init__(self, name, func):
         self.name = name
@@ -118,3 +119,24 @@ TYPES = {
     BUILTIN: 5,
     NULL: 6
 }
+T_INT = 1
+T_STRING = 2
+T_BOOL = 3
+T_FUNC = 4
+T_BUILTIN = 5
+T_NULL = 6
+def to_type(value:tuple[int, Any]) -> Any:
+    tag, val = value
+    match tag:
+        case 1:
+            return int(val)
+        case 2:
+            return str(val)
+        case 3:
+            return bool(val)
+        case 4:
+            raise NotImplementedError
+        case 5:
+            raise DeprecationWarning
+        case 6:
+            return None

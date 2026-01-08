@@ -1,7 +1,8 @@
-func something(a) {
-    print(a)
-    print("wow")
-    return "hi ig"
+func fib(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fib(n - 1) + fib(n - 1)
 }
 
-print(something("hi"))
+print(fib(5))

@@ -682,12 +682,13 @@ NULL = "NULL"
 class Scope():
     def __init__(self, var_map={}, args = {}):
         self.var_map: dict = var_map
+
         self.next_local = len(var_map)
         self.args = args
     def __repr__(self):
         return f"Scope({self.var_map}, {self.next_local})"
 class Compiler():
-    def __init__(self, env: list):
+    def __init__(self, env: list, ASTenv):
         self.constants = []
         self.vars = []
         self.var_map = {}
@@ -696,10 +697,11 @@ class Compiler():
         self.passed_env = env
         self.scopes:list[Scope] = []
         self.var_count = 0
+        self.ASTenv = ASTenv
         self.enter_scope()
         
-        for item in env:
-            self.declare_local(item)
+        #for item in env:
+        #    self.declare_local(item)
 
 
     def enter_scope(self, var_map={}, args={}):
@@ -725,7 +727,7 @@ class Compiler():
         scope = self.scopes[-1]
         if name in scope.var_map:
             return scope.var_map[name]
-        index = self.var_count
+        index = scope.next_local
         scope.var_map[name] = index
         scope.next_local += 1
         self.var_count+=1
@@ -734,7 +736,10 @@ class Compiler():
         # walk outward for nested scopes (later)
         for scope in reversed(self.scopes):
             if name in scope.var_map:
-                return scope.var_map[name]
+                return scope.var_map[name], 'user'
+        for i, item in enumerate(self.passed_env):
+            if item == name:
+                return i, "builtin"
         raise RuntimeError(f"Undefined variable {name}")
     #def get_var(self, name):
     #    if name not in self.var_map:
@@ -764,9 +769,25 @@ class Compiler():
             idx = self.add_constant([TYPES[INT], node.value])
             self.emit(OP_PUSH_CONST, idx)
         elif isinstance(node, Variable):
-            idx = self.get_var(node.name)
-
-            self.emit(OP_GET_VAR, idx)
+            #if node.name in self.scopes[-1].var_map:
+                idx = self.get_var(node.name)
+                if idx[1] == 'user':
+                    self.emit(OP_GET_VAR, idx[0])
+                else:
+                    self.emit("PUSH_BUILTIN", idx[0])
+            #else:
+            #    found = False
+            #    for i, item in enumerate(self.passed_env):
+            #        if item == node.name:
+            #            found = True
+            #            self.emit("PUSH_BUILTIN", i)
+            #            break
+            #    if not found:
+            #        raise RuntimeError(f"Could not find var {node.name}")
+        elif isinstance(node, Assign) and isinstance(node.value, Function):
+            idx = self.declare_local(node.name)
+            self.compile_ins(node.value)
+            self.emit(OP_SET_VAR, idx)
         elif isinstance(node, Assign):
             self.compile_ins(node.value)
             idx = self.declare_local(node.name)
@@ -803,7 +824,7 @@ class Compiler():
         elif isinstance(node, Function):
             jmp  = self.emit("JMP", None)
             fn_entry = len(self.code)
-            self.enter_scope(self.scopes[-1].var_map, node)
+            self.enter_scope({})
 
             for param in node.params:
                 self.declare_local(param)
@@ -830,8 +851,8 @@ def main():
     psr = Parser(tkns)
     program = psr.program()
     import base_env
-    env = base_env.VMenv
-    compiler = Compiler(env)
+    env = base_env.ASTenv
+    compiler = Compiler(env, base_env.ASTenv)
     print(compiler.compile(program))
     
 if __name__ == "__main__":

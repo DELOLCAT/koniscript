@@ -51,7 +51,7 @@ def compile(filepath:Path):
             break
     psr:Parser = Parser(tkns)
     program:Program = psr.program()
-    compiler =  Compiler(current_env)
+    compiler =  Compiler(current_env, base_env.ASTenv)
     instructions = compiler.compile(program)
     with open("test.lsc", "w") as file:
         file.write("\n".join(instructions))

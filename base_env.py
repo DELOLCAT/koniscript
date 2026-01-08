@@ -102,6 +102,13 @@ VMenv = [
     })
 ]
 compiler_env=[i[1]["name"] for i in VMenv]
+ASTenv  = [
+    ('print', BuiltinFunction('print', vm_print)),
+    ('sleep', BuiltinFunction('sleep', vm_sleep)),
+    ('input', BuiltinFunction('input', vm_input)),
+    ('to_str', BuiltinFunction('to_str', vm_to_str)),
+    ('to_int', BuiltinFunction('to_int', vm_to_int))
+]
 
 
 OP_TYPES = { #TODO: implement floats
