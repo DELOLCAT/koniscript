@@ -4,5 +4,4 @@ func loop(n) {
     }
     return loop(n - 1)
 }
-
-loop(100)
+loop(10000)

@@ -56,14 +56,14 @@ def comp(filepath:Path):
 def compile(filepath:Path):
     instructions = comp(filepath)
     with open("test.lsc", "w") as file:
-        file.write("\n".join(instructions))
+        file.write("\n".join([str(x) for x in instructions]))
 
 @app.command()
 def run(filepath:Path, write_to_file:bool=False, debug:bool = False):
     ins = comp(filepath)
     if write_to_file:
         with open("test.lsc", "w") as file:
-            file.write("\n".join(ins))
+            file.write("\n".join([str(x) for x in ins]))
     vm = VM(ins)
     vm.run()
     print("Exited. Debug info:")

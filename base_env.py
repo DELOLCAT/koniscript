@@ -77,7 +77,6 @@ env.set('to_int', BuiltinFunction('input', vm_to_int))
 
 
 
-
 VMenv = [
     (TYPES[FUNC], {
         "type":"builtin",

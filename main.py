@@ -91,9 +91,10 @@ class ReturnSignal(Exception):
 
 
 class Token:
-    def __init__(self, cat: str, value: Any):
+    def __init__(self, cat: str, value: Any, line:int, col:int):
         self.type = cat
         self.value = value
+        self.line = line
 
     def __str__(self):
         return f"Token({self.type}, {self.value})"
@@ -106,7 +107,20 @@ class Tokenizer:
     def __init__(self, string: str):
         self.string: str = string
         self.current_idx: int = 0
-
+        self.line:int = 0
+        self.col:int = 0
+    def advance(self, steps:int = 1) -> str | None:
+        for _ in range(steps):
+            ch = self.get_current_char()
+            if ch is None:
+                return None
+            self.current_idx+=1
+            if ch == "\n":
+                self.line += 1
+                self.col = 1
+            else:
+                self.col += 1
+        return ch
     def get_current_char(self) -> str | None:
         if self.current_idx >= len(self.string):
             return None
@@ -116,7 +130,7 @@ class Tokenizer:
         while True:
             ch = self.get_current_char()
             if ch is not None and ch.isspace() and ch != "\n":
-                self.current_idx += 1
+                self.advance()
             else:
                 break
 
@@ -130,10 +144,11 @@ class Tokenizer:
         return self.string[self.current_idx:end] == text
     def get_next_token(self):
         self.skip_whitespace()
-
+        start_line = self.line
+        start_col = self.col
         current_char = self.get_current_char()
         if current_char is None:
-            return Token(EOF, None)  # End of input
+            return Token(EOF, None, start_line, start_col)  # End of input
 
         if current_char.isdigit():
             value = ""
@@ -142,82 +157,82 @@ class Tokenizer:
                 and self.get_current_char().isdigit()  # pyright: ignore[reportOptionalMemberAccess]
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.current_idx += 1
-            return Token(INT, int(value))
+                self.advance(1)
+            return Token(INT, int(value), start_line, start_col)
         elif current_char == "#":
             while not self.get_current_char() == "\n":
-                self.current_idx+=1
+                self.advance()
             return self.get_next_token()
         elif current_char == "+":
-            self.current_idx += 1
+            self.advance(1)
             # self.current_token
-            return Token(ADD, None)
+            return Token(ADD, None, start_line, start_col)
         elif self.check("true"):
-            self.current_idx += 4
-            return Token(BOOL, True)
+            self.advance(4)
+            return Token(BOOL, True, start_line, start_col)
         elif self.check("false"):
-            self.current_idx += 5
-            return Token(BOOL, False)
+            self.advance(5)
+            return Token(BOOL, False, start_line, start_col)
         elif self.check("=="):
-            self.current_idx += 2
-            return Token(EQUAL_TO, None)
+            self.advance(2)
+            return Token(EQUAL_TO, None, start_line, start_col)
         elif current_char == "=":
-            self.current_idx += 1
-            return Token(ASSIGN, None)
+            self.advance(1)
+            return Token(ASSIGN, None, start_line, start_col)
         elif current_char == "-":
-            self.current_idx += 1
-            return Token(SUB, None)
+            self.advance(1)
+            return Token(SUB, None, start_line, start_col)
         elif self.check("**"):
-            self.current_idx += 2
-            return Token(POW, None)
+            self.advance(2)
+            return Token(POW, None, start_line, start_col)
         elif current_char == "*":
-            self.current_idx += 1
-            return Token(MUL, None)
+            self.advance(1)
+            return Token(MUL, None, start_line, start_col)
         elif self.check ("!="):
-            self.current_idx += 2
-            return Token(NOT_EQUAL_TO, None)
+            self.advance(2)
+            return Token(NOT_EQUAL_TO, None, start_line, start_col)
         elif self.check("<="):
-            self.current_idx += 2
-            return Token(LTE, None)
+            self.advance(2)
+            return Token(LTE, None, start_line, start_col)
         elif self.check(">="):
-            self.current_idx += 2
-            return Token(GTE, None)
+            self.advance(2)
+            return Token(GTE, None, start_line, start_col)
         elif current_char == "\n":
-            self.current_idx += 1
-            return Token(NEWLINE, None)
+            self.advance(1)
+            return Token(NEWLINE, None, start_line, start_col)
         elif current_char == "(":
-            self.current_idx += 1
-            return Token(LPAREN, None)
+            self.advance(1)
+            return Token(LPAREN, None, start_line, start_col)
         elif current_char == ")":
-            self.current_idx += 1
-            return Token(RPAREN, None)
+            self.advance(1)
+            return Token(RPAREN, None, start_line, start_col)
         elif current_char == "{":
-            self.current_idx += 1
-            return Token(LBRACE, None)
+            self.advance(1)
+            return Token(LBRACE, None, start_line, start_col)
         elif current_char == "}":
-            self.current_idx += 1
-            return Token(RBRACE, None)
+            self.advance(1)
+            return Token(RBRACE, None, start_line, start_col)
         elif current_char == "/":
-            self.current_idx += 1
-            return Token(DIV, None)
+            self.advance(1)
+            return Token(DIV, None, start_line, start_col)
         elif current_char == ",":
-            self.current_idx += 1
-            return Token(COMMA, None)
+            self.advance(1)
+            return Token(COMMA, None, start_line, start_col)
         elif current_char == "<":
-            self.current_idx += 1
-            return Token(LESS_THAN, None)
+            self.advance(1)
+            return Token(LESS_THAN, None, start_line, start_col)
         elif current_char == ">":
-            self.current_idx += 1
-            return Token(GREATER_THAN, None)
+            self.advance(1)
+            return Token(GREATER_THAN, None, start_line, start_col)
         elif current_char == '"':
-            self.current_idx += 1
+            self.advance(1)
             value = ""
             while (
                 self.get_current_char() is not None and self.get_current_char() != '"'
             ):
 
                 if self.get_current_char() == "\\":
-                    self.current_idx+=1
+                    self.advance()
                     match self.get_current_char():
                         case "n":
                             value += "\n"
@@ -227,24 +242,24 @@ class Tokenizer:
                             value += self.get_current_char() # pyright: ignore[reportOperatorIssue]
                 else:
                     value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.current_idx += 1
+                self.advance()
             if self.get_current_char() != '"':
                 raise SyntaxError("Unterminated string literal")
-            self.current_idx += 1
-            return Token(STRING, value)
+            self.advance()
+            return Token(STRING, value, start_line, start_col)
 
         elif current_char.isalpha() or current_char == "_":
             to_return = current_char
-            self.current_idx += 1
+            self.advance()
             while (
                 self.get_current_char() is not None
                 and self.get_current_char().isalnum()  # pyright: ignore[reportOptionalMemberAccess]
                 or self.get_current_char() == "_"
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.current_idx += 1
+                self.advance()
             tok_type = KEYWORDS.get(to_return, IDENTIFIER)
-            return Token(tok_type, to_return)
+            return Token(tok_type, to_return, start_line, start_col)
 
         raise SyntaxError(f'Unexpected token "{current_char}"')
 
@@ -256,7 +271,7 @@ class Parser:
         if self.tokens:
             self.current_token = self.tokens[0]
         else:
-            self.current_token = Token(EOF, None)
+            self.current_token = Token(EOF, None, 0, 0)
 
     def eat(self, token_type):
         if self.current_token.type != token_type:
@@ -268,21 +283,21 @@ class Parser:
         if self.pos < len(self.tokens):
             self.current_token = self.tokens[self.pos]
         else:
-            self.current_token = Token(EOF, None)
+            self.current_token = Token(EOF, None, 0, 0)
 
     def arithmetic_expr(self):
         node = self.term()
         while self.current_token and self.current_token.type in (ADD, SUB):
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(node, op, self.term())
+            node = BinOp(self.current_token.line, node, op, self.term())
         return node
     def expr(self):
         node = self.logical_and()
         while self.current_token.type == OR:
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(node, op, self.logical_and())
+            node = BinOp(self.current_token.line, node, op, self.logical_and())
         
         return node
     def logical_and(self):
@@ -290,14 +305,14 @@ class Parser:
         while self.current_token.type == AND:
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(node, op, self.equality())
+            node = BinOp(self.current_token.line, node, op, self.equality())
         return node
     def comparision(self):
         node = self.arithmetic_expr()
         while self.current_token.type in (LT, GT, LTE, GTE):
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(node, op, self.arithmetic_expr())
+            node = BinOp(self.current_token.line, node, op, self.arithmetic_expr())
         return node
     
     def equality(self):
@@ -305,14 +320,14 @@ class Parser:
         while self.current_token.type in (EQUAL_TO, NOT_EQUAL_TO):
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(node, op, self.comparision())
+            node = BinOp(self.current_token.line, node, op, self.comparision())
         return node
     def term(self):
         node = self.power()
         while self.current_token and self.current_token.type in (MUL, DIV):
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(node, op, self.power())
+            node = BinOp(self.current_token.line, node, op, self.power())
         return node
 
     def power(self):
@@ -320,20 +335,20 @@ class Parser:
         if self.current_token and self.current_token.type == POW:
             op = self.current_token.type
             self.eat(POW)
-            node = BinOp(node, op, self.power())  # right-associative
+            node = BinOp(self.current_token.line, node, op, self.power())  # right-associative
         return node
 
     def factor(self):
         token = self.current_token
         if token.type == INT:
             self.eat(INT)
-            return Number(token.value)
+            return Number(self.current_token.line, token.value)
         elif token.type == STRING:
             self.eat(STRING)
-            return String(token.value)
+            return String(self.current_token.line, token.value)
         elif token.type == BOOL:
             self.eat(BOOL)
-            return Bool(token.value)
+            return Bool(self.current_token.line, token.value)
         elif token.type == IDENTIFIER:
             self.eat(IDENTIFIER)
             name = token.value
@@ -350,8 +365,8 @@ class Parser:
                 if self.current_token.type != RPAREN:
                     raise IncompleteInput
                 self.eat(RPAREN)
-                return Call(Variable(name), args)
-            return Variable(token.value)
+                return Call(self.current_token.line, Variable(self.current_token.line, name), args)
+            return Variable(self.current_token.line, token.value)
 
         elif token.type == LPAREN:
             self.eat(LPAREN)
@@ -380,9 +395,9 @@ class Parser:
         elif self.current_token.type == RETURN:
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
-                return Return(None)
+                return Return(self.current_token.line, None)
             value = self.expr()
-            return Return(value)
+            return Return(self.current_token.line, value)
         elif self.current_token.type == IDENTIFIER:
             next_tok = self.peek()
             if next_tok and next_tok.type == ASSIGN:
@@ -390,7 +405,7 @@ class Parser:
                 self.eat(IDENTIFIER)
                 self.eat(ASSIGN)
                 value = self.expr()
-                return Assign(name, value)
+                return Assign(self.current_token.line, name, value)
         return self.expr()
     def if_decl(self):
         self.eat(IF)
@@ -410,7 +425,7 @@ class Parser:
             else_body = self.block()
         else:
             else_body = None
-        return If(expr, body, else_body)
+        return If(self.current_token.line, expr, body, else_body)
     def function_decl(self):
         self.eat(FUNC)
 
@@ -430,13 +445,13 @@ class Parser:
         self.eat(RPAREN)
 
         body = self.block()
-        return Assign(name, Function(params, body))
+        return Assign(self.current_token.line, name, Function(self.current_token.line, params, body))
 
     def peek(self):
         idx = self.pos + 1
         if idx < len(self.tokens):
             return self.tokens[idx]
-        return Token(EOF, None)
+        return Token(EOF, None, 0, 0)
 
     def parse(self):
         node = self.statement()
@@ -468,19 +483,20 @@ class Parser:
         if self.current_token.type == EOF:
             raise IncompleteInput
         self.eat(RBRACE)
-        return Block(statements)
+        return Block(self.current_token.line, statements)
 
 
 class ASTNode:
     pass
+    
 
 
 class Block(ASTNode):
-    def __init__(self, statements:list[ASTNode]):
+    def __init__(self, line, statements:list[ASTNode]):
         self.statements = statements
+        self.line = line
     def __repr__(self):
         return f"Block({self.statements})"
-
 
 class Program(ASTNode):
     def __init__(self, statements):
@@ -491,49 +507,55 @@ class Program(ASTNode):
 
 
 class Number(ASTNode):
-    def __init__(self, value: int):
+    def __init__(self, line, value: int):
         self.value = value
+        self.line = line
 
     def __repr__(self) -> str:
         return f"Number({self.value})"
 
 class Bool(ASTNode):
-    def __init__(self, value:bool):
+    def __init__(self, line, value:bool):
         self.value = value
+        self.line = line
     def __repr__(self) -> str:
         return f"Bool({self.value})"
 
 class Call(ASTNode):
-    def __init__(self, func, args):
+    def __init__(self, line, func, args):
         self.func = func
         self.args = args
+        self.line = line
 
     def __repr__(self) -> str:
         return f"Call({self.func}, {self.args})"
 
 
 class BinOp(ASTNode):
-    def __init__(self, left: ASTNode, op: str, right: ASTNode):
+    def __init__(self, line, left: ASTNode, op: str, right: ASTNode):
         self.op = op
         self.left = left
         self.right = right
+        self.line = line
 
     def __repr__(self) -> str:
         return f"BinOp({self.left}, {self.op}, {self.right})"
 
 
 class Variable(ASTNode):
-    def __init__(self, name: str):
+    def __init__(self, line, name: str):
         self.name = name
+        self.line = line
 
     def __repr__(self):
         return f"Variable({self.name})"
 
 
 class Assign(ASTNode):
-    def __init__(self, name: str, value: ASTNode):
+    def __init__(self, line, name: str, value: ASTNode):
         self.name = name
         self.value = value
+        self.line = line
 
     def __repr__(self):
         return f"Assign({self.name}, {self.value})"
@@ -542,44 +564,50 @@ class Assign(ASTNode):
 
 
 class UserFunction(Call):
-    def __init__(self, params, body, closure):
+    def __init__(self, line, params, body, closure):
         self.params = params
         self.body = body
         self.closure = closure
+        self.line = line
 
     def __repr__(self):
         return f"UserFunction({self.params}, {self.body}, {self.closure})"
 
 
 class String(ASTNode):
-    def __init__(self, value):
+    def __init__(self, line, value):
         self.value = value
+        self.line = line
 
     def __repr__(self):
         return f"String({self.value})"
 
 
 class Return(ASTNode):
-    def __init__(self, value):
+    def __init__(self, line, value):
         self.value = value
+        self.line = line
 
     def __repr__(self):
         return f"Return({self.value})"
 
 
 class Function(ASTNode):
-    def __init__(self, params, body):
+    def __init__(self, line, params, body):
         self.params = params
         self.body = body
+        self.line = line
 
     def __repr__(self):
         return f"Function({self.params}, {self.body})"
 
 class If(ASTNode): #TODO: Implement else if and multiple elses
-    def __init__(self, expr:ASTNode, body:Block, else_body:Block | None):
+    def __init__(self, line, expr:ASTNode, body:Block, else_body:Block | None):
         self.expr = expr
         self.body = body
         self.else_body = else_body
+        self.line = line
+
     def __repr__(self):
         return f"If({self.expr}, {self.body}, {self.else_body})"
 class NOP(ASTNode):
@@ -631,6 +659,7 @@ def eval_ast(node: ASTNode, env: Environment):
         return result
     if isinstance(node, Function):
         return UserFunction(
+            node.line,
             node.params,
             node.body,
             env,  # capture closure
@@ -703,11 +732,9 @@ class Compiler():
         self.scopes:list[Scope] = []
         self.var_count = 0
         self.ASTenv = ASTenv
+        self.lines = []
         self.enter_scope()
         
-        #for item in env:
-        #    self.declare_local(item)
-
 
     def enter_scope(self, var_map={}, args={}):
         self.scopes.append(Scope(var_map, args))
@@ -721,13 +748,6 @@ class Compiler():
         self.constants.append(value_tuple)
         self.const_map[value_tuple] = index
         return index
-    #def set_var(self, name):
-    #    if name in self.var_map:
-    #        index = self.var_map[name]
-    #        return index
-    #    index = len(self.var_map)
-    #    self.var_map[name] = index
-    #    return index
     def declare_local(self, name):
         scope = self.scopes[-1]
         if name in scope.var_map:
@@ -746,18 +766,15 @@ class Compiler():
             if item == name:
                 return i, "builtin", None
         return None
-    #def get_var(self, name):
-    #    if name not in self.var_map:
-    #        raise RuntimeError(f"Variable {name} not declared")
-    #    return self.var_map[name]
-    def emit(self, opcode, *operands):
+    def emit(self, line:int, opcode, *operands):
         idx = len(self.code)
         self.code.append((opcode, *operands))
+        self.lines.append(line)
         return idx
     def compile(self, program:Program):
         for node in program.statements:
             self.compile_ins(node)
-        self.emit("NOP")
+        self.emit(0,"NOP")
         output = []
         output.append(".const")
         for const in self.constants:
@@ -765,23 +782,26 @@ class Compiler():
         output.append(".code")
         for instr in self.code:
             output.append(" ".join(map(str, instr)))
+        output.append(".line")
+        for line in self.lines:
+            output.append(line)
         return output
     def compile_ins(self, node:ASTNode):
         if isinstance(node, String):
             idx = self.add_constant([TYPES[STRING], node.value])
-            self.emit(OP_PUSH_CONST, idx)
+            self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
             idx = self.add_constant([TYPES[INT], node.value])
-            self.emit(OP_PUSH_CONST, idx)
+            self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Variable):
             #if node.name in self.scopes[-1].var_map:
                 idx = self.get_var(node.name)
                 if idx is None:
                     raise RuntimeError(f"Variable {node.name} not declared")
                 if idx[1] == 'user':
-                    self.emit(OP_GET_VAR, idx[0], idx[2])
+                    self.emit(node.line, OP_GET_VAR, idx[0], idx[2]) # RETRIEVE idx depth
                 else:
-                    self.emit("PUSH_BUILTIN", idx[0])
+                    self.emit(node.line, "PUSH_BUILTIN", idx[0])
             #else:
             #    found = False
             #    for i, item in enumerate(self.passed_env):
@@ -796,59 +816,59 @@ class Compiler():
             if res is None:
                 idx = self.declare_local(node.name)
                 self.compile_ins(node.value)
-                self.emit(OP_SET_VAR, idx, 0)
+                self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
                 idx, cat, depth = res
                 if cat == "builtin":
                     raise RuntimeError("Attempted to assign a value to a builtin")
                 self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
-                self.emit(OP_SET_VAR, idx, depth)
+                self.emit(node.line, OP_SET_VAR, idx, depth)
                 warn(f"Reassignment to a function attempted for {node.name}. This is usually not reccomended.") #TODO: somehow get the line number
         elif isinstance(node, Assign):
             res = self.get_var(node.name)
             if res is None:
                 self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
-                self.emit(OP_SET_VAR, idx, 0)
+                self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
                 idx, cat, depth = res
                 if cat == "builtin":
                     raise RuntimeError("Attempted to assign a value to a builtin")
                 self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
-                self.emit(OP_SET_VAR, idx, depth)
+                self.emit(node.line, OP_SET_VAR, idx, depth)
         elif isinstance(node, BinOp):
             self.compile_ins(node.left)
             self.compile_ins(node.right)
-            self.emit(OPCODE_MAP[node.op])
+            self.emit(node.line,OPCODE_MAP[node.op])
         elif isinstance(node, Block):
             for statement in node.statements:
                 self.compile_ins(statement)
         elif isinstance(node, Bool):
             idx = self.add_constant([TYPES[BOOL], "true" if node.value else "false"])
-            self.emit(OP_PUSH_CONST, idx)
+            self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             self.compile_ins(node.func)
             for arg in node.args:
                 self.compile_ins(arg)
-            self.emit(OP_CALL, len(node.args))
+            self.emit(node.line, OP_CALL, len(node.args))
         elif isinstance(node, If):
             self.compile_ins(node.expr)
-            jmp = self.emit("JMPIFF", None)
+            jmp = self.emit(node.line, "JMPIFF", None)
             self.compile_ins(node.body)
             if node.else_body:
-                jmp2 = self.emit("JMP", None)
-                self.code[jmp] = ("JMPIFF", len(self.code))
+                jmp2 = self.emit(node.line, "JMP", None)
+                self.code[jmp] = (node.line, "JMPIFF", len(self.code))
                 self.compile_ins(node.else_body)
                 self.code[jmp2] = ("JMP",len(self.code))
             else:
                 self.code[jmp] = ("JMPIFF", len(self.code))
 
         elif isinstance(node, NOP):
-            self.emit("NOP")
+            self.emit(0,"NOP")
         elif isinstance(node, Function):
-            jmp  = self.emit("JMP", None)
+            jmp  = self.emit(node.line, "JMP", None)
             fn_entry = len(self.code)
             self.enter_scope({})
 
@@ -856,30 +876,16 @@ class Compiler():
                 self.declare_local(param)
             self.compile_ins(node.body)
 
-            self.emit("PUSH_CONST", self.add_constant((base_env.T_NULL, None)))
-            self.emit("RET")
+            self.emit(node.line, "PUSH_CONST", self.add_constant((base_env.T_NULL, None)))
+            self.emit(node.line,"RET")
 
             local_count = self.scopes[-1].next_local
             self.exit_scope()
             self.code[jmp] = ("JMP", len(self.code))
-            self.emit("MAKE_FUNCTION", fn_entry, local_count, len(node.params))
+            self.emit(node.line, "MAKE_FUNCTION", fn_entry, local_count, len(node.params))
         elif isinstance(node, Return):
             assert len(self.scopes) > 1
             self.compile_ins(node.value)
-            self.emit("RET")
+            self.emit(node.line, "RET")
         else:
             raise NotImplementedError(f"Did not implement {node} yet :<")
-
-
-
-def main():
-    tkns = [Token(IDENTIFIER, "print"), Token(LPAREN, None), Token(STRING, "hi"), Token(RPAREN, None), Token(EOF, None)]
-    psr = Parser(tkns)
-    program = psr.program()
-    import base_env
-    env = base_env.ASTenv
-    compiler = Compiler(env, base_env.ASTenv)
-    print(compiler.compile(program))
-    
-if __name__ == "__main__":
-    main()

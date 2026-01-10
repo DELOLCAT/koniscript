@@ -20,10 +20,11 @@ class Env():
         self.parent = parent
 
 class Frame():
-    def __init__(self, ret_addr:int | None, env:Env):
+    def __init__(self, ret_addr:int | None, env:Env, ln:int | None):
         self.env = env
         self.return_address = ret_addr
         self.stack = []
+        self.ln = ln
 
 
 def eval_str(string:str):
@@ -64,15 +65,15 @@ def eval_str(string:str):
         
     
 class VM():
-    def __init__(self, content:list[str], global_env:list = base_env.VMenv):
+    def __init__(self, content:list[str], global_env:list = base_env.VMenv, debug:bool=False):
         self.global_env = global_env
-        self.stack = []
-        main_frame = Frame(None, Env())
+        main_frame = Frame(None, Env(), None)
         self.frames:list[Frame] = [main_frame]
         self.i = 0        
         self.const_pool=[]
         self.content=content
         self.builtin_count = len(global_env)
+        self.dbg:bool = debug
         while True:
             if content[self.i].strip() == "" or content[self.i].strip() == ".const":
                 self.i+=1
@@ -84,7 +85,17 @@ class VM():
             self.i+=1
         self.content = self.content[self.i:]
         self.i:int =0
-
+        lines_start = -1
+        for i,idx in enumerate(self.content):
+            if idx.strip() == ".line":
+                lines_start=i+1
+                break
+        if lines_start == -1:
+            self.sup_lines = False
+        else:
+            self.sup_lines = True
+            self.lines:list[int] = [int(x) for x in self.content[lines_start:]]
+            self.content = self.content[:lines_start-1]
     def append_to_stack(self, item:tuple[int, Any]):
         self.frames[-1].stack.append(item)
     def pop_from_stack(self, i:SupportsIndex=-1):
@@ -138,13 +149,22 @@ class VM():
                                 [None] * local_count
                             )
                             
+                            
                             # Copy arguments into locals
                             for i in range(param_count):
                                 env.values[i] = args[i]
-                            frame = Frame(
-                                self.i,
-                                env
-                            )
+                            if self.sup_lines:
+                                frame = Frame(
+                                    self.i,
+                                    env,
+                                    self.lines[self.i]
+                                )
+                            else:
+                                frame = Frame(
+                                    self.i,
+                                    env,
+                                    None
+                                )
 
                             self.frames.append(frame)
                             self.i = to_call["entry"]
@@ -215,8 +235,28 @@ class VM():
                         else:
                             raise NotImplementedError()
                 self.i+=1
-            except Exception:
-                raise RuntimeError(f"^^^ at ins {self.i}")
+            except Exception as e:
+                if self.sup_lines:
+                    if self.dbg:
+                        raise RuntimeError(f"{e}\n"
+                                           f"at ins {self.i}\n"
+                                           f"at source ln {self.lines[self.i] + 1}\n"
+                                           f"Note: turn off debug to get a stack trace")
+                    else:
+                        print(f"[red b i u]{e}\n"
+                              f"at instruction {self.i}\n"
+                              f"at source ln {self.lines[self.i] + 1}\n[/]"
+                               "[blue b]Traceback: (most recent call last)")
+                        for frame in reversed(self.frames):
+                            if frame.ln is None:
+                                print("at [blue b]main stack[/]")
+                                continue
+                            print(f"ln [blue b]{frame.ln - 1}[/]")
+                        return RuntimeError
+                        
+                else:
+                    raise RuntimeError(f"{e}"
+                                        "at ins {self.i}")
 
 
 @app.command()

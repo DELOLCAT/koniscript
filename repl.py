@@ -27,5 +27,3 @@ while True:
         buffer = ""
     except IncompleteInput:
         continue
-    #except SyntaxError as e:
-    #    print(f"[red i b u]Syntax Error: {e}")
