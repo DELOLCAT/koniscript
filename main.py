@@ -831,6 +831,11 @@ class Compiler():
             self.compile_ins(node)
         self.emit(0,"NOP")
         output = []
+        output.append(".version")
+        output.append("ENV 1")
+        output.append("ISA 1")
+        output.append(f".frame {self.scopes[-1].next_local}")
+
         output.append(".const")
         for const in self.constants:
             output.append(f'{const[0]}"{str(const[1]).replace("\n", "\\n").replace(r"\\", r"\\")}"')

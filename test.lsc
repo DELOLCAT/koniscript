@@ -1,3 +1,7 @@
+.version
+ENV 1
+ISA 1
+.frame 1
 .const
 1"0"
 1"1"

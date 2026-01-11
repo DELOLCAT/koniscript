@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{self, Write};
 use std::rc::Rc;
 use std::thread::sleep;
@@ -147,26 +148,39 @@ pub enum ErrCode {
     TypeError = 9,
     InvalidOperandTypes = 10,
     FuncNameStr = 11,
+    InvalidLocal = 12,
+    CompatibilityError = 13,
+    NoCode = 14,
+    ValueError = 15,
     Other = 0
 }
-impl ErrCode {
-    pub fn display(&self) -> String{
-        match self{
-            ErrCode::ConversionFailed => "ConversionFailed",
-            ErrCode::ConversionNotPossible => "ConversionNotPossible",
-            ErrCode::InvalidArgCount => "InvalidArgCount",
-            ErrCode::IncorrectType => "IncorrectType",
-            ErrCode::IoError => "IoError",
-            ErrCode::InvalidBytecode => "InvalidBytecode",
-            ErrCode::VariableNotFound => "VariableNotFound",
-            ErrCode::TypeError => "TypeError",
-            ErrCode::StackUnderflow => "StackUnderflow",
-            ErrCode::InvalidOperandTypes => "InvalidOperandTypes",
-            ErrCode::Other => "Other",
-            ErrCode::FuncNameStr => "FuncNameStr"
-        }.to_string()
+impl fmt::Display for ErrCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
+
+
+//impl ErrCode {
+//    pub fn display(&self) -> String{
+//        match self{
+//            ErrCode::ConversionFailed => "ConversionFailed",
+//            ErrCode::ConversionNotPossible => "ConversionNotPossible",
+//            ErrCode::InvalidArgCount => "InvalidArgCount",
+//            ErrCode::IncorrectType => "IncorrectType",
+//            ErrCode::IoError => "IoError",
+//            ErrCode::InvalidBytecode => "InvalidBytecode",
+//            ErrCode::VariableNotFound => "VariableNotFound",
+//            ErrCode::TypeError => "TypeError",
+//            ErrCode::StackUnderflow => "StackUnderflow",
+//            ErrCode::InvalidOperandTypes => "InvalidOperandTypes",
+//            ErrCode::Other => "Other",
+//            ErrCode::FuncNameStr => "FuncNameStr",
+//            ErrCode::InvalidLocal => "InvalidLocal",
+//            ErrCode:: CompatibilityError => "CompatibilityError"
+//        }.to_string()
+//    }
+//}
 pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
