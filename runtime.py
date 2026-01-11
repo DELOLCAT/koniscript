@@ -80,6 +80,7 @@ IF = "IF"
 ELSE = "ELSE"
 OR = "OR"
 AND = "AND"
+FLOAT = "FLOAT"
 
 VALUES = [
     INT,
@@ -117,7 +118,8 @@ TYPES = {
     BOOL: 3,
     FUNC: 4,
     BUILTIN: 5,
-    NULL: 6
+    NULL: 6,
+    FLOAT:7
 }
 T_INT = 1
 T_STRING = 2
@@ -125,6 +127,7 @@ T_BOOL = 3
 T_FUNC = 4
 T_BUILTIN = 5
 T_NULL = 6
+T_FLOAT = 7
 def to_type(value:tuple[int, Any]) -> Any:
     tag, val = value
     match tag:

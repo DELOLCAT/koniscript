@@ -3,7 +3,8 @@ from pathlib import Path
 from main import Tokenizer, Parser, EOF, eval_ast, Token, Program, Compiler
 import base_env
 import copy
-from VM import VM
+import tempfile
+import subprocess
 app = Typer()
 
 class FileNotReadable(Exception):
@@ -59,18 +60,17 @@ def compile(filepath:Path):
         file.write("\n".join([str(x) for x in instructions]))
 
 @app.command()
-def run(filepath:Path, write_to_file:bool=False, debug:bool = False):
+def run(filepath:Path, debug:bool = False):
     ins = comp(filepath)
-    if write_to_file:
-        with open("test.lsc", "w") as file:
-            file.write("\n".join([str(x) for x in ins]))
-    vm = VM(ins)
-    vm.run()
-    print("Exited. Debug info:")
-    stack_len = 0
-    for env in vm.frames:
-        stack_len += len(env.stack)
-    print(f"    Stack length: {stack_len}")
-
+    with tempfile.NamedTemporaryFile(delete=True, mode="w+") as f:
+        f.write("\n".join([str(x) for x in ins]))
+        f.flush()
+        subprocess.run(
+            [
+                "/home/ahmad/coding/rpn/vm",
+                "run",
+                f.name
+            ]
+        )
 if __name__ == "__main__":
     app()

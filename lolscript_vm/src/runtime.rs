@@ -31,7 +31,8 @@ pub enum ValueTag {
     String = 2,
     Bool = 3,
     Func = 4,
-    Null = 6
+    Null = 6,
+    Float = 7
 }
 impl TryFrom<i8> for ValueTag {
     type Error = VmError;
@@ -43,6 +44,7 @@ impl TryFrom<i8> for ValueTag {
             3 => Ok(ValueTag::Bool),
             4 => Ok(ValueTag::Func),
             6 => Ok(ValueTag::Null),
+            7 => Ok(ValueTag::Float),
             _ => Err(VmError {
                 msg: format!("Invalid value tag {}", tag),
                 errcode: ErrCode::InvalidBytecode,
@@ -58,6 +60,7 @@ pub enum Value {
     String(String),
     Bool(bool),
     Func(LsFunc),
+    Float(f64),
     Null
 }
 
@@ -68,7 +71,8 @@ impl Value {
             Value::String(_) => ValueTag::String as i8,
             Value::Bool(_) => ValueTag::Bool as i8,
             Value::Func(_) => ValueTag::Func as i8,
-            Value::Null => ValueTag::Null as i8
+            Value::Null => ValueTag::Null as i8,
+            Value::Float(_) => ValueTag::Float as i8
         }
     }
     pub fn new(tag:i8, payload:&str) -> Result<Self, VmError>{
@@ -87,6 +91,11 @@ impl Value {
             ValueTag::String => {
                 return Ok(Value::String(payload.to_string()))
             }
+            ValueTag::Float => {
+                let out = vm_to_float(std::slice::from_ref(&Value::String(payload.to_string())))?;
+                return Ok(out)
+            }
+
             _ => {
                 return Err(VmError {
                     msg: format!("Cannot convert a value with tag {} to an internal value", tag),
@@ -100,6 +109,7 @@ impl Value {
             Value::Integer(_) => "integer".to_string(),
             Value::String(_) => "string".to_string(),
             Value::Bool(_) => "boolean".to_string(),
+            Value::Float(_) => "float".to_string(),
             Value::Func(f) => {
                 match f {
                     LsFunc::User { entry, name,..} => format!("[function {} at {}]", name, entry),
@@ -109,7 +119,6 @@ impl Value {
             Value::Null => "null".to_string()
         }
     }
-
 }
 #[derive(Debug, Clone)]
 pub enum LsFunc {
@@ -137,7 +146,26 @@ pub enum ErrCode {
     StackUnderflow = 8,
     TypeError = 9,
     InvalidOperandTypes = 10,
+    FuncNameStr = 11,
     Other = 0
+}
+impl ErrCode {
+    pub fn display(&self) -> String{
+        match self{
+            ErrCode::ConversionFailed => "ConversionFailed",
+            ErrCode::ConversionNotPossible => "ConversionNotPossible",
+            ErrCode::InvalidArgCount => "InvalidArgCount",
+            ErrCode::IncorrectType => "IncorrectType",
+            ErrCode::IoError => "IoError",
+            ErrCode::InvalidBytecode => "InvalidBytecode",
+            ErrCode::VariableNotFound => "VariableNotFound",
+            ErrCode::TypeError => "TypeError",
+            ErrCode::StackUnderflow => "StackUnderflow",
+            ErrCode::InvalidOperandTypes => "InvalidOperandTypes",
+            ErrCode::Other => "Other",
+            ErrCode::FuncNameStr => "FuncNameStr"
+        }.to_string()
+    }
 }
 pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
@@ -182,6 +210,44 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
     }
     
 }
+pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
+    let [item] = args else {
+        return Err(VmError {
+            msg: format!("Expected 1 argument, got {}", args.len()),
+            errcode: ErrCode::InvalidArgCount,
+        });
+    };
+    match item {
+        Value::Integer(val) => {
+            Result::Ok(Value::Float(*val as f64))
+        }
+        Value::Bool(val) => {
+            if *val {
+                Result::Ok(Value::Float(1.0))
+            } else {
+                Result::Ok(Value::Float(0.0))
+            }
+        }
+        Value::String(val) => {
+            let v = match val.parse::<f64>() {
+                Ok(val) => val,
+                Err(_) => return Err(
+                    VmError { msg: format!("Cannot convert the string \"{}\" to a float", val), errcode: ErrCode::TypeError }
+                )
+            };
+            Result::Ok(Value::Float(v))
+        }
+        Value::Null => {
+            Result::Ok(Value::Float(0.0))
+        }
+        _ => {
+            let out = format!("Cannot convert a {} to a float", item.display());
+            Result::Err(VmError { msg: out, errcode: ErrCode::ConversionNotPossible })
+        }
+    }
+    
+}
+
 pub fn vm_to_int(args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
@@ -197,12 +263,12 @@ pub fn vm_to_int(args: &[Value]) -> Result<Value, VmError> {
             v.parse::<i64>()
                 .map(Value::Integer)
                 .map_err(|_| VmError {
-                    msg: format!("Cannot convert \"{}\" to integer", v),
+                    msg: format!("Invalid string for conversion to integer: {}", v),
                     errcode: ErrCode::ConversionNotPossible,
                 })
         }
         _ => Err(VmError {
-            msg: format!("Cannot convert {} to integer", item.display()),
+            msg: format!("Cannot convert a {} to an integer", item.display()),
             errcode: ErrCode::ConversionNotPossible,
         }),
     }
@@ -327,6 +393,18 @@ fn add(a: Value, b:Value) -> Result<Value, VmError>{
         (Value::Integer(va), Value::Integer(vb)) => {
             Ok(Value::Integer(va + vb))
         }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Float(*va as f64 + vb))
+        }
+
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Float(va + *vb as f64))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Float(va + vb))
+        }
+
+
         (Value::String(va), Value::String(vb)) => {
             let out = format!("{}{}",va, vb);
             Ok(Value::String(out))
@@ -346,6 +424,19 @@ fn sub(a: Value, b:Value) -> Result<Value, VmError>{
         (Value::Integer(va), Value::Integer(vb)) => {
             Ok(Value::Integer(va - vb))
         }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Float(va - *vb as f64))
+        }
+
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Float(*va as f64 - vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Float(va - vb))
+        }
+
+
+
         _ => {
             Err(
                 VmError {
@@ -362,6 +453,18 @@ fn div(a: Value, b:Value) -> Result<Value, VmError>{
         (Value::Integer(va), Value::Integer(vb)) => {
             Ok(Value::Integer(va / vb))
         }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Float(va / *vb as f64))
+        }
+
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Float(*va as f64 / vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Float(va / vb))
+        }
+
+
         _ => {
             Err(
                 VmError {
@@ -377,6 +480,19 @@ fn mul(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Integer(va), Value::Integer(vb)) => {
             Ok(Value::Integer(va * vb))
         }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Float(va * *vb as f64))
+        }
+
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Float(*va as f64 * vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Float(va * vb))
+        }
+
+
+
 
         (Value::String(s), Value::Integer(n)) => {
             if *n < 0 {
@@ -408,6 +524,17 @@ fn pow(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Integer(va), Value::Integer(vb)) => {
             Ok(Value::Integer(va.pow(*vb as u32)))
         }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Integer(va.pow(*vb as u32)))
+        }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Float(va.powf(*vb as f64)))
+        }
+
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Float(va.powf(*vb)))
+        }
+
         _ => Err(VmError {
             msg: format!("TypeError: Cannot raise a {} to a power of a {}", a.display(), b.display()),
             errcode: ErrCode::TypeError,
@@ -420,6 +547,15 @@ fn lt(a: Value, b:Value) -> Result<Value, VmError>{
             Ok(Value::Bool(va < vb))
         }
         (Value::Bool(va), Value::Bool(vb)) => {
+            Ok(Value::Bool(va < vb))
+        }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Bool(*va < *vb as f64))
+        }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Bool((*va as f64) < *vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
             Ok(Value::Bool(va < vb))
         }
         _ => {
@@ -438,6 +574,15 @@ fn gt(a: Value, b:Value) -> Result<Value, VmError>{
         (Value::Bool(va), Value::Bool(vb)) => {
             Ok(Value::Bool(va > vb))
         }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Bool(*va > *vb as f64))
+        }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Bool((*va as f64) > *vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Bool(va > vb))
+        }
         _ => {
             Err(VmError{
                 msg: format!("TypeError: Cannot check if a {} is greater than a {}", a.display(), b.display()),
@@ -452,6 +597,15 @@ fn lte(a: Value, b:Value) -> Result<Value, VmError>{
             Ok(Value::Bool(va <= vb))
         }
         (Value::Bool(va), Value::Bool(vb)) => {
+            Ok(Value::Bool(va <= vb))
+        }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Bool(*va <= *vb as f64))
+        }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Bool((*va as f64) <= *vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
             Ok(Value::Bool(va <= vb))
         }
         _ => {
@@ -470,6 +624,15 @@ fn gte(a: Value, b:Value) -> Result<Value, VmError>{
         (Value::Bool(va), Value::Bool(vb)) => {
             Ok(Value::Bool(va >= vb))
         }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Bool(*va >=*vb as f64))
+        }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Bool((*va as f64) >= *vb))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Bool(va >= vb))
+        }
         _ => {
             Err(VmError{
                 msg: format!("TypeError: Cannot check if a {} is greater than or equal to a {}", a.display(), b.display()),
@@ -486,6 +649,16 @@ fn equal_to(a: Value, b:Value) -> Result<Value, VmError>{
         (Value::Bool(va), Value::Bool(vb)) => {
             Ok(Value::Bool(va == vb))
         }
+        (Value::Integer(va), Value::Float(vb)) => {
+            Ok(Value::Bool(*va as f64 == *vb))
+        }
+        (Value::Float(va), Value::Integer(vb)) => {
+            Ok(Value::Bool(*va == *vb as f64))
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            Ok(Value::Bool(va == vb))
+        }
+
         _ => {
             Err(VmError{
                 msg: format!("TypeError: Cannot check if a {} is equal to a {}", a.display(), b.display()),
@@ -529,10 +702,10 @@ static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> 
     fs.insert("DIV".to_string(), div);
     fs.insert("SUBTRACT".to_string(), sub);
     fs.insert("POW".to_string(), pow);
-    fs.insert("LT".to_string(), lt);
-    fs.insert("GT".to_string(), gt);
-    fs.insert("GTE".to_string(), gte);
-    fs.insert("LTE".to_string(), lte);
+    fs.insert("LESS_THAN".to_string(), lt);
+    fs.insert("GREATER_THAN".to_string(), gt);
+    fs.insert("GREATER_THAN_OR_EQ".to_string(), gte);
+    fs.insert("LESS_THAN_OR_EQ".to_string(), lte);
     fs.insert("EQUAL_TO".to_string(), equal_to);
     fs.insert("OR".to_string(), or);
     fs.insert("AND".to_string(), and);
@@ -541,4 +714,29 @@ static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> 
 });
 pub fn funcs() -> &'static HashMap<String, fn(Value, Value) -> Result<Value, VmError>> {
     &FUNCS
+}
+
+#[cfg(test)]
+mod tests {
+    use core::panic;
+
+    use super::*;
+
+    #[test]
+    fn type_checks_panic() {
+        add(Value::String("hi".to_string()), Value::Float(5.0)).unwrap_err();
+        add(Value::Func(LsFunc::Builtin { name: "print".to_string(), func: vm_print }), Value::Float(5.0)).unwrap_err();
+        sub(Value::String("hi".to_string()), Value::Float(5.0)).unwrap_err();
+        let ltt = lt(Value::Integer(5), Value::Integer(7)).unwrap();
+        match ltt {
+            Value::Bool(v) => assert_eq!(v, true),
+            _ => panic!("Expected the output of LT to be a boolean")
+        }
+        let ltt = lt(Value::Integer(7), Value::Integer(5)).unwrap();
+        match ltt {
+            Value::Bool(v) => assert_eq!(v, false),
+            _ => panic!("Expected the output of LT to be a boolean")
+        }
+
+    }
 }

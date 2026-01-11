@@ -29,7 +29,7 @@ FUNC = "FUNC"
 RETURN = "RETURN"
 BOOLEAN = "BOOLEAN"
 BOOL = BOOLEAN
-GREATER_THAN = "GREATER_THEN"
+GREATER_THAN = "GREATER_THAN"
 GT = GREATER_THAN
 LESS_THAN = "LESS_THAN"
 LT = LESS_THAN
@@ -41,6 +41,8 @@ IF = "IF"
 ELSE = "ELSE"
 OR = "OR"
 AND = "AND"
+FLOAT = "FLOAT"
+WHILE = "WHILE"
 
 VALUES = [
     INT,
@@ -70,7 +72,8 @@ KEYWORDS = {
     "if":IF,
     "else":ELSE,
     "or":OR,
-    "and":AND
+    "and":AND,
+    "while": WHILE
 }
 
 
@@ -152,13 +155,20 @@ class Tokenizer:
 
         if current_char.isdigit():
             value = ""
+            fl = False
             while (
                 self.get_current_char() is not None
-                and self.get_current_char().isdigit()  # pyright: ignore[reportOptionalMemberAccess]
-            ):  # pyright: ignore[reportOptionalMemberAccess]
+                and self.get_current_char().isdigit() # pyright: ignore[reportOptionalMemberAccess]
+                or self.get_current_char() == "."  # pyright: ignore[reportOptionalMemberAccess]
+            ):
+                if self.get_current_char() == ".":
+                    fl = True
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance(1)
-            return Token(INT, int(value), start_line, start_col)
+            if fl:
+                return Token(FLOAT, float(value), start_line, start_col)
+            else:
+                return Token(INT, int(value), start_line, start_col)
         elif current_char == "#":
             while not self.get_current_char() == "\n":
                 self.advance()
@@ -340,9 +350,16 @@ class Parser:
 
     def factor(self):
         token = self.current_token
+        if token.type == SUB:
+            self.eat(SUB)
+            return UnaryOp(token.line, NEG, self.factor())
         if token.type == INT:
             self.eat(INT)
             return Number(self.current_token.line, token.value)
+        if token.type == FLOAT:
+            self.eat(FLOAT)
+            return Float(self.current_token.line, token.value)
+
         elif token.type == STRING:
             self.eat(STRING)
             return String(self.current_token.line, token.value)
@@ -392,6 +409,9 @@ class Parser:
             return self.function_decl()
         if self.current_token.type == IF:
             return self.if_decl()
+        if self.current_token.type == WHILE:
+            return self.while_decl()
+
         elif self.current_token.type == RETURN:
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
@@ -411,11 +431,9 @@ class Parser:
         self.eat(IF)
         if self.current_token.type == EOF:
             raise IncompleteInput
-        self.eat(LPAREN)
         expr = self.expr()
         if self.current_token.type == EOF:
             raise IncompleteInput
-        self.eat(RPAREN)
         body = self.block()
         if self.current_token.type == ELSE and self.peek().type == IF:
             self.eat(ELSE)
@@ -426,6 +444,15 @@ class Parser:
         else:
             else_body = None
         return If(self.current_token.line, expr, body, else_body)
+    def while_decl(self):
+        self.eat(WHILE)
+        if self.current_token.type == EOF:
+            raise IncompleteInput
+        expr = self.expr()
+        if self.current_token.type == EOF:
+            raise IncompleteInput
+        body = self.block()
+        return While(self.current_token.line, expr, body)
     def function_decl(self):
         self.eat(FUNC)
 
@@ -513,6 +540,13 @@ class Number(ASTNode):
 
     def __repr__(self) -> str:
         return f"Number({self.value})"
+class Float(ASTNode):
+    def __init__(self, line, value: int):
+        self.value = value
+        self.line = line
+
+    def __repr__(self) -> str:
+        return f"Number({self.value})"
 
 class Bool(ASTNode):
     def __init__(self, line, value:bool):
@@ -529,6 +563,15 @@ class Call(ASTNode):
 
     def __repr__(self) -> str:
         return f"Call({self.func}, {self.args})"
+
+class UnaryOp(ASTNode):
+    def __init__(self, line, op: str, right: ASTNode):
+        self.op = op
+        self.right = right
+        self.line = line
+
+    def __repr__(self) -> str:
+        return f"BinOp({self.op}, {self.right})"
 
 
 class BinOp(ASTNode):
@@ -601,7 +644,7 @@ class Function(ASTNode):
     def __repr__(self):
         return f"Function({self.params}, {self.body})"
 
-class If(ASTNode): #TODO: Implement else if and multiple elses
+class If(ASTNode):
     def __init__(self, line, expr:ASTNode, body:Block, else_body:Block | None):
         self.expr = expr
         self.body = body
@@ -610,6 +653,15 @@ class If(ASTNode): #TODO: Implement else if and multiple elses
 
     def __repr__(self):
         return f"If({self.expr}, {self.body}, {self.else_body})"
+class While(ASTNode):
+    def __init__(self, line, expr:ASTNode, body:Block):
+        self.expr = expr
+        self.body = body
+        self.line = line
+
+    def __repr__(self):
+        return f"If({self.expr}, {self.body})"
+
 class NOP(ASTNode):
     pass
 def eval_ast(node: ASTNode, env: Environment):
@@ -696,6 +748,8 @@ OP_NOT_EQUAL_TO = NOT_EQUAL_TO
 OP_OR = OR
 OP_AND = AND
 OP_CALL = "CALL"
+NEG = "NEG"
+OP_NEG = NEG
 OPCODE_MAP = {
     ADD: OP_ADD,
     SUB: OP_SUB,
@@ -709,7 +763,8 @@ OPCODE_MAP = {
     EQUAL_TO: OP_EQUAL_TO,
     NOT_EQUAL_TO: OP_NOT_EQUAL_TO,
     OR: OP_OR,
-    AND: OP_AND
+    AND: OP_AND,
+    NEG: OP_NEG
 }
 BUILTIN = "BUILTIN"
 NULL = "NULL"
@@ -740,7 +795,7 @@ class Compiler():
         self.scopes.append(Scope(var_map, args))
     def exit_scope(self):
         self.scopes.pop()
-    def add_constant(self, value:tuple | list):
+    def add_constant(self, value:tuple | list) -> int:
         value_tuple = tuple(value)
         if value_tuple in self.const_map:
             return self.const_map[value_tuple]
@@ -786,13 +841,17 @@ class Compiler():
         for line in self.lines:
             output.append(line)
         return output
-    def compile_ins(self, node:ASTNode):
+    def compile_ins(self, node:ASTNode, *other):
         if isinstance(node, String):
             idx = self.add_constant([TYPES[STRING], node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
             idx = self.add_constant([TYPES[INT], node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
+        elif isinstance(node, Float):
+            idx = self.add_constant([TYPES[FLOAT], node.value])
+            self.emit(node.line, OP_PUSH_CONST, idx)
+
         elif isinstance(node, Variable):
             #if node.name in self.scopes[-1].var_map:
                 idx = self.get_var(node.name)
@@ -802,29 +861,20 @@ class Compiler():
                     self.emit(node.line, OP_GET_VAR, idx[0], idx[2]) # RETRIEVE idx depth
                 else:
                     self.emit(node.line, "PUSH_BUILTIN", idx[0])
-            #else:
-            #    found = False
-            #    for i, item in enumerate(self.passed_env):
-            #        if item == node.name:
-            #            found = True
-            #            self.emit("PUSH_BUILTIN", i)
-            #            break
-            #    if not found:
-            #        raise RuntimeError(f"Could not find var {node.name}")
         elif isinstance(node, Assign) and isinstance(node.value, Function):
             res = self.get_var(node.name)
             if res is None:
                 idx = self.declare_local(node.name)
-                self.compile_ins(node.value)
+                self.compile_ins(node.value, node.name)
                 self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
                 idx, cat, depth = res
                 if cat == "builtin":
                     raise RuntimeError("Attempted to assign a value to a builtin")
-                self.compile_ins(node.value)
+                self.compile_ins(node.value, node.name)
                 idx = self.declare_local(node.name)
                 self.emit(node.line, OP_SET_VAR, idx, depth)
-                warn(f"Reassignment to a function attempted for {node.name}. This is usually not reccomended.") #TODO: somehow get the line number
+                warn(f"Reassignment to a function attempted for {node.name} on {node.line}. This is usually not reccomended.")
         elif isinstance(node, Assign):
             res = self.get_var(node.name)
             if res is None:
@@ -842,6 +892,9 @@ class Compiler():
             self.compile_ins(node.left)
             self.compile_ins(node.right)
             self.emit(node.line,OPCODE_MAP[node.op])
+        elif isinstance(node, UnaryOp):
+            self.compile_ins(node.right)
+            self.emit(node.line, OPCODE_MAP[node.op])
         elif isinstance(node, Block):
             for statement in node.statements:
                 self.compile_ins(statement)
@@ -853,13 +906,20 @@ class Compiler():
             for arg in node.args:
                 self.compile_ins(arg)
             self.emit(node.line, OP_CALL, len(node.args))
+        elif isinstance(node, While):
+            self.compile_ins(node.expr)
+            jmp = self.emit(node.line, "JMPIFF", None)
+            self.compile_ins(node.body)
+            self.compile_ins(node.expr)
+            self.emit(node.line, "JMPIF", jmp+1)
+            self.code[jmp] = ("JMPIFF", len(self.code))
         elif isinstance(node, If):
             self.compile_ins(node.expr)
             jmp = self.emit(node.line, "JMPIFF", None)
             self.compile_ins(node.body)
             if node.else_body:
                 jmp2 = self.emit(node.line, "JMP", None)
-                self.code[jmp] = (node.line, "JMPIFF", len(self.code))
+                self.code[jmp] = ("JMPIFF", len(self.code))
                 self.compile_ins(node.else_body)
                 self.code[jmp2] = ("JMP",len(self.code))
             else:
@@ -882,9 +942,12 @@ class Compiler():
             local_count = self.scopes[-1].next_local
             self.exit_scope()
             self.code[jmp] = ("JMP", len(self.code))
-            self.emit(node.line, "MAKE_FUNCTION", fn_entry, local_count, len(node.params))
+            if other[0]:
+                idx = self.add_constant([2, other[0]])
+                self.emit(node.line, "MAKE_FUNCTION", fn_entry, local_count, len(node.params), idx)
+            else:
+                raise RuntimeError("(internal) Expected array `other` to have at least 1 value, found 0")
         elif isinstance(node, Return):
-            assert len(self.scopes) > 1
             self.compile_ins(node.value)
             self.emit(node.line, "RET")
         else:

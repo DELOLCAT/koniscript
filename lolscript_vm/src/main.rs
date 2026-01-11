@@ -1,21 +1,12 @@
 use clap::{Parser, Subcommand};
+use owo_colors::OwoColorize;
 use std::cell::RefCell;
-use std::fmt::format;
-use std::process::exit;
-use std::slice::from_ref;
-use std::sync::Condvar;
-use std::{fs, slice, vec};
+use std::{fs, vec};
 use std::rc::Rc;
 use crate::runtime::{Env, Value, VmError, VmPanic};
 mod runtime;
-use owo_colors::OwoColorize;
 use runtime::{ErrCode, LsFunc};
 
-macro_rules! parse_op {
-    ($operators:expr, $idx:expr, $typ:ty) => {
-        $operators[$idx].parse::<$typ>().expect("Invalid bytecode")
-    };
-}
 
 #[derive(Parser)]
 struct Cli {
@@ -28,6 +19,9 @@ enum Commands {
     Run {
         file: String,
     },
+    Validate {
+        file: String
+    }
 }
 fn eval_string(input: &str) -> Result<Value, VmPanic> {
     let mut iter = input.chars().peekable();
@@ -85,29 +79,30 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file } => run(file)
-    }
-    //runtime::vm_input(std::slice::from_ref(&Value::String("hi".to_string()))).unwrap();
-    /*let contents = fs::read_to_string("../test.lsc")
-    .expect("Could not read file");
-    let contents: Vec<String> = contents.lines().map(String::from).collect();
-
-    let vm = match VM::new(contents) {
-        Ok(res) => res,
-        Err(e) => {
-            println!("{}: {:?}", "Could not setup VM".red().bold(), e);
-            exit(1)
-        }
-    }.debug();*/
-    
+        Commands::Run { file } => run(file),
+        Commands::Validate { file } => val(file)
+    }    
      
 }
 
+fn val(file:String) {
+    let contents = fs::read_to_string(file)
+        .expect("Could not read file");
+
+    let contents: Vec<String> =
+        contents.lines().map(|s| s.to_string()).collect();
+    let vm = VM::new(contents).unwrap();
+    match vm.validiate() {
+        Some(e) => println!("{}", e.msg),
+        None => println!("Validation succesful")
+    };
 
 
+}
+#[derive(Clone)]
 struct VM {
     ins: Vec<Vec<String>>,
-    i: usize,
+    //i: usize,
     global_env: Vec<Value>,
     const_pool: Vec<Value>,
     builtin_count: i32,
@@ -115,15 +110,13 @@ struct VM {
     lines: Option<Vec<i64>>,
     frames: Vec<Frame>
 }
-#[derive(Debug)]
-enum Parent {
-    None,
-    Some(Box<Env>)
-}
+#[derive(Debug, Clone)]
 struct Frame {
     env: Rc<RefCell<Env>>,
     ret_addr: Option<usize>,
-    stack: Vec<Value>
+    stack: Vec<Value>,
+    name: String,
+    i: usize
 }
 impl Frame {
     fn new() -> Self{
@@ -133,15 +126,25 @@ impl Frame {
                 values: vec![]
             })),
             ret_addr: None,
-            stack: vec![]
+            stack: vec![],
+            name: "[main]".to_string(),
+            i: 0
         }
     }
     fn ret_addr(mut self, ret_addr: usize) -> Self {
         self.ret_addr = Some(ret_addr);
         self
     }
+    fn i(mut self, i:usize) -> Self {
+        self.i = i;
+        self
+    }
     fn env(mut self, env:Env) -> Self {
         self.env = Rc::new(RefCell::new(env));
+        self
+    }
+    fn name(mut self, name:String) -> Self {
+        self.name = name;
         self
     }
 }
@@ -211,7 +214,7 @@ impl VM {
                 }
                 ins.push(out)
             }
-            Ok(Self{i:0, 
+            Ok(Self{ 
                 ins: ins, 
                 global_env:runtime::vmenv(), 
                 const_pool: const_table, 
@@ -229,7 +232,7 @@ impl VM {
                 }
                 ins.push(out)
             }
-            Ok(Self{i:0, 
+            Ok(Self{ 
                 ins: ins, 
                 global_env:runtime::vmenv(), 
                 const_pool: const_table, 
@@ -262,18 +265,21 @@ impl VM {
         }
         None
     }
+    fn get_i(&self) -> usize{
+        self.frames.last().unwrap().i
+    }
     fn push_to_stack(&mut self, item: Value) {
         self.frames.last_mut().unwrap().stack.push(item);
     }
     fn pop_from_stack(&mut self) -> Option<Value>{
         self.frames.last_mut().unwrap().stack.pop()
     }
-    fn run(mut self) -> Result<Option<Value>, VmError> {
-        while self.i < self.ins.len(){
-            let operators = &self.ins[self.i];
+    fn run(&mut self) -> Result<Option<Value>, VmError> {
+        while self.get_i() < self.ins.len(){
+            let operators = &self.ins[self.get_i()];
             match operators[0].as_str() {
                 "JMP" => {
-                    self.i = operators[1].parse().expect("Invalid byecode.");
+                    self.frames.last_mut().unwrap().i = operators[1].parse().expect("Invalid byecode.");
                     continue;
                 },
                 "JMPIF" => {
@@ -295,7 +301,7 @@ impl VM {
                         }),
                     };
                     if cond {
-                        self.i = jump_target_str.parse().expect("Invalid byecode.");
+                        self.frames.last_mut().unwrap().i = jump_target_str.parse().expect("Invalid byecode.");
                         continue;
                     }
                 },
@@ -318,7 +324,7 @@ impl VM {
                         }),
                     };
                     if !cond {
-                        self.i = jump_target_str.parse().expect("Invalid byecode.");
+                        self.frames.last_mut().unwrap().i = jump_target_str.parse().expect("Invalid byecode.");
                         continue;
                     }
                 },
@@ -331,6 +337,10 @@ impl VM {
                     let item:Value = self.global_env[operators[1].parse::<usize>().unwrap()].clone();
                     self.push_to_stack(item);
                 },
+                "BREAK" => {
+                    println!("Breakpoint: at {}:",  self.frames.last().unwrap().name);
+                    println!("Stack : {:#?}", self.frames.last().unwrap().stack);
+                }
                 "STORE" => {
                     let idx: usize = operators[1].parse().expect("Invalid bytecode");
                     let depth: usize = operators[2].parse().expect("Invalid bytecode");
@@ -398,7 +408,7 @@ impl VM {
                                 Err(v) => return Err(v)
                             }
                         },
-                        LsFunc::User { entry, local_count, param_count, closure,.. } => {
+                        LsFunc::User { entry, local_count, param_count, closure, name } => {
                             let mut fenv = Env{
                                 values: vec![None; local_count],
                                 parent: Some(closure)
@@ -410,9 +420,9 @@ impl VM {
                             for i in 0..param_count {
                                 fenv.values[i] = rust_args[i].clone()
                             }
-                            let fframe = Frame::new().env(fenv).ret_addr(self.i);
+                            let fframe = Frame::new().env(fenv).ret_addr(self.get_i()).name(name);
                             self.frames.push(fframe);
-                            self.i = entry;
+                            self.frames.last_mut().unwrap().i = entry;
                             continue;
                         }
                     }
@@ -429,9 +439,20 @@ impl VM {
                             None => return Err(VmError { msg: "Stack underflow".to_string(), errcode: ErrCode::StackUnderflow })
                         };
                     let return_addr:usize = self.frames.last().unwrap().ret_addr.unwrap();
-                    self.i = return_addr;
+                    self.frames.last_mut().unwrap().i = return_addr;
                     self.frames.pop();
                     self.push_to_stack(to_ret);
+                }
+                "NEG" => {
+                    let v = match self.pop_from_stack() {
+                        Some(v) => v,
+                        None => return Err(VmError { msg: "Stack underflow".to_string(), errcode: ErrCode::StackUnderflow })
+                    };
+                    let out = match v {
+                        Value::Integer(val) => Value::Integer(0-val),
+                        _ => return Err(VmError { msg: format!("Cannot convert a {} to a negative value", v.display()), errcode: ErrCode::TypeError })
+                    };
+                    self.push_to_stack(out);
                 }
                 "NOP" => {
                     
@@ -440,20 +461,30 @@ impl VM {
                     let entry: usize = operators[1].parse().expect("Invalid bytecode");
                     let local_count:usize = operators[2].parse().expect("Invalid bytecode");
                     let param_count:usize = operators[3].parse().expect("Invalid bytecode");
+                    let name:usize = operators[4].parse().expect("Invalid bytecode");
+                    let name = &self.const_pool[name];
+                    let name = match name {
+                        Value::String(v) => v,
+                        _ => {
+                            return Err(
+                                VmError { msg: "Function name should be a string".to_string(), errcode: ErrCode::FuncNameStr }
+                            )
+                        }
+                    };
                     let closure = &self.frames.last().unwrap().env;
                     let item = Value::Func(LsFunc::User {
                         entry,
                         local_count,
                         param_count,
                         closure: closure.clone(),
-                        name: "todo".to_string()
+                        name: name.to_string()
                     });
                     self.push_to_stack(item);
                 }
                 _ => {
                     if runtime::funcs().contains_key(&operators[0]) {
                         let op = runtime::funcs().get(&operators[0]).unwrap();
-                        let lhs = match self.pop_from_stack() {
+                        let rhs = match self.pop_from_stack() {
                             Some(v) => v,
                             None => return {
                                 Err(VmError{
@@ -462,7 +493,7 @@ impl VM {
                                 })
                             }
                         };
-                        let rhs = match self.pop_from_stack() {
+                        let lhs = match self.pop_from_stack() {
                             Some(v) => v,
                             None => return {
                                 Err(VmError{
@@ -477,37 +508,40 @@ impl VM {
                         }
                     } else {
                         return Err(VmError {
-                            msg: format!("Unknown instruction at {}: {}", self.i, operators[0]),
+                            msg: format!("Unknown instruction at {}: {}", self.get_i(), operators[0]),
                             errcode: runtime::ErrCode::InvalidBytecode
                         })
                     }
                 }
             }
-            self.i+=1
+            self.frames.last_mut().unwrap().i +=1
         }
         Ok(None)
 }
 }
 
 fn run(file: String) {
-    println!("{}", file);
     let contents = fs::read_to_string(file)
     .expect("Could not read file");
     let contents: Vec<String> =
         contents.lines().map(|s| s.to_string()).collect();
-    let vm = VM::new(contents).unwrap();
-    vm.run().unwrap();
+    let mut vm = VM::new(contents).unwrap();
+    match vm.run() {
+        Ok(opt) => match opt {
+            Some(v) => println!("{:?}",v),
+            None => {}
+        },
+        Err(e) => {
+            println!("Exited with error: {}: {}", e.errcode.display(), e.msg);
+            println!("{}", "Traceback: most recent call last".blue().bold());
+            for frame in vm.frames.iter().rev() {
+                if vm.lines.is_some() {
+                    println!("at {}:{}", frame.name, vm.clone().lines.unwrap()[frame.i]+1)
+                } else {
+                    println!("at {}", frame.name)
+                }
+            }
+            println!("{}: {}", e.errcode.display(), e.msg);
+        }
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,7 +1,3 @@
-func loop(n) {
-    if (n == 0) {
-        return 0
-    }
-    return loop(n - 1)
-}
-loop(10000)
+i = 0
+i=i+1
+print(i)
