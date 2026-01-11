@@ -342,7 +342,7 @@ impl VM {
                     println!("Stack : {:#?}", self.frames.last().unwrap().stack);
                 }
                 "STORE" => {
-                    let idx: usize = operators[1].parse().expect("Invalid bytecode");
+                    let _idx: usize = operators[1].parse().expect("Invalid bytecode");
                     let depth: usize = operators[2].parse().expect("Invalid bytecode");
                     let mut env_rc = self.frames.last().unwrap().env.clone();
 
@@ -402,7 +402,7 @@ impl VM {
                         _ => return Err(VmError { msg: format!("Expected a function, got a {}", func.display()), errcode: ErrCode::TypeError })
                     };
                     match func {
-                        LsFunc::Builtin { name, func } => {
+                        LsFunc::Builtin { name: _, func } => {
                             match func(&args.as_slice()) {
                                 Ok(v) => self.push_to_stack(v),
                                 Err(v) => return Err(v)
