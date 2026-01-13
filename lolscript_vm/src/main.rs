@@ -1,8 +1,10 @@
-use crate::runtime::{Env, Value, VmError, VmPanic, vmenv};
+use crate::runtime::{Env, Module, Value, VmError, VmPanic, vmenv};
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::format;
+use std::io::{Read, Write};
 use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
@@ -116,6 +118,7 @@ impl Frame {
             env: Rc::new(RefCell::new(Env {
                 parent: None,
                 values: vec![],
+                exports: HashMap::new(),
             })),
             ret_addr: None,
             stack: vec![],
@@ -149,48 +152,49 @@ impl VM {
         let mut mode = "none";
         let mut local_count = None;
         while i < instructions.len() {
-            let line = &instructions[i].trim();
-            if *line == ".const" {
+            let line = instructions[i].trim();
+
+            if line == ".const" {
                 mode = "const";
                 i += 1;
                 continue;
             }
-            if let Some(val) = line.split(" ").nth(1) {
-                if line.split(" ").nth(0).unwrap() == ".frame" {
-                    local_count = Some(match val.parse::<i64>() {
-                            Ok(v) => v,
-                            Err(_) => return Err(
-                                VmError {
-                                    msg: "Expected .frame to be proceded by an integer, found a different value".to_string(),
-                                    errcode: ErrCode::InvalidBytecode
-                                }
-                            )
-                    });
-                };
-                    i += 1;
-                    continue;
-                }
-                if *line == ".code" {
-                    i += 1;
-                    broken = Some(i);
-                    break;
-                }
-                if mode == "const" {
-                    match eval_string(line) {
-                        Ok(v) => {
-                            const_table.push(v);
-                        }
-                        Err(v) => {
-                            return Err(VmError {
-                                msg: format!("Could not decode string {} in bytecode: {:?}.", line, v),
-                                errcode: ErrCode::InvalidBytecode,
-                            });
-                        }
+
+            if line == ".code" {
+                broken = Some(i + 1);
+                break;
+            }
+
+            if line.starts_with(".frame ") {
+                let val = line.split_whitespace().nth(1).ok_or(VmError {
+                    msg: "Expected .frame to be followed by an integer".to_string(),
+                    errcode: ErrCode::InvalidBytecode,
+                })?;
+
+                local_count = Some(val.parse::<i64>().map_err(|_| VmError {
+                    msg: "Expected .frame to be preceded by an integer".to_string(),
+                    errcode: ErrCode::InvalidBytecode,
+                })?);
+
+                i += 1;
+                continue;
+            }
+
+            if mode == "const" {
+                match eval_string(line) {
+                    Ok(v) => const_table.push(v),
+                    Err(v) => {
+                        return Err(VmError {
+                            msg: format!("Could not decode string {} in bytecode: {:?}.", line, v),
+                            errcode: ErrCode::InvalidBytecode,
+                        });
                     }
                 }
-                i += 1;
             }
-        
+
+            i += 1;
+        }
+
         if local_count.is_none() {
             return Err(VmError {
                 msg: "The sepecified program has no local count".to_string(),
@@ -237,12 +241,11 @@ impl VM {
             i += 1;
         }
 
-        let frame = Frame::new().env(
-            Env {
-                values: vec![None; local_count.unwrap() as usize],
-                parent: None
-            }
-        );
+        let frame = Frame::new().env(Env {
+            values: vec![None; local_count.unwrap() as usize],
+            parent: None,
+            exports: HashMap::new(),
+        });
 
         if let Some(x) = sup_lines {
             let content = &&instructions[broken..x];
@@ -316,9 +319,8 @@ impl VM {
     fn push_to_stack(&mut self, item: Value) {
         self.frames.last_mut().unwrap().stack.push(item);
     }
-    fn pop_from_stack(&mut self) -> Option<Value> {
-        self.frames.last_mut().unwrap().stack.pop()
-    }
+    
+
     fn run(&mut self) -> Result<Option<Value>, VmError> {
         while self.get_i() < self.ins.len() {
             let operators = &self.ins[self.get_i()];
@@ -330,7 +332,7 @@ impl VM {
                 }
                 "JMPIF" => {
                     let jump_target_str = operators[1].clone();
-                    let condv = self.pop_from_stack();
+                    let condv = &mut self.frames.last_mut().unwrap().stack.pop();
                     let condv = match condv {
                         Some(v) => v,
                         None => {
@@ -353,7 +355,7 @@ impl VM {
                             });
                         }
                     };
-                    if cond {
+                    if *cond {
                         self.frames.last_mut().unwrap().i =
                             jump_target_str.parse().expect("Invalid byecode.");
                         continue;
@@ -361,7 +363,7 @@ impl VM {
                 }
                 "JMPIFF" => {
                     let jump_target_str = operators[1].clone();
-                    let condv = self.pop_from_stack();
+                    let condv = self.frames.last_mut().unwrap().stack.pop();
                     let condv = match condv {
                         Some(v) => v,
                         None => {
@@ -404,6 +406,59 @@ impl VM {
                 "BREAK" => {
                     println!("Breakpoint: at {}:", self.frames.last().unwrap().name);
                     println!("Stack : {:#?}", self.frames.last().unwrap().stack);
+                    let mut b= String::new();
+                    print!("Press enter to continue");
+                    std::io::stdin().read_line(&mut b);
+                }
+                "GETATTR" => {
+                    let attrand: usize = operators[1].parse().expect("Invalid bytecode");
+                    let attrand = match self.const_pool.get(attrand) {
+                        Some(v) => v,
+                        None => return Err(
+                            VmError {
+                                msg: format!("Cannot find a value from the constant pool at index {}", attrand),
+                                errcode: ErrCode::InvalidBytecode
+                            }
+                        )
+                    };
+                    let attrand = match attrand {
+                        Value::String(v) => v,
+                        _ => return Err(
+                            VmError {
+                                msg: format!("Expected attrand for GET_ATTR to be a string, found a {}", attrand.display()),
+                                errcode: ErrCode::InvalidBytecode
+                            }
+                        )
+                    };
+                    let attrl = match self.frames.last_mut().unwrap().stack.pop() {
+                        Some(v) => v,
+                        None => return Err(
+                            VmError {
+                                msg: "Stack underflow".to_string(),
+                                errcode: ErrCode::StackUnderflow
+                            }
+                        )
+                    };
+                    let out = match attrl {
+                        Value::Module(m) => {
+                            match m.exports.get(attrand) {
+                                Some(v) => v.clone(),
+                                None => return Err(
+                                    VmError {
+                                        msg: format!("Could not find export {}, did you mark that value as public (export func/var)?", attrand),
+                                        errcode: ErrCode::AttributeError
+                                    }
+                                )
+                            }
+                        }
+                        _ => return Err(
+                            VmError {
+                                msg: format!("Cannot get an attribute from a type of {}", attrl.display()),
+                                errcode: ErrCode::AttributeError
+                            }
+                        )
+                    };
+                    self.frames.last_mut().unwrap().stack.push(out);
                 }
                 "STORE" => {
                     let idx: usize = operators[1].parse().expect("Invalid bytecode");
@@ -416,7 +471,7 @@ impl VM {
                         env_rc = parent;
                     }
 
-                    let value = match self.pop_from_stack() {
+                    let value = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
                         None => {
                             return Err(VmError {
@@ -462,8 +517,9 @@ impl VM {
                 "CALL" => {
                     let arg_count: usize = operators[1].parse().expect("Invalid bytecode");
                     let mut args: Vec<Value> = Vec::new();
+                    args.reverse();
                     for _ in 0..arg_count {
-                        match self.pop_from_stack() {
+                        match self.frames.last_mut().unwrap().stack.pop() {
                             None => {
                                 return Err(VmError {
                                     msg: "Stack underflow".to_string(),
@@ -473,7 +529,7 @@ impl VM {
                             Some(v) => args.push(v),
                         }
                     }
-                    let func = match self.pop_from_stack() {
+                    let func = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
                         None => {
                             return Err(VmError {
@@ -506,6 +562,7 @@ impl VM {
                             let mut fenv = Env {
                                 values: vec![None; local_count],
                                 parent: Some(closure),
+                                exports: HashMap::new(),
                             };
                             let mut rust_args: Vec<Option<Value>> = vec![];
                             for arg in args {
@@ -523,7 +580,7 @@ impl VM {
                 }
                 "RET" => {
                     if self.frames.len() <= 1 {
-                        match self.pop_from_stack() {
+                        match self.frames.last_mut().unwrap().stack.pop() {
                             Some(v) => return Ok(Some(v)),
                             None => {
                                 return Err(VmError {
@@ -533,7 +590,7 @@ impl VM {
                             }
                         }
                     }
-                    let to_ret = match self.pop_from_stack() {
+                    let to_ret = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
                         None => {
                             return Err(VmError {
@@ -548,7 +605,7 @@ impl VM {
                     self.push_to_stack(to_ret);
                 }
                 "NEG" => {
-                    let v = match self.pop_from_stack() {
+                    let v = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
                         None => {
                             return Err(VmError {
@@ -572,6 +629,60 @@ impl VM {
                     self.push_to_stack(out);
                 }
                 "NOP" => {}
+                "MAKE_MODULE" => {
+                    let new_mod = Module {
+                        exports: self.frames.last().unwrap().env.borrow().exports.clone(),
+                        name: None,
+                    };
+                    self.push_to_stack(Value::Module(new_mod));
+                }
+                
+                "EXPORT" => {
+                    let name = match operators.get(1) {
+                        Some(v) => v,
+                        None => {
+                            return Err(VmError {
+                                msg: "Expected EXPORT to have 1 operand, found none".to_string(),
+                                errcode: ErrCode::InvalidBytecode,
+                            });
+                        }
+                    };
+                    let name: usize = name.parse().expect("Invalid bytecode");
+                    let name = match self.const_pool.get(name) {
+                        Some(v) => v,
+                        None => return Err(
+                            VmError {
+                                msg: format!("Could not find a value in the constant pool at idx {} for EXPORT", name),
+                                errcode: ErrCode::ValueError
+                            }
+                        )
+                    };
+                    let name = match name {
+                        Value::String(v) => v,
+                        _ => return Err(
+                            VmError {
+                                msg: format!("Expected EXPORT to refrence to a string, not a {}", name.display()),
+                                errcode: ErrCode::TypeError
+                            }
+                        )
+                    };
+                    let to_ex = match self.frames.last_mut().unwrap().stack.pop() {
+                        Some(v) => v,
+                        None => {
+                            return Err(VmError {
+                                msg: "Stack underflow".to_string(),
+                                errcode: ErrCode::StackUnderflow,
+                            });
+                        }
+                    };
+                    self.frames
+                        .last_mut()
+                        .unwrap()
+                        .env
+                        .borrow_mut()
+                        .exports
+                        .insert(name.to_string(), to_ex);
+                }
                 "MAKE_FUNCTION" => {
                     let entry: usize = operators[1].parse().expect("Invalid bytecode");
                     let local_count: usize = operators[2].parse().expect("Invalid bytecode");
@@ -600,7 +711,7 @@ impl VM {
                 _ => {
                     if runtime::funcs().contains_key(&operators[0]) {
                         let op = runtime::funcs().get(&operators[0]).unwrap();
-                        let rhs = match self.pop_from_stack() {
+                        let rhs = match self.frames.last_mut().unwrap().stack.pop() {
                             Some(v) => v,
                             None => {
                                 return {
@@ -611,7 +722,7 @@ impl VM {
                                 };
                             }
                         };
-                        let lhs = match self.pop_from_stack() {
+                        let lhs = match self.frames.last_mut().unwrap().stack.pop() {
                             Some(v) => v,
                             None => {
                                 return {

@@ -33,8 +33,8 @@ GREATER_THAN = "GREATER_THAN"
 GT = GREATER_THAN
 LESS_THAN = "LESS_THAN"
 LT = LESS_THAN
-LTE = "LESS_THEN_OR_EQ"
-GTE = "LESS_THEN_OR_EQ"
+LTE = "LESS_THAN_OR_EQ"
+GTE = "LESS_THAN_OR_EQ"
 EQUAL_TO = "EQUAL_TO"
 NOT_EQUAL_TO = "NOT_EQUAL_TO"
 IF = "IF"
@@ -43,6 +43,9 @@ OR = "OR"
 AND = "AND"
 FLOAT = "FLOAT"
 WHILE = "WHILE"
+DOT = "DOT"
+IMPORT = "IMPORT"
+EXPORT = "EXPORT"
 
 VALUES = [
     INT,
@@ -73,7 +76,9 @@ KEYWORDS = {
     "else":ELSE,
     "or":OR,
     "and":AND,
-    "while": WHILE
+    "while": WHILE,
+    "import": IMPORT,
+    "export": EXPORT
 }
 
 
@@ -175,8 +180,10 @@ class Tokenizer:
             return self.get_next_token()
         elif current_char == "+":
             self.advance(1)
-            # self.current_token
             return Token(ADD, None, start_line, start_col)
+        elif current_char == ".":
+            self.advance(1)
+            return Token(DOT, None, start_line, start_col)
         elif self.check("true"):
             self.advance(4)
             return Token(BOOL, True, start_line, start_col)
@@ -347,71 +354,106 @@ class Parser:
             self.eat(POW)
             node = BinOp(self.current_token.line, node, op, self.power())  # right-associative
         return node
-
     def factor(self):
         token = self.current_token
         if token.type == SUB:
             self.eat(SUB)
             return UnaryOp(token.line, NEG, self.factor())
+        return self.postfix()
+    def postfix(self):
+        node = self.primary()
+
+        # Handle dots first
+        while self.current_token.type == DOT:
+            dot_line = self.current_token.line
+            self.eat(DOT)
+            if self.current_token.type != IDENTIFIER:
+                raise SyntaxError("Expected identifier after '.'")
+            name = self.current_token.value
+            self.eat(IDENTIFIER)
+            node = Attribute(dot_line, node, name)
+
+        # Then handle function calls
+        while self.current_token.type == LPAREN:
+            call_line = self.current_token.line
+            self.eat(LPAREN)
+            args = []
+            if self.current_token.type != RPAREN:
+                args.append(self.expr())
+                while self.current_token.type == COMMA:
+                    self.eat(COMMA)
+                    args.append(self.expr())
+            if self.current_token.type == EOF:
+                raise IncompleteInput
+            self.eat(RPAREN)
+            node = Call(call_line, node, args)
+        return node
+    def primary(self):
+        token = self.current_token
         if token.type == INT:
             self.eat(INT)
-            return Number(self.current_token.line, token.value)
+            return Number(token.line, token.value)
         if token.type == FLOAT:
             self.eat(FLOAT)
-            return Float(self.current_token.line, token.value)
-
-        elif token.type == STRING:
+            return Float(token.line, token.value)
+        if token.type == STRING:
             self.eat(STRING)
-            return String(self.current_token.line, token.value)
-        elif token.type == BOOL:
+            return String(token.line, token.value)
+        if token.type == BOOL:
             self.eat(BOOL)
-            return Bool(self.current_token.line, token.value)
-        elif token.type == IDENTIFIER:
+            return Bool(token.line, token.value)
+        if token.type == IDENTIFIER:
             self.eat(IDENTIFIER)
-            name = token.value
-            if self.current_token.type == LPAREN:
-                self.eat(LPAREN)
-                args = []
-                if self.current_token.type == EOF:
-                    raise IncompleteInput
-                if self.current_token.type != RPAREN:
-                    args.append(self.expr())
-                    while self.current_token.type == COMMA:
-                        self.eat(COMMA)
-                        args.append(self.expr())
-                if self.current_token.type != RPAREN:
-                    raise IncompleteInput
-                self.eat(RPAREN)
-                return Call(self.current_token.line, Variable(self.current_token.line, name), args)
-            return Variable(self.current_token.line, token.value)
-
-        elif token.type == LPAREN:
+            return Variable(token.line, token.value)
+        if token.type == LPAREN:
             self.eat(LPAREN)
             node = self.expr()
             if self.current_token.type == EOF:
                 raise IncompleteInput
             self.eat(RPAREN)
             return node
-        elif token.type == NEWLINE or token.type == EOF:
-            raise SyntaxError(f"Unexpected token {token}")
-        else:
-            raise SyntaxError(f"Unexpected token {token}")
-
+        raise SyntaxError(f"Unexpected token {token}")
+    def export(self):
+        self.eat(EXPORT)
+        out = self.statement()
+        if not isinstance(out, Assign):
+            raise RuntimeError("Cannot export anything other than an assignment or function")
+        name = out.name
+        ln = out.line
+        return Export(ln, out.value, name)
     def statement(self):
         while self.current_token.type == NEWLINE:
             self.eat(NEWLINE)
 
         if self.current_token.type == RBRACE:
             return None
-        if self.current_token.type == LBRACE:
+        elif self.current_token.type == LBRACE:
             return self.block()
-        if self.current_token.type == FUNC:
+        elif self.current_token.type == FUNC:
             return self.function_decl()
-        if self.current_token.type == IF:
+        elif self.current_token.type == IF:
             return self.if_decl()
-        if self.current_token.type == WHILE:
+        elif self.current_token.type == EXPORT:
+            return self.export()
+        elif self.current_token.type == WHILE:
             return self.while_decl()
-
+        elif self.current_token.type == IMPORT:
+            self.eat(IMPORT)
+            name = self.current_token.value
+            self.eat(IDENTIFIER)
+            with open(f"{name}.ls") as file:
+                content = file.read()
+            tknr = Tokenizer(content)
+            tkns = []
+            while True:
+                tkn = tknr.get_next_token()
+                tkns.append(tkn)
+                if tkn.type == EOF:
+                    break
+            psr = Parser(tkns)
+            program = psr.program()
+            mod = Module(self.current_token.line, program, name)
+            return Assign(self.current_token.line, name, mod)
         elif self.current_token.type == RETURN:
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
@@ -525,12 +567,20 @@ class Block(ASTNode):
     def __repr__(self):
         return f"Block({self.statements})"
 
+
 class Program(ASTNode):
     def __init__(self, statements):
-        self.statements = statements
+        self.statements: list[ASTNode] = statements
 
     def __repr__(self) -> str:
         return f"Program({self.statements})"
+class Module(ASTNode):
+    def __init__(self, line:int, body: Program, name:str):
+        self.line = line
+        self.body = body
+        self.name = name
+    def __repr__(self):
+        return f"Module({self.body})"
 
 
 class Number(ASTNode):
@@ -556,13 +606,21 @@ class Bool(ASTNode):
         return f"Bool({self.value})"
 
 class Call(ASTNode):
-    def __init__(self, line, func, args):
+    def __init__(self, line, func:  ASTNode, args: list):
         self.func = func
         self.args = args
         self.line = line
 
     def __repr__(self) -> str:
         return f"Call({self.func}, {self.args})"
+class Attribute(ASTNode):
+    def __init__(self, line, lhs, rhs):
+        self.lhs: ASTNode = lhs
+        self.rhs:str = rhs
+        self.line = line
+
+    def __repr__(self) -> str:
+        return f"Attribute({self.lhs}, {self.rhs})"
 
 class UnaryOp(ASTNode):
     def __init__(self, line, op: str, right: ASTNode):
@@ -661,6 +719,16 @@ class While(ASTNode):
 
     def __repr__(self):
         return f"If({self.expr}, {self.body})"
+
+class Export(ASTNode):
+    def __init__(self, line:int , lhs: ASTNode, name: str):
+        self.lhs = lhs
+        self.name = name
+        self.line = line
+
+    def __repr__(self):
+        return f"Export({self.lhs}, {self.name})"
+
 
 class NOP(ASTNode):
     pass
@@ -788,6 +856,8 @@ class Compiler():
         self.var_count = 0
         self.ASTenv = ASTenv
         self.lines = []
+        self.modules = []
+        self.exports = []
         self.enter_scope()
         
 
@@ -893,6 +963,15 @@ class Compiler():
                 self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
                 self.emit(node.line, OP_SET_VAR, idx, depth)
+        elif isinstance(node, Module):
+            if node.name in self.modules:
+                raise RuntimeError(f"Module {node.name} already imported.")
+            self.modules.append(node.name)
+            self.scopes.append(Scope())
+            for statement in node.body.statements:
+                self.compile_ins(statement)
+            self.scopes.pop()
+            self.emit(node.line, "MAKE_MODULE")
         elif isinstance(node, BinOp):
             self.compile_ins(node.left)
             self.compile_ins(node.right)
@@ -947,7 +1026,7 @@ class Compiler():
             local_count = self.scopes[-1].next_local
             self.exit_scope()
             self.code[jmp] = ("JMP", len(self.code))
-            if other[0]:
+            if len(other) >= 1:
                 idx = self.add_constant([2, other[0]])
                 self.emit(node.line, "MAKE_FUNCTION", fn_entry, local_count, len(node.params), idx)
             else:
@@ -955,5 +1034,13 @@ class Compiler():
         elif isinstance(node, Return):
             self.compile_ins(node.value)
             self.emit(node.line, "RET")
+        elif isinstance(node, Export):
+            self.compile_ins(node.lhs, node.name)
+            idx = self.add_constant((2, node.name))
+            self.emit(node.line, "EXPORT", idx)
+        elif isinstance(node, Attribute):
+            self.compile_ins(node.lhs)
+            idx = self.add_constant((2, node.rhs))
+            self.emit(node.line, "GETATTR", idx)
         else:
             raise NotImplementedError(f"Did not implement {node} yet :<")

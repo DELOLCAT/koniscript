@@ -1,5 +1,17 @@
 {
-    "configurations": [
+    "configurations":[
+        {
+          "name": "Debug Rust (CodeLLDB)",
+          "type": "lldb",
+          "request": "launch",
+          "program": "${workspaceFolder}/lolscript_vm/target/debug/lolscript_vm",
+          "args": [
+            "run",
+            "${workspaceFolder}/test.lsc"
+          ],
+          "cwd": "${workspaceFolder}",
+          "sourceLanguages": ["rust"]
+        },
         {
             "name": "both",
             "type": "debugpy",

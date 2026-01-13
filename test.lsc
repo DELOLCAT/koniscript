@@ -3,27 +3,44 @@ ENV 1
 ISA 1
 .frame 1
 .const
-1"0"
-1"1"
+2"Hello "
+2" from math"
+6"None"
+2"hi"
+2"v"
 .code
+JMP 8
+PUSH_BUILTIN 0
 PUSH_CONST 0
-STORE 0 0
 RETRIEVE 0 0
 PUSH_CONST 1
-ADD
+CALL 3
+PUSH_CONST 2
+RET
+MAKE_FUNCTION 1 1 1 3
+EXPORT 3
+MAKE_MODULE
 STORE 0 0
-PUSH_BUILTIN 0
 RETRIEVE 0 0
+GETATTR 3
+PUSH_CONST 4
 CALL 1
 NOP
 .line
+2
+1
+1
+1
+1
+1
+2
+2
+2
+2
 0
 0
 1
 1
 1
 1
-2
-2
-2
 0
