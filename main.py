@@ -3,6 +3,7 @@ import base_env
 # from rich import print
 from runtime import BuiltinFunction, TYPES, Environment
 from warnings import warn
+import os
 ADD = "ADD"
 INTEGER = "INT"
 INT = INTEGER
@@ -441,8 +442,15 @@ class Parser:
             self.eat(IMPORT)
             name = self.current_token.value
             self.eat(IDENTIFIER)
-            with open(f"{name}.ls") as file:
-                content = file.read()
+            base_path = os.curdir
+            if f"{name}.ls" in os.listdir("packages"):
+                modpath = os.path.join(base_path, "packages", f"{name}.ls")
+            elif f"{name}.ls" in os.listdir():
+                modpath = os.path.join(base_path, f"{name}.ls")
+            else:
+                raise RuntimeError(f"Can't find module {name}")
+            with open(modpath) as f:
+                content = f.read()
             tknr = Tokenizer(content)
             tkns = []
             while True:
