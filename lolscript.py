@@ -12,10 +12,11 @@ class FileNotReadable(Exception):
     def __init__(self, path):
         self.path = path
 
-def comp(filepath:Path, features = []):
+def comp(filepath:Path, features=None):
+    if features is None:
+        features = []
     current_env = copy.copy(base_env.compiler_env)  # noqa: F841
-    with open(filepath) as file:
-        file_content = file.read()
+    file_content = Path(filepath).read_text()
     tknr = Tokenizer(file_content)
     tkns: list[Token] = []
     while True:
@@ -26,8 +27,7 @@ def comp(filepath:Path, features = []):
     psr:Parser = Parser(tkns, base_env.ASTenv)
     program:Program = psr.program()
     compiler =  Compiler(current_env, base_env.ASTenv)
-    instructions = compiler.compile(program, features, file_content)
-    return instructions
+    return compiler.compile(program, features, file_content)
 
 @app.command()
 def compile(filepath:Path, 
@@ -53,6 +53,7 @@ def compile_release(filepath: Path):
  
 @app.command()
 def run(filepath:Path, debug:bool = False, features = []):
+    # sourcery skip: default-mutable-arg
     ins = comp(filepath)
     with tempfile.NamedTemporaryFile(delete=True, mode="w+") as f:
         f.write("\n".join([str(x) for x in ins]))

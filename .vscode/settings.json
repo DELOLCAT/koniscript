@@ -14,11 +14,13 @@
         "JMPIF",
         "JMPIFF",
         "modpath",
+        "mypy",
         "peekable",
         "repr",
         "Tenv",
         "tknr",
         "tkns",
+        "typer",
         "vmenv"
     ],
     "python.analysis.supportAllPythonDocuments": false,

@@ -97,6 +97,7 @@ struct VM {
     const_pool: Vec<Value>,
     lines: Option<Vec<i64>>,
     frames: Vec<Frame>,
+    source: Option<Vec<String>>
 }
 #[derive(Debug, Clone)]
 struct Frame {
@@ -206,7 +207,7 @@ impl VM {
         let mut i = 0;
         let mut sup_lines: Option<usize> = None;
         let mut lines: Vec<i64> = vec![];
-        let mut source: Option<String> = None;
+        let mut source: Option<Vec<String>> = None;
         let mut mode = "discover";
         while i < instructions.len() {
             let line = instructions[i].trim();
@@ -225,7 +226,7 @@ impl VM {
                 continue;
             } else if line == ".source" {
                 mode = "source";
-                source = Some(String::new());
+                source = Some(Vec::new());
                 i += 1;
                 continue;
             }
@@ -240,51 +241,39 @@ impl VM {
                     }
                 }
             } else if mode == "source" {
-                source.as_mut().unwrap().push_str(&instructions[i]);
+                source.as_mut().unwrap().push(instructions[i].clone());
             }
             i += 1;
         }
-
         let frame = Frame::new().env(Env {
             values: vec![None; local_count.unwrap() as usize],
             parent: None,
             exports: HashMap::new(),
         });
 
-        if let Some(x) = sup_lines {
-            let content = &&instructions[broken..x];
-            let mut ins: Vec<Vec<String>> = vec![];
-            for inst in content.to_vec() {
-                let mut out: Vec<String> = vec![];
-                for idx in inst.split(" ") {
-                    out.push(idx.to_string())
-                }
-                ins.push(out)
-            }
-            Ok(Self {
-                ins: ins,
-                global_env: runtime::vmenv(),
-                const_pool: const_table,
-                lines: Some(lines),
-                frames: vec![frame],
-            })
+        let content = if let Some(x) = sup_lines {
+            &instructions[broken..x]
         } else {
-            let mut ins: Vec<Vec<String>> = vec![];
-            for inst in instructions.to_vec() {
-                let mut out: Vec<String> = vec![];
-                for idx in inst.split(" ") {
-                    out.push(idx.to_string())
-                }
-                ins.push(out)
+            &instructions[broken..]
+        };
+
+        let mut ins: Vec<Vec<String>> = vec![];
+        for inst in content {
+            let mut out: Vec<String> = vec![];
+            for idx in inst.split(" ") {
+                out.push(idx.to_string())
             }
-            Ok(Self {
-                ins: ins,
-                global_env: runtime::vmenv(),
-                const_pool: const_table,
-                lines: None,
-                frames: vec![frame],
-            })
+            ins.push(out)
         }
+
+        Ok(Self {
+            ins,
+            global_env: runtime::vmenv(),
+            const_pool: const_table,
+            lines: if sup_lines.is_some() { Some(lines) } else { None },
+            frames: vec![frame],
+            source,
+        })
     }
     fn global_env(mut self, env: &[Value]) -> Self {
         self.global_env = env.to_vec();
@@ -820,7 +809,26 @@ fn run(file: String) {
             println!("Exited with error: {}: {}", e.errcode, e.msg);
             println!("{}", "Traceback: most recent call last".blue().bold());
             for frame in vm.frames.iter().rev() {
-                if vm.lines.is_some() {
+                if vm.source.is_some() && vm.lines.is_some() {
+                    println!(
+                        "at {}:{} (ins {}):",
+                        frame.name,
+                        vm.clone().lines.unwrap()[frame.i] + 1,
+                        format!("0x{:04X}", &frame.i)
+                    );
+                    let radius = 2;
+                    let line_nr = vm.clone().lines.unwrap()[frame.i] as usize;
+                    let start = line_nr.saturating_sub(radius);
+                    let end = std::cmp::min(line_nr + radius + 1, vm.source.as_ref().unwrap().len());
+                    let window = &vm.source.as_ref().unwrap()[start..end];
+                    for (i, idx) in window.iter().enumerate() {
+                        if start + i == line_nr {
+                            println!("-> {}", idx)
+                        } else {
+                            println!("   {}", idx)
+                        }
+                    }
+                } else if vm.lines.is_some() {
                     println!(
                         "at {}:{} (ins {})",
                         frame.name,
