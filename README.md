@@ -15,4 +15,5 @@ Because of the various runtime environments, a compatibility syntax (ex. @requir
 - [ ] Async support (through a @require flag)
 - [ ] A standard library (though certain imports, like fs, would need an @require flag)
 - [ ] For loops
+- [ ] A REPL
 - [x] While loops
