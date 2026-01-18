@@ -1,2 +1,2 @@
 #!/bin/bash
-uv run /home/ahmad/coding/rpn/lolscript.py "$@"
+uv run /home/ahmad/coding/rpn/ray.py "$@"

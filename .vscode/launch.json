@@ -4,10 +4,10 @@
           "name": "Debug Rust (CodeLLDB)",
           "type": "lldb",
           "request": "launch",
-          "program": "${workspaceFolder}/lolscript_vm/target/debug/lolscript_vm",
+          "program": "${workspaceFolder}/ray_vm/target/debug/ray_vm",
           "args": [
             "run",
-            "${workspaceFolder}/test.lsc"
+            "${workspaceFolder}/test.rvm"
           ],
           "cwd": "${workspaceFolder}",
           "sourceLanguages": ["rust"]
@@ -16,19 +16,19 @@
             "name": "both",
             "type": "debugpy",
             "request": "launch",
-            "program": "lolscript.py",
+            "program": "ray.py",
             "console": "integratedTerminal",
-            "args": ["run", "test.ls"]
+            "args": ["run", "test.ray"]
         },
         {
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
-            "program": "./lolscript.py",
+            "program": "./ray.py",
             "console": "integratedTerminal",
             "args": [
                 "compile",
-                "test.ls"
+                "test.ray"
             ],
         },
         {
@@ -37,7 +37,7 @@
             "request": "launch",
             "program": "./VM.py",
             "args": [
-                "./test.lsc"
+                "./test.rvm"
             ]
         },
     ]

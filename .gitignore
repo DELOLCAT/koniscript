@@ -10,4 +10,4 @@ wheels/
 .venv
 
 #Rust
-/lolscript_vm/target/
+/ray_vm/target/

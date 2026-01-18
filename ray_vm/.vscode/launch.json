@@ -5,28 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug executable 'lolscript_vm'",
+            "name": "Debug executable 'ray_vm'",
             "type": "lldb",
             "request": "launch",
             "cargo": {
                 "args": [
                     "run",
-                    "--bin=lolscript_vm",
+                    "--bin=ray_vm",
                 ]
             },
             "args": [
                 "run",
-                "../test.lsc"
+                "../test.rvm"
             ]
         },
         {
-            "name": "Debug unit tests in executable 'lolscript_vm'",
+            "name": "Debug unit tests in executable 'ray_vm'",
             "type": "lldb",
             "request": "launch",
             "cargo": {
                 "args": [
                     "test",
-                    "--bin=lolscript_vm"
+                    "--bin=ray_vm"
                 ]
             }
         }

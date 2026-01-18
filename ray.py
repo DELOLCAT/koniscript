@@ -44,11 +44,7 @@ def compile(filepath:Path,
     else:
         features = []
     instructions = comp(filepath, features)
-    with open("test.lsc", "w") as file:
-        file.write("\n".join([str(x) for x in instructions]))
-def compile_release(filepath: Path):
-    instructions = comp(filepath)
-    with open("test.lsc", "w") as file:
+    with open(f"{str(filepath).removesuffix('.ray')}.rvm", "w") as file:
         file.write("\n".join([str(x) for x in instructions]))
  
 @app.command()

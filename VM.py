@@ -1,3 +1,8 @@
+"""
+This whole file is __extremely__ deprecated.
+Use /ray_vm instead (Rust).
+"""
+
 from typer import Typer
 from rich import print  # noqa: F401
 from rich.traceback import install
@@ -43,7 +48,7 @@ def eval_str(string:str):
         i+=1
     if not term:
         raise RuntimeError("String never started")
-    
+
     term = False
     while i < len(string):
         if string[i] == '"':
@@ -51,10 +56,7 @@ def eval_str(string:str):
             break
         if string[i] == "\\":
             i+=1
-            if string[i] == "n":
-                output+="\n"
-            else:
-                output+=string[i]
+            output += "\n" if string[i] == "n" else string[i]
             i+=1
             continue
         output += string[i]
@@ -69,13 +71,13 @@ class VM():
         self.global_env = global_env
         main_frame = Frame(None, Env(), None)
         self.frames:list[Frame] = [main_frame]
-        self.i = 0        
+        self.i = 0
         self.const_pool=[]
         self.content=content
         self.builtin_count = len(global_env)
         self.dbg:bool = debug
         while True:
-            if content[self.i].strip() == "" or content[self.i].strip() == ".const":
+            if content[self.i].strip() in ["", ".const"]:
                 self.i+=1
                 continue
             if content[self.i].strip() == ".code":
@@ -125,15 +127,16 @@ class VM():
                             env = env.parent
                         val = env.values[idx]
                         if val is None:
-                            raise RuntimeError(f"Could not find variable at {depth}:{idx}")
+                            raise RuntimeError(
+                                f"Could not find variable at {depth}:{idx}"
+                            )
                         self.append_to_stack(val)
                     case "PUSH_BUILTIN":
                         self.append_to_stack(self.global_env[operands[0]])
                     case "CALL":
-                        #to_call = stack.pop(0)
+                        # to_call = stack.pop(0)
                         args = []
-                        for _ in range(op):
-                            args.append(self.pop_from_stack())
+                        args.extend(self.pop_from_stack() for _ in range(op))
                         args.reverse()
                         to_call = self.pop_from_stack()
                         if to_call[0] != TYPES[main.FUNC]:
@@ -144,27 +147,15 @@ class VM():
                         else:
                             local_count = to_call["local_count"]
                             param_count = to_call["params"]
-                            env = Env(
-                                to_call["closure"],
-                                [None] * local_count
-                            )
-                            
-                            
+                            env = Env(to_call["closure"], [None] * local_count)
+
                             # Copy arguments into locals
                             for i in range(param_count):
                                 env.values[i] = args[i]
                             if self.sup_lines:
-                                frame = Frame(
-                                    self.i,
-                                    env,
-                                    self.lines[self.i]
-                                )
+                                frame = Frame(self.i, env, self.lines[self.i])
                             else:
-                                frame = Frame(
-                                    self.i,
-                                    env,
-                                    None
-                                )
+                                frame = Frame(self.i, env, None)
 
                             self.frames.append(frame)
                             self.i = to_call["entry"]
@@ -203,11 +194,11 @@ class VM():
                         self.pop_from_stack()
                     case "MAKE_FUNCTION":
                         func = {
-                            "type":"user",
-                            "entry":operands[0],
-                            "local_count":operands[1],
-                            "params":operands[2],
-                            "closure":self.frames[-1].env
+                            "type": "user",
+                            "entry": operands[0],
+                            "local_count": operands[1],
+                            "params": operands[2],
+                            "closure": self.frames[-1].env,
                         }
                         self.append_to_stack((TYPES[main.FUNC], (func)))
                     case "RET":
@@ -221,42 +212,38 @@ class VM():
                         self.frames.pop()
                         self.append_to_stack(to_ret)
                     case _:
-                        if ins in main.OPCODE_MAP:
-                            rhs = self.pop_from_stack()
-                            lhs = self.pop_from_stack()
-                            key = (ins, int(lhs[0]), int(rhs[0]))
-                            if key not in base_env.OP_TYPES:
-                                raise RuntimeError("Invalid operand types")
-                            lhs = to_type(lhs)
-                            rhs = to_type(rhs)
-                            ans = main.OPERATORS[main.OPCODE_MAP[ins]](lhs, rhs)
-                            res_type = base_env.OP_TYPES[key]
-                            self.append_to_stack((res_type,ans))
-                        else:
+                        if ins not in main.OPCODE_MAP:
                             raise NotImplementedError()
+                        rhs = self.pop_from_stack()
+                        lhs = self.pop_from_stack()
+                        key = (ins, int(lhs[0]), int(rhs[0]))
+                        if key not in base_env.OP_TYPES:
+                            raise RuntimeError("Invalid operand types")
+                        lhs = to_type(lhs)
+                        rhs = to_type(rhs)
+                        ans = main.OPERATORS[main.OPCODE_MAP[ins]](lhs, rhs)
+                        res_type = base_env.OP_TYPES[key]
+                        self.append_to_stack((res_type, ans))
                 self.i+=1
             except Exception as e:
-                if self.sup_lines:
-                    if self.dbg:
-                        raise RuntimeError(f"{e}\n"
-                                           f"at ins {self.i}\n"
-                                           f"at source ln {self.lines[self.i] + 1}\n"
-                                           f"Note: turn off debug to get a stack trace")
-                    else:
-                        print(f"[red b i u]{e}\n"
-                              f"at instruction {self.i}\n"
-                              f"at source ln {self.lines[self.i] + 1}\n[/]"
-                               "[blue b]Traceback: (most recent call last)")
-                        for frame in reversed(self.frames):
-                            if frame.ln is None:
-                                print("at [blue b]main stack[/]")
-                                continue
-                            print(f"ln [blue b]{frame.ln - 1}[/]")
-                        return RuntimeError
-                        
-                else:
+                if not self.sup_lines:
                     raise RuntimeError(f"{e}"
                                         "at ins {self.i}")
+                if self.dbg:
+                    raise RuntimeError(f"{e}\n"
+                                       f"at ins {self.i}\n"
+                                       f"at source ln {self.lines[self.i] + 1}\n"
+                                       f"Note: turn off debug to get a stack trace")
+                print(f"[red b i u]{e}\n"
+                      f"at instruction {self.i}\n"
+                      f"at source ln {self.lines[self.i] + 1}\n[/]"
+                       "[blue b]Traceback: (most recent call last)")
+                for frame in reversed(self.frames):
+                    if frame.ln is None:
+                        print("at [blue b]main stack[/]")
+                        continue
+                    print(f"ln [blue b]{frame.ln - 1}[/]")
+                return RuntimeError
 
 
 @app.command()

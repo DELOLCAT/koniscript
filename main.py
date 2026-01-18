@@ -182,9 +182,9 @@ class Tokenizer:
         elif current_char == "]":
             self.advance(1)
             return Token(RBRACKET, None, start_line, start_col)
-    
+
         elif current_char == "#":
-            while not self.get_current_char() == "\n":
+            while self.get_current_char() != "\n":
                 self.advance()
             return self.get_next_token()
         elif current_char == "+":
@@ -472,10 +472,10 @@ class Parser:
             for i, item in enumerate(self.base_env):
                 if isinstance(item[1], BuiltinModule) and item[1].name == name:
                     return Assign(-1, name, BuiltinModulePointer(ln, i))
-            if f"{name}.ls" in os.listdir("packages"):
-                modpath = os.path.join(base_path, "packages", f"{name}.ls")
-            elif f"{name}.ls" in os.listdir():
-                modpath = os.path.join(base_path, f"{name}.ls")
+            if f"{name}.ray" in os.listdir("packages"):
+                modpath = os.path.join(base_path, "packages", f"{name}.ray")
+            elif f"{name}.ray" in os.listdir():
+                modpath = os.path.join(base_path, f"{name}.ray")
             else:
                 raise RuntimeError(f"Can't find module {name}")
             with open(modpath) as f:
