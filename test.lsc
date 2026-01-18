@@ -1,42 +1,18 @@
 .version
 ENV 1
 ISA 1
-.frame 2
+.frame 0
 .const
-2"something"
 2"hi"
-1"4"
-2"push"
-2"test"
 .code
-PUSH_CONST 0
-STORE 0 0
-RETRIEVE 0 0
-PUSH_CONST 1
-PUSH_CONST 2
-BUILD_ARRAY 3
-STORE 1 0
-RETRIEVE 1 0
-GETATTR 3
-PUSH_CONST 4
-CALL 1
 PUSH_BUILTIN 0
-RETRIEVE 1 0
+PUSH_CONST 0
 CALL 1
 NOP
 .line
 0
 0
-1
-1
-1
-1
-1
-2
-2
-2
-2
-3
-3
-3
 0
+0
+.source
+print("hi")

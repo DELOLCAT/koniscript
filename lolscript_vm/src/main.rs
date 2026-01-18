@@ -85,9 +85,9 @@ fn val(file: String) {
 
     let contents: Vec<String> = contents.lines().map(|s| s.to_string()).collect();
     let vm = VM::new(contents).unwrap();
-    match vm.validiate() {
+    match vm.validate() {
         Some(e) => println!("{}", e.msg),
-        None => println!("Validation succesful"),
+        None => println!("Validation successful"),
     };
 }
 #[derive(Clone)]
@@ -191,7 +191,7 @@ impl VM {
 
         if local_count.is_none() {
             return Err(VmError {
-                msg: "The sepecified program has no local count".to_string(),
+                msg: "The specified program has no local count".to_string(),
                 errcode: ErrCode::ValueError,
             });
         }
@@ -206,9 +206,12 @@ impl VM {
         let mut i = 0;
         let mut sup_lines: Option<usize> = None;
         let mut lines: Vec<i64> = vec![];
+        let mut source: Option<String> = None;
+        let mut mode = "discover";
         while i < instructions.len() {
             let line = instructions[i].trim();
             if line == ".line" {
+                mode = "line";
                 sup_lines = match Some(i).try_into() {
                     Ok(v) => v,
                     Err(_) => {
@@ -220,8 +223,13 @@ impl VM {
                 };
                 i += 1;
                 continue;
+            } else if line == ".source" {
+                mode = "source";
+                source = Some(String::new());
+                i += 1;
+                continue;
             }
-            if sup_lines.is_some() {
+            if mode == "line" {
                 match line.parse::<i64>() {
                     Ok(n) => lines.push(n),
                     Err(_) => {
@@ -231,6 +239,8 @@ impl VM {
                         });
                     }
                 }
+            } else if mode == "source" {
+                source.as_mut().unwrap().push_str(&instructions[i]);
             }
             i += 1;
         }
@@ -280,13 +290,13 @@ impl VM {
         self.global_env = env.to_vec();
         self
     }
-    fn validiate(self) -> Option<VmError> {
+    fn validate(self) -> Option<VmError> {
         for (i, ins) in self.ins.iter().enumerate() {
             for idx in &ins[1..] {
                 if idx.parse::<i64>().is_err() {
                     return Some(VmError {
                         msg: format!(
-                            "Invalid bytecode at instuction {}: expected integer, got {}",
+                            "Invalid bytecode at instruction {}: expected integer, got {}",
                             i, idx
                         ),
                         errcode: runtime::ErrCode::InvalidBytecode,
@@ -415,7 +425,7 @@ impl VM {
                     println!("Stack : {:#?}", self.frames.last().unwrap().stack);
                     let mut b= String::new();
                     print!("Press enter to continue");
-                    std::io::stdin().read_line(&mut b);
+                    let _ = std::io::stdin().read_line(&mut b);
                 }
                 "GETATTR" => {
                     let attrand: usize = operators[1].parse().expect("Invalid bytecode");
@@ -473,7 +483,7 @@ impl VM {
                             } else {
                                 return Err(
                                     VmError {
-                                        msg: format!("No atrribute `{}` for type array", attrand),
+                                        msg: format!("No attribute `{}` for type array", attrand),
                                         errcode: ErrCode::AttributeError
                                     }
                                 )
@@ -703,7 +713,7 @@ impl VM {
                         Value::String(v) => v,
                         _ => return Err(
                             VmError {
-                                msg: format!("Expected EXPORT to refrence to a string, not a {}", name.display()),
+                                msg: format!("Expected EXPORT to reference to a string, not a {}", name.display()),
                                 errcode: ErrCode::TypeError
                             }
                         )

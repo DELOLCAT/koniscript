@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Write};
 use std::rc::Rc;
-use std::slice;
 use std::thread::sleep;
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -428,7 +427,7 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::String(buf))
 }
-pub fn vm_hi(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_hi(_args: &[Value]) -> Result<Value, VmError> {
     println!("hi from math");
     Ok(Value::Null)
 }

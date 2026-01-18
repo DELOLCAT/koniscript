@@ -1,0 +1,29 @@
+{
+    "cSpell.words": [
+        "asstr",
+        "attramp",
+        "attrand",
+        "attrl",
+        "ATTRMAP",
+        "byecode",
+        "condv",
+        "fenv",
+        "fframe",
+        "funcs",
+        "GETATTR",
+        "JMPIF",
+        "JMPIFF",
+        "modpath",
+        "peekable",
+        "repr",
+        "Tenv",
+        "tknr",
+        "tkns",
+        "vmenv"
+    ],
+    "python.analysis.supportAllPythonDocuments": false,
+    "python.analysis.autoFormatStrings": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.completeFunctionParens": false,
+    "python.analysis.generateWithTypeAnnotation": false
+}

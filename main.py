@@ -334,7 +334,7 @@ class Parser:
             self.eat(op)
             node = BinOp(self.current_token.line, node, op, self.equality())
         return node
-    def comparision(self):
+    def comparison(self):
         node = self.arithmetic_expr()
         while self.current_token.type in (LT, GT, LTE, GTE):
             op = self.current_token.type
@@ -343,11 +343,11 @@ class Parser:
         return node
     
     def equality(self):
-        node = self.comparision()
+        node = self.comparison()
         while self.current_token.type in (EQUAL_TO, NOT_EQUAL_TO):
             op = self.current_token.type
             self.eat(op)
-            node = BinOp(self.current_token.line, node, op, self.comparision())
+            node = BinOp(self.current_token.line, node, op, self.comparison())
         return node
     def term(self):
         node = self.power()
@@ -759,7 +759,7 @@ class Export(ASTNode):
 
 class NOP(ASTNode):
     pass
-def eval_ast(node: ASTNode, env: Environment):
+def eval_ast(node: ASTNode, env: Environment): #DEPRECATED
     if isinstance(node, NOP):
         pass
     if isinstance(node, Number):
@@ -923,7 +923,9 @@ class Compiler():
         self.code.append((opcode, *operands))
         self.lines.append(line)
         return idx
-    def compile(self, program:Program):
+    def compile(self, program:Program, features = [], input_source: str | None = None) -> list[str]:
+        if input_source is None and "source" in features:
+            raise RuntimeError("Compiler needs input source to compile with source info.")
         for node in program.statements:
             self.compile_ins(node)
         self.emit(0,"NOP")
@@ -939,9 +941,13 @@ class Compiler():
         output.append(".code")
         for instr in self.code:
             output.append(" ".join(map(str, instr)))
-        output.append(".line")
-        for line in self.lines:
-            output.append(line)
+        if "lines" in features:
+            output.append(".line")
+            for line in self.lines:
+                output.append(line)
+        if "source" in features:
+            output.append(".source")
+            output += input_source.split("\n") # pyright: ignore[reportOptionalMemberAccess]
         return output
     def compile_ins(self, node:ASTNode, *other):
         if isinstance(node, String):
@@ -976,7 +982,7 @@ class Compiler():
                 self.compile_ins(node.value, node.name)
                 idx = self.declare_local(node.name)
                 self.emit(node.line, OP_SET_VAR, idx, depth)
-                warn(f"Reassignment to a function attempted for {node.name} on {node.line}. This is usually not reccomended.")
+                warn(f"Reassignment to a function attempted for {node.name} on {node.line}. This is usually not recommended.")
         elif isinstance(node, Assign):
             res = self.get_var(node.name)
             if res is None:

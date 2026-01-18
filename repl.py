@@ -1,3 +1,9 @@
+"""
+This whole file is deprecated.
+A new REPL is going to be developed in the future
+"""
+
+
 from main import Tokenizer, Parser, EOF, eval_ast, IncompleteInput
 from rich import print
 from rich.traceback import install
