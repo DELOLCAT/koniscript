@@ -4,12 +4,13 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Write};
 use std::rc::Rc;
+use std::slice;
 use std::thread::sleep;
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<Value>>,
     pub parent: Option<Rc<RefCell<Env>>>,
-    pub exports: HashMap<String, Value>
+    pub exports: HashMap<String, Value>,
 }
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -23,16 +24,13 @@ pub struct VmError {
 }
 #[derive(Debug)]
 pub enum VmPanic {
-    ConstTableDidntEnd,
     StringNeverStarted,
     StringEndedUnexpectedly,
     StringNeverEnded,
-    NonIntsInLineTable,
     TagConversionFailed,
-    LineConversionFailed,
 }
 #[repr(i8)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValueTag {
     Integer = 1,
     String = 2,
@@ -41,6 +39,7 @@ pub enum ValueTag {
     Null = 6,
     Float = 7,
     Module = 8,
+    Array = 9,
 }
 impl TryFrom<i8> for ValueTag {
     type Error = VmError;
@@ -53,6 +52,8 @@ impl TryFrom<i8> for ValueTag {
             4 => Ok(ValueTag::Func),
             6 => Ok(ValueTag::Null),
             7 => Ok(ValueTag::Float),
+            8 => Ok(ValueTag::Module),
+            9 => Ok(ValueTag::Array),
             _ => Err(VmError {
                 msg: format!("Invalid value tag {}", tag),
                 errcode: ErrCode::InvalidBytecode,
@@ -69,6 +70,7 @@ pub enum Value {
     Func(LsFunc),
     Float(f64),
     Module(Module),
+    Array(Vec<Value>),
     Null,
 }
 
@@ -82,6 +84,7 @@ impl Value {
             Value::Null => ValueTag::Null as i8,
             Value::Float(_) => ValueTag::Float as i8,
             Value::Module(_) => ValueTag::Module as i8,
+            Value::Array(_) => ValueTag::Array as i8,
         }
     }
     pub fn new(tag: i8, payload: &str) -> Result<Self, VmError> {
@@ -121,12 +124,27 @@ impl Value {
             Value::Func(f) => match f {
                 LsFunc::User { entry, name, .. } => format!("[function {} at {}]", name, entry),
                 LsFunc::Builtin { name, .. } => format!("[builtin function {}]", name),
+                LsFunc::UserMethod {name, ..} => format!("[method {}]", name),
+                LsFunc::BuiltinMethod { name, ..} => format!("builtin method {}]", name)
             },
             Value::Null => "null".to_string(),
             Value::Module(m) => match &m.name {
                 Some(v) => format!("[module {}]", v),
                 None => "[module]".to_string(),
             },
+            Value::Array(_) => "array".to_string(),
+        }
+    }
+    pub fn val_tag(&self) -> ValueTag {
+        match self {
+            Value::Array(_) => ValueTag::Array,
+            Value::Bool(_) => ValueTag::Bool,
+            Value::Func(_) => ValueTag::Func,
+            Value::Integer(_) => ValueTag::Integer,
+            Value::Float(_) => ValueTag::Float,
+            Value::String(_) => ValueTag::String,
+            Value::Null => ValueTag::Null,
+            Value::Module(_) => ValueTag::Module
         }
     }
 }
@@ -139,10 +157,21 @@ pub enum LsFunc {
         closure: Rc<RefCell<Env>>,
         name: String,
     },
+    UserMethod {
+        entry: usize,
+        local_count: usize,
+        param_count: usize,
+        closure: Rc<RefCell<Env>>,
+        name: String,
+    },
     Builtin {
         name: String,
         func: fn(&[Value]) -> Result<Value, VmError>,
     },
+    BuiltinMethod {
+        name: String,
+        func: fn(Value, &[Value]) -> Result<Value, VmError>,
+    }
 }
 #[derive(Debug)]
 pub enum ErrCode {
@@ -196,9 +225,64 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
                 let out = format!("[func {} at ins {}]", name, entry);
                 Result::Ok(Value::String(out))
             }
+            LsFunc::UserMethod { entry, name, ..} => {
+                let out = format!("[method {} at ins {}]", name, entry);
+                Ok(Value::String(out))
+            }
+            LsFunc::BuiltinMethod { name, ..} => {
+                let out = format!("[builtin method {}]", name);
+                Ok(Value::String(out))
+            }
         },
         Value::String(val) => Result::Ok(Value::String(val.to_string())),
         Value::Null => Result::Ok(Value::String("null".to_string())),
+        Value::Array(items) => {
+            let mut output = "[".to_string();
+            if items.len() > 1 {
+                for item in &items[0..items.len() - 1] {
+                    let asstr = match vm_to_str(slice::from_ref(item)) {
+                        Ok(v) => {
+                            if let Value::String(val) = v {
+                                val
+                            } else {
+                                unreachable!("vm_to_str must return a string")
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    };
+                    output.push_str(asstr.as_str());
+                    output.push_str(", ")
+                }
+                let asstr = match vm_to_str(slice::from_ref(items.last().unwrap())) {
+                    Ok(v) => {
+                        if let Value::String(val) = v {
+                            val
+                        } else {
+                            unreachable!("vm_to_str must return a string")
+                        }
+                    }
+                    Err(e) => return Err(e),
+                };
+                output.push_str(asstr.as_str())
+            } else {
+                for item in items {
+                    let asstr = match vm_to_str(slice::from_ref(item)) {
+                        Ok(v) => {
+                            if let Value::String(val) = v {
+                                val
+                            } else {
+                                unreachable!("vm_to_str must return a string")
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    };
+                    output.push_str(asstr.as_str())
+                }
+            }
+            output.push_str("]");
+
+            Ok(Value::String(output))
+        }
         _ => {
             let out = format!("Cannot convert a {} to a string", item.display());
             Result::Err(VmError {
@@ -367,6 +451,10 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::String(buf))
 }
+pub fn vm_hi(args: &[Value]) -> Result<Value, VmError> {
+    println!("hi from math");
+    Ok(Value::Null)
+}
 pub fn vmenv() -> Vec<Value> {
     vec![
         Value::Func(LsFunc::Builtin {
@@ -392,6 +480,16 @@ pub fn vmenv() -> Vec<Value> {
         Value::Func(LsFunc::Builtin {
             name: "to_bool".to_string(),
             func: vm_to_bool,
+        }),
+        Value::Module(Module {
+            exports: HashMap::from([(
+                "hi".to_string(),
+                Value::Func(LsFunc::Builtin {
+                    name: "hi".to_string(),
+                    func: vm_hi,
+                }),
+            )]),
+            name: Some("math".to_string()),
         }),
     ]
 }
@@ -638,6 +736,47 @@ static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> 
 pub fn funcs() -> &'static HashMap<String, fn(Value, Value) -> Result<Value, VmError>> {
     &FUNCS
 }
+fn expect_args(args: &[Value], n: usize) -> Result<(), VmError> {
+    if args.len() != n {
+        Err(VmError {
+            msg: format!("Expected {} argument(s), got {}", n, args.len()),
+            errcode: ErrCode::ValueError,
+        })
+    } else {
+        Ok(())
+    }
+}
+fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
+    expect_args(args, 1)?;
+
+    match item {
+        Value::Array(ar) => {
+            let mut out = ar.clone();
+            out.push(args[0].clone());
+            Ok(Value::Array(out))
+        }
+
+        other => Err(VmError {
+            msg: format!("`push` only works on arrays, not {}", other.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
+pub static ATTRMAP: Lazy<HashMap<ValueTag, HashMap<String, fn(Value, &[Value]) -> Result<Value, VmError>>>> = Lazy::new(|| {
+    let mut attramp = HashMap::new(); // Initialize properly
+
+    // 1. Create the inner map
+    let mut array_methods: HashMap<String, fn(Value, &[Value]) -> Result<Value, VmError>> = HashMap::new();
+    
+    // 2. Explicitly cast the function to the signature type
+    //array_methods.insert("push".to_string(), arr_push as fn(Value, Value) -> Result<Value, VmError>);
+    array_methods.insert(
+        "push".to_string(),
+        arr_push
+    );
+    attramp.insert(ValueTag::Array, array_methods);
+    attramp
+});
 
 #[cfg(test)]
 mod tests {
@@ -817,7 +956,11 @@ mod tests {
             _ => panic!("Expected float"),
         }
 
-        let res = add(Value::String("a".to_string()), Value::String("b".to_string())).unwrap();
+        let res = add(
+            Value::String("a".to_string()),
+            Value::String("b".to_string()),
+        )
+        .unwrap();
         match res {
             Value::String(s) => assert_eq!(s, "ab"),
             _ => panic!("Expected string"),

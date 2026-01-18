@@ -128,6 +128,9 @@ T_FUNC = 4
 T_BUILTIN = 5
 T_NULL = 6
 T_FLOAT = 7
+class ASTNode:
+    pass
+
 def to_type(value:tuple[int, Any]) -> Any:
     tag, val = value
     match tag:
@@ -143,3 +146,29 @@ def to_type(value:tuple[int, Any]) -> Any:
             raise DeprecationWarning
         case 6:
             return None
+class Program(ASTNode):
+    def __init__(self, statements):
+        self.statements: list[ASTNode] = statements
+
+    def __repr__(self) -> str:
+        return f"Program({self.statements})"
+
+class Module(ASTNode):
+    def __init__(self, line:int, body: Program, name:str):
+        self.line = line
+        self.body = body
+        self.name = name
+    def __repr__(self):
+        return f"Module({self.body})"
+class BuiltinModulePointer(ASTNode):
+    def __init__(self, line:int, idx:int):
+        self.line = line
+        self.idx = idx
+    def __repr__(self):
+        return f"BuiltinModulePointer({self.line}, {self.idx})"
+class BuiltinModule():
+    def __init__(self, exports: list, name:str):
+        self.exports = exports
+        self.name = name
+    def __repr__(self):
+        return f"BuiltinModule({self.exports}, {self.name})"

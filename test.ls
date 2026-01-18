@@ -1,2 +1,4 @@
-import math
-math.hi("v", "f")
+af = "something"
+arr = [af, "hi", 4]
+arr = arr.push("test")
+print(arr)

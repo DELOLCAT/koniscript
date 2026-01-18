@@ -1,14 +1,13 @@
-use crate::runtime::{Env, Module, Value, VmError, VmPanic, vmenv};
+use crate::runtime::{Env, Module, Value, VmError, VmPanic};
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt::format;
-use std::io::{Read, Write};
 use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
 use runtime::{ErrCode, LsFunc};
+use base16;
 
 #[derive(Parser)]
 struct Cli {
@@ -95,14 +94,10 @@ fn val(file: String) {
 #[derive(Clone)]
 struct VM {
     ins: Vec<Vec<String>>,
-    //i: usize,
     global_env: Vec<Value>,
     const_pool: Vec<Value>,
-    builtin_count: i32,
-    dbg: bool,
     lines: Option<Vec<i64>>,
     frames: Vec<Frame>,
-    local_count: i64,
 }
 #[derive(Debug, Clone)]
 struct Frame {
@@ -261,11 +256,8 @@ impl VM {
                 ins: ins,
                 global_env: runtime::vmenv(),
                 const_pool: const_table,
-                builtin_count: runtime::vmenv().len() as i32,
-                dbg: false,
                 lines: Some(lines),
                 frames: vec![frame],
-                local_count: local_count.unwrap(),
             })
         } else {
             let mut ins: Vec<Vec<String>> = vec![];
@@ -280,21 +272,13 @@ impl VM {
                 ins: ins,
                 global_env: runtime::vmenv(),
                 const_pool: const_table,
-                builtin_count: runtime::vmenv().len() as i32,
-                dbg: false,
                 lines: None,
                 frames: vec![frame],
-                local_count: local_count.unwrap(),
             })
         }
     }
-    fn debug(mut self) -> Self {
-        self.dbg = true;
-        self
-    }
     fn global_env(mut self, env: &[Value]) -> Self {
         self.global_env = env.to_vec();
-        self.builtin_count = env.len().try_into().unwrap();
         self
     }
     fn validiate(self) -> Option<VmError> {
@@ -324,6 +308,7 @@ impl VM {
     fn run(&mut self) -> Result<Option<Value>, VmError> {
         while self.get_i() < self.ins.len() {
             let operators = &self.ins[self.get_i()];
+
             match operators[0].as_str() {
                 "JMP" => {
                     self.frames.last_mut().unwrap().i =
@@ -392,7 +377,30 @@ impl VM {
                         continue;
                     }
                 }
-
+                "BUILD_ARRAY" => {
+                    let ops = match operators.get(1) {
+                        Some(v) => v.parse::<usize>().unwrap(),
+                        None => return Err(
+                            VmError {
+                                msg: "Expected 1 argument for BUILD_ARRAY".to_string(),
+                                errcode: ErrCode::ValueError
+                            }
+                        )
+                    };
+                    let mut items: Vec<Value> = Vec::new();
+                    for _ in 0..ops {
+                        match self.frames.last_mut().unwrap().stack.pop() {
+                            Some(v) => items.push(v),
+                            None => return Err(
+                                VmError {
+                                    msg: "Stack underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow
+                                }
+                            )
+                        }
+                    }
+                    self.push_to_stack(Value::Array(items));
+                }
                 "PUSH_CONST" => {
                     let item: Value =
                         self.const_pool[operators[1].parse::<usize>().unwrap()].clone();
@@ -446,6 +454,27 @@ impl VM {
                                 None => return Err(
                                     VmError {
                                         msg: format!("Could not find export {}, did you mark that value as public (export func/var)?", attrand),
+                                        errcode: ErrCode::AttributeError
+                                    }
+                                )
+                            }
+                        }
+                        Value::Array(_) => {
+                            
+                            self.frames.last_mut().unwrap().stack.push(attrl);
+                            
+                            let methods = runtime::ATTRMAP.get(&runtime::ValueTag::Array).unwrap();
+                            if let Some(v) = methods.get(attrand) {
+                                Value::Func(
+                                    LsFunc::BuiltinMethod {
+                                        name: "arr_push".to_string(),
+                                        func: *v
+                                    }
+                                )
+                            } else {
+                                return Err(
+                                    VmError {
+                                        msg: format!("No atrribute `{}` for type array", attrand),
                                         errcode: ErrCode::AttributeError
                                     }
                                 )
@@ -576,6 +605,20 @@ impl VM {
                             self.frames.last_mut().unwrap().i = entry;
                             continue;
                         }
+                        LsFunc::BuiltinMethod {name, func} => {
+                            let itm = match self.frames.last_mut().unwrap().stack.pop() {
+                                Some(v) => v,
+                                None => return Err(
+                                    VmError {
+                                        msg: "StackUnderflow".to_string(),
+                                        errcode: ErrCode::StackUnderflow
+                                    }
+                                )
+                            };
+                            let result = func(itm, &args.as_slice())?;
+                            self.push_to_stack(result);
+                        }
+                    _ => todo!()
                     }
                 }
                 "RET" => {
@@ -770,12 +813,14 @@ fn run(file: String) {
             for frame in vm.frames.iter().rev() {
                 if vm.lines.is_some() {
                     println!(
-                        "at {}:{}",
+                        "at {}:{} (ins {})",
                         frame.name,
-                        vm.clone().lines.unwrap()[frame.i] + 1
+                        vm.clone().lines.unwrap()[frame.i] + 1,
+                        format!("0x{:04X}", &frame.i)
                     )
                 } else {
-                    println!("at {}", frame.name)
+                    println!("at {}", frame.name);
+                    println!("at ins {}", frame.i);
                 }
             }
             println!("{}: {}", e.errcode, e.msg);

@@ -1,7 +1,7 @@
 from typing import Any
 import base_env
 # from rich import print
-from runtime import BuiltinFunction, TYPES, Environment
+from runtime import BuiltinFunction, TYPES, Environment, Module, ASTNode, Program, BuiltinModule, BuiltinModulePointer
 from warnings import warn
 import os
 ADD = "ADD"
@@ -47,7 +47,8 @@ WHILE = "WHILE"
 DOT = "DOT"
 IMPORT = "IMPORT"
 EXPORT = "EXPORT"
-
+LBRACKET = "LBRACKET"
+RBRACKET = "RBRACKET"
 VALUES = [
     INT,
     STRING,
@@ -175,6 +176,13 @@ class Tokenizer:
                 return Token(FLOAT, float(value), start_line, start_col)
             else:
                 return Token(INT, int(value), start_line, start_col)
+        elif current_char == "[":
+            self.advance(1)
+            return Token(LBRACKET, None, start_line, start_col)
+        elif current_char == "]":
+            self.advance(1)
+            return Token(RBRACKET, None, start_line, start_col)
+    
         elif current_char == "#":
             while not self.get_current_char() == "\n":
                 self.advance()
@@ -283,7 +291,8 @@ class Tokenizer:
 
 
 class Parser:
-    def __init__(self, tokens: list[Token]):
+    def __init__(self, tokens: list[Token], base_env: list[tuple]):
+        self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
         if self.tokens:
@@ -394,19 +403,29 @@ class Parser:
         if token.type == INT:
             self.eat(INT)
             return Number(token.line, token.value)
-        if token.type == FLOAT:
+        elif token.type == LBRACKET:
+            self.eat(LBRACKET)
+            items = []
+            if self.current_token.type != RBRACKET:
+                items.append(self.expr())
+                while self.current_token.type == COMMA:
+                    self.eat(COMMA)
+                    items.append(self.expr())
+            self.eat(RBRACKET)
+            return Array(token.line, items)
+        elif token.type == FLOAT:
             self.eat(FLOAT)
             return Float(token.line, token.value)
-        if token.type == STRING:
+        elif token.type == STRING:
             self.eat(STRING)
             return String(token.line, token.value)
-        if token.type == BOOL:
+        elif token.type == BOOL:
             self.eat(BOOL)
             return Bool(token.line, token.value)
-        if token.type == IDENTIFIER:
+        elif token.type == IDENTIFIER:
             self.eat(IDENTIFIER)
             return Variable(token.line, token.value)
-        if token.type == LPAREN:
+        elif token.type == LPAREN:
             self.eat(LPAREN)
             node = self.expr()
             if self.current_token.type == EOF:
@@ -439,10 +458,14 @@ class Parser:
         elif self.current_token.type == WHILE:
             return self.while_decl()
         elif self.current_token.type == IMPORT:
+            ln = self.current_token.line
             self.eat(IMPORT)
             name = self.current_token.value
             self.eat(IDENTIFIER)
             base_path = os.curdir
+            for i, item in enumerate(self.base_env):
+                if isinstance(item[1], BuiltinModule) and item[1].name == name:
+                    return Assign(-1, name, BuiltinModulePointer(ln, i))
             if f"{name}.ls" in os.listdir("packages"):
                 modpath = os.path.join(base_path, "packages", f"{name}.ls")
             elif f"{name}.ls" in os.listdir():
@@ -451,6 +474,7 @@ class Parser:
                 raise RuntimeError(f"Can't find module {name}")
             with open(modpath) as f:
                 content = f.read()
+                
             tknr = Tokenizer(content)
             tkns = []
             while True:
@@ -458,7 +482,7 @@ class Parser:
                 tkns.append(tkn)
                 if tkn.type == EOF:
                     break
-            psr = Parser(tkns)
+            psr = Parser(tkns, self.base_env)
             program = psr.program()
             mod = Module(self.current_token.line, program, name)
             return Assign(self.current_token.line, name, mod)
@@ -563,11 +587,13 @@ class Parser:
         return Block(self.current_token.line, statements)
 
 
-class ASTNode:
-    pass
     
-
-
+class Array(ASTNode):
+    def __init__(self, line, items:list[ASTNode]):
+        self.line = line
+        self.items = items
+    def __repr__(self):
+        return f"Array({self.items})"
 class Block(ASTNode):
     def __init__(self, line, statements:list[ASTNode]):
         self.statements = statements
@@ -576,19 +602,6 @@ class Block(ASTNode):
         return f"Block({self.statements})"
 
 
-class Program(ASTNode):
-    def __init__(self, statements):
-        self.statements: list[ASTNode] = statements
-
-    def __repr__(self) -> str:
-        return f"Program({self.statements})"
-class Module(ASTNode):
-    def __init__(self, line:int, body: Program, name:str):
-        self.line = line
-        self.body = body
-        self.name = name
-    def __repr__(self):
-        return f"Module({self.body})"
 
 
 class Number(ASTNode):
@@ -971,6 +984,11 @@ class Compiler():
                 self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
                 self.emit(node.line, OP_SET_VAR, idx, depth)
+        elif isinstance(node, BuiltinModulePointer):
+            ref = self.ASTenv[node.idx]
+            if ref[0] in self.modules:
+                raise RuntimeError(f"Module {ref[0]} already imported.")
+            self.emit(-1, "PUSH_BUILTIN", node.idx)
         elif isinstance(node, Module):
             if node.name in self.modules:
                 raise RuntimeError(f"Module {node.name} already imported.")
@@ -1016,7 +1034,10 @@ class Compiler():
                 self.code[jmp2] = ("JMP",len(self.code))
             else:
                 self.code[jmp] = ("JMPIFF", len(self.code))
-
+        elif isinstance(node, Array):
+            for item in node.items:
+                self.compile_ins(item)
+            self.emit(node.line, "BUILD_ARRAY", len(node.items))
         elif isinstance(node, NOP):
             self.emit(0,"NOP")
         elif isinstance(node, Function):

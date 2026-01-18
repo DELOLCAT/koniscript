@@ -1,4 +1,4 @@
-from runtime import Environment, BuiltinFunction, NULL, STRING, FUNC, INT, BOOL, TYPES
+from runtime import Environment, BuiltinFunction, BuiltinModule, NULL, STRING, FUNC, INT, BOOL, TYPES
 from runtime import ADD, SUB, MUL, DIV, POW, LT, GT, GTE, LTE, EQUAL_TO, NOT_EQUAL_TO, AND, OR
 import time
 from typing import Any
@@ -104,13 +104,22 @@ VMenv = [
         "name":"to_int"
     })
 ]
+def vm_hi(*args):
+    print("hi from math")
 compiler_env=[i[1]["name"] for i in VMenv]
 ASTenv  = [
     ('print', BuiltinFunction('print', vm_print)),
     ('sleep', BuiltinFunction('sleep', vm_sleep)),
     ('input', BuiltinFunction('input', vm_input)),
     ('to_str', BuiltinFunction('to_str', vm_to_str)),
-    ('to_int', BuiltinFunction('to_int', vm_to_int))
+    ('to_int', BuiltinFunction('to_int', vm_to_int)),
+    ('to_bool', BuiltinFunction('to_bool', vm_to_bool)),
+    ('math', BuiltinModule(
+        [
+            BuiltinFunction('hi', vm_hi)
+        ],
+        'math'
+    ))
 ]
 
 
