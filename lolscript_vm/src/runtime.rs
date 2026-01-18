@@ -70,7 +70,7 @@ pub enum Value {
     Func(LsFunc),
     Float(f64),
     Module(Module),
-    Array(Vec<Value>),
+    Array(Rc<RefCell<Vec<Value>>>),
     Null,
 }
 
@@ -236,24 +236,15 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         },
         Value::String(val) => Result::Ok(Value::String(val.to_string())),
         Value::Null => Result::Ok(Value::String("null".to_string())),
-        Value::Array(items) => {
+        Value::Array(items_rc) => {
+            let items = items_rc.borrow();
             let mut output = "[".to_string();
-            if items.len() > 1 {
-                for item in &items[0..items.len() - 1] {
-                    let asstr = match vm_to_str(slice::from_ref(item)) {
-                        Ok(v) => {
-                            if let Value::String(val) = v {
-                                val
-                            } else {
-                                unreachable!("vm_to_str must return a string")
-                            }
-                        }
-                        Err(e) => return Err(e),
-                    };
-                    output.push_str(asstr.as_str());
-                    output.push_str(", ")
+            let mut first = true;
+            for item in items.iter() {
+                if !first {
+                    output.push_str(", ");
                 }
-                let asstr = match vm_to_str(slice::from_ref(items.last().unwrap())) {
+                let asstr = match vm_to_str(std::slice::from_ref(item)) {
                     Ok(v) => {
                         if let Value::String(val) = v {
                             val
@@ -263,24 +254,10 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
                     }
                     Err(e) => return Err(e),
                 };
-                output.push_str(asstr.as_str())
-            } else {
-                for item in items {
-                    let asstr = match vm_to_str(slice::from_ref(item)) {
-                        Ok(v) => {
-                            if let Value::String(val) = v {
-                                val
-                            } else {
-                                unreachable!("vm_to_str must return a string")
-                            }
-                        }
-                        Err(e) => return Err(e),
-                    };
-                    output.push_str(asstr.as_str())
-                }
+                output.push_str(&asstr);
+                first = false;
             }
-            output.push_str("]");
-
+            output.push(']');
             Ok(Value::String(output))
         }
         _ => {
@@ -751,9 +728,8 @@ fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
 
     match item {
         Value::Array(ar) => {
-            let mut out = ar.clone();
-            out.push(args[0].clone());
-            Ok(Value::Array(out))
+            ar.borrow_mut().push(args[0].clone());
+            Ok(Value::Array(ar))
         }
 
         other => Err(VmError {

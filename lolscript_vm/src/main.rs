@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
 use runtime::{ErrCode, LsFunc};
-use base16;
 
 #[derive(Parser)]
 struct Cli {
@@ -399,7 +398,7 @@ impl VM {
                             )
                         }
                     }
-                    self.push_to_stack(Value::Array(items));
+                    self.push_to_stack(Value::Array(Rc::new(RefCell::new(items))));
                 }
                 "PUSH_CONST" => {
                     let item: Value =
@@ -605,7 +604,7 @@ impl VM {
                             self.frames.last_mut().unwrap().i = entry;
                             continue;
                         }
-                        LsFunc::BuiltinMethod {name, func} => {
+                        LsFunc::BuiltinMethod {name: _, func} => {
                             let itm = match self.frames.last_mut().unwrap().stack.pop() {
                                 Some(v) => v,
                                 None => return Err(

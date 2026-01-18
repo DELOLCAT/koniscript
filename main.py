@@ -404,12 +404,18 @@ class Parser:
             self.eat(INT)
             return Number(token.line, token.value)
         elif token.type == LBRACKET:
+            if self.current_token.type == EOF:
+                raise IncompleteInput
             self.eat(LBRACKET)
             items = []
             if self.current_token.type != RBRACKET:
+                if self.current_token.type == EOF:
+                    raise IncompleteInput
                 items.append(self.expr())
                 while self.current_token.type == COMMA:
                     self.eat(COMMA)
+                    if self.current_token.type == EOF:
+                        raise IncompleteInput
                     items.append(self.expr())
             self.eat(RBRACKET)
             return Array(token.line, items)
