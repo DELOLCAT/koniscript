@@ -15,3 +15,5 @@ wheels/
 
 #Built
 vm
+#Other
+*.log
