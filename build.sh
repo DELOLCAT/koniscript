@@ -1,18 +1,47 @@
 #!/bin/bash
-set -o pipefail
+set -euo pipefail
 
-./build-vm.sh 2>&1 | awk '{print "\033[1;34m[VM]\033[0m " $0}' | tee build-rust.log &
-pid1=$!
+# Ensure the script is run from the project root
+if [ ! -f "ray.py" ]; then
+    echo "Please run this script from the project root directory."
+    exit 1
+fi
 
-uv run pyinstaller -F ray.py 2>&1 | awk '{print "\033[1;32m[PY]\033[0m " $0}' | tee build-py.log &
-pid2=$!
+# Function to prefix output
+prefix_output() {
+    local prefix=$1
+    local color=$2
+    awk -v prefix="$prefix" -v color="$color" '{print "\033[1;" color "m[" prefix "]\033[0m " $0}'
+}
 
-wait $pid1
-status1=$?
-wait $pid2
-status2=$?
+echo "Starting parallel build..."
 
-if [[ $status1 -ne 0 || $status2 -ne 0 ]]; then
-    [[ $status1 -ne 0 ]] && echo -e "\033[1;31m[VM] failed! Check build-rust.log\033[0m"
-    [[ $status2 -ne 0 ]] && echo -e "\033[1;31m[PY] failed! Check build-py.log\033[0m"
+# Run VM build in background and pipe output
+./build-vm.sh 2>&1 | prefix_output "VM" "34" | tee build-vm.log &
+vm_pid=$!
+
+# Run PyInstaller build in background and pipe output
+uv run pyinstaller -F ray.py 2>&1 | prefix_output "PY" "32" | tee build-py.log &
+py_pid=$!
+
+# Wait for both and get exit codes
+wait $vm_pid
+vm_status=$?
+wait $py_pid
+py_status=$?
+
+# Check statuses and report
+if [ $vm_status -ne 0 ]; then
+    echo -e "\033[1;31m[VM] build failed! Check build-vm.log\033[0m"
+fi
+
+if [ $py_status -ne 0 ]; then
+    echo -e "\033[1;31m[PY] build failed! Check build-py.log\033[0m"
+fi
+
+if [ $vm_status -ne 0 ] || [ $py_status -ne 0 ]; then
+    echo -e "\033[1;31mBuild failed.\033[0m"
+    exit 1
+else
+    echo -e "\033[1;32mAll builds successful.\033[0m"
 fi

@@ -1,7 +1,20 @@
 #!/bin/bash
+set -euo pipefail
 
-set -e
+# Ensure the script is run from the project root
+if [ ! -f "ray.py" ]; then
+    echo "Please run this script from the project root directory."
+    exit 1
+fi
 
-cd ./ray_vm
+echo "Building debug VM..."
+pushd ray_vm > /dev/null
+
+echo "Building debug version..."
 cargo build
-cp ./target/debug/ray_vm /home/ahmad/coding/rpn/vm
+
+echo "Copying debug VM to root..."
+cp ./target/debug/ray_vm ../vm
+
+popd > /dev/null
+echo "Debug VM build successful."

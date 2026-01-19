@@ -1,10 +1,17 @@
 #!/bin/bash
-PAST_DIR=$(pwd)
+set -euo pipefail
 
-cd /home/ahmad/coding/rpn/ray_vm
-cargo test
-cargo build
-cd $PAST_DIR
-printf "\033[2J"
-printf "$(tput setaf 6)%$(tput cols)s$(tput sgr0)\n" | tr ' ' '-'
-/home/ahmad/coding/rpn/ray_vm/target/debug/ray_vm "$@"
+# Ensure the script is run from the project root
+if [ ! -f "ray.py" ]; then
+    echo "Please run this script from the project root directory."
+    exit 1
+fi
+
+echo "Building debug VM..."
+./build-debug.sh
+
+echo "Running debug VM..."
+printf "\033[2J" # Clear screen
+printf "%$(tput cols)s\n" | tr ' ' '-' | tput setaf 6; tput sgr0 # Print separator
+
+./vm "$@"
