@@ -9,11 +9,11 @@ Ray is a dynamic programming language that focuses on these main features:
 
 ## Roadmap
 
-| Icon               | Meaning      |
-|--------------------|--------------|
-| :white_check_mark: | Completed    |
-| :hourglass:        | Finished     |
-| :x:                | Not started  |
+| Icon               | Meaning        |
+|--------------------|----------------|
+| :white_check_mark: | Completed      |
+| :hourglass:        | Deveolping     |
+| :x:                | Not started    |
 
 - :x: A Better requirements system
 - :x: Dictionaries

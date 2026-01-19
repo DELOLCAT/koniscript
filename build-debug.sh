@@ -13,8 +13,8 @@ pushd ray_vm > /dev/null
 echo "Building debug version..."
 cargo build
 
-echo "Copying debug VM to root..."
-cp ./target/debug/ray_vm ../vm
+echo "Copying debug VM to src..."
+cp ./target/debug/ray_vm ../src/vm
 
 popd > /dev/null
 echo "Debug VM build successful."
