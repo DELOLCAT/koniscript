@@ -1,4 +1,6 @@
 import typer
+import os
+import sys
 from pathlib import Path
 from main import Tokenizer, Parser, EOF, eval_ast, Token, Program, Compiler
 import base_env
@@ -51,15 +53,28 @@ def compile(filepath:Path,
 def run(filepath:Path, debug:bool = False, features = []):
     # sourcery skip: default-mutable-arg
     ins = comp(filepath)
-    with tempfile.NamedTemporaryFile(delete=True, mode="w+") as f:
+    f = tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".rvm")
+    try:
         f.write("\n".join([str(x) for x in ins]))
-        f.flush()
+        # We need to close the file so that the subprocess can open it.
+        f.close()
+
+        if getattr(sys, 'frozen', False):
+            # If the application is run as a bundle, the vm is in the same directory
+            base_path = Path(sys.executable).parent
+        else:
+            base_path = Path(__file__).parent
+
+        vm_path = os.path.join(base_path, "vm")
+
         subprocess.run(
             [
-                "/home/ahmad/coding/rpn/vm",
+                vm_path,
                 "run",
                 f.name
             ]
         )
+    finally:
+        os.unlink(f.name)
 if __name__ == "__main__":
     app()
