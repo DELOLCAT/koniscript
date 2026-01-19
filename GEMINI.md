@@ -20,7 +20,7 @@ The main technologies used are Python 3.12+ and Rust. The Python part uses `type
 To compile a Ray source file, use the `ray.py` script:
 
 ```bash
-python ray.py compile <file.ray>
+python src/ray.py compile <file.ray>
 ```
 
 This will generate a `test.lsc` file in the root directory (later the filename will be configurable, and would default to the name of the source file).
@@ -28,7 +28,7 @@ This will generate a `test.lsc` file in the root directory (later the filename w
 To run a Ray source file directly, which compiles and then executes it with the VM:
 
 ```bash
-python ray.py run <file.ray>
+python src/ray.py run <file.ray>
 ```
 Please note that at the moment, additional debug features such as a copy of the source aren't available to the VM with `ray.py run`.
 

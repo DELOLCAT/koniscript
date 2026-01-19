@@ -13,14 +13,6 @@
           "sourceLanguages": ["rust"]
         },
         {
-            "name": "both",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "ray.py",
-            "console": "integratedTerminal",
-            "args": ["run", "test.ray"]
-        },
-        {
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
@@ -30,15 +22,6 @@
                 "compile",
                 "test.ray"
             ],
-        },
-        {
-            "name": "VM",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "./VM.py",
-            "args": [
-                "./test.rvm"
-            ]
         },
     ]
 }

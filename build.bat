@@ -10,7 +10,7 @@ if errorlevel 1 (
 )
 
 echo "Building with PyInstaller..."
-uv run pyinstaller -F ray.py > build-py.log 2>&1
+uv run pyinstaller -F src/ray.py > build-py.log 2>&1
 if errorlevel 1 (
   echo "PyInstaller build failed. Check build-py.log"
   type build-py.log

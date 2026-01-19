@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Ensure the script is run from the project root
-if [ ! -f "ray.py" ]; then
+if [ ! -f "src/ray.py" ]; then
     echo "Please run this script from the project root directory."
     exit 1
 fi
@@ -21,7 +21,7 @@ echo "Starting parallel build..."
 vm_pid=$!
 
 # Run PyInstaller build in background and pipe output
-uv run pyinstaller -F ray.py 2>&1 | prefix_output "PY" "32" | tee build-py.log &
+uv run pyinstaller -F src/ray.py 2>&1 | prefix_output "PY" "32" | tee build-py.log &
 py_pid=$!
 
 # Wait for both and get exit codes
