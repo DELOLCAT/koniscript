@@ -1,5 +1,6 @@
 from typing import Any
 import base_env
+
 # from rich import print
 from runtime import BuiltinFunction, TYPES, Environment, Module, ASTNode, Program, BuiltinModule, BuiltinModulePointer
 from warnings import warn
@@ -49,6 +50,7 @@ IMPORT = "IMPORT"
 EXPORT = "EXPORT"
 LBRACKET = "LBRACKET"
 RBRACKET = "RBRACKET"
+AT_RATE = "AT_RATE"
 VALUES = [
     INT,
     STRING,
@@ -80,7 +82,8 @@ KEYWORDS = {
     "and":AND,
     "while": WHILE,
     "import": IMPORT,
-    "export": EXPORT
+    "export": EXPORT,
+    "@": AT_RATE
 }
 
 
@@ -104,7 +107,7 @@ class Token:
     def __init__(self, cat: str, value: Any, line:int, col:int):
         self.type = cat
         self.value = value
-        self.line = line
+        self.line: int = line
 
     def __str__(self):
         return f"Token({self.type}, {self.value})"
@@ -152,7 +155,7 @@ class Tokenizer:
     def check(self, text: str) -> bool:
         end = self.current_idx + len(text)
         return self.string[self.current_idx:end] == text
-    def get_next_token(self):
+    def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
         self.skip_whitespace()
         start_line = self.line
         start_col = self.col
@@ -182,7 +185,9 @@ class Tokenizer:
         elif current_char == "]":
             self.advance(1)
             return Token(RBRACKET, None, start_line, start_col)
-
+        elif current_char == "@":
+            self .advance(1)
+            return Token(AT_RATE, None, start_line, start_col)
         elif current_char == "#":
             while self.get_current_char() != "\n":
                 self.advance()
@@ -295,10 +300,7 @@ class Parser:
         self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
-        if self.tokens:
-            self.current_token = self.tokens[0]
-        else:
-            self.current_token = Token(EOF, None, 0, 0)
+        self.current_token = self.tokens[0] if self.tokens else Token(EOF, None, 0, 0)
 
     def eat(self, token_type):
         if self.current_token.type != token_type:
@@ -453,6 +455,20 @@ class Parser:
 
         if self.current_token.type == RBRACE:
             return None
+        elif self.current_token.type == AT_RATE:
+            self.eat(AT_RATE)
+            if self.current_token.value == 'require':
+                self.eat(IDENTIFIER)
+                reqs = []
+                reqs.append(self.current_token.value)
+                self.eat(IDENTIFIER)
+                while self.current_token.type == COMMA:
+                    if self.current_token.type == EOF:
+                        raise IncompleteInput
+                    self.eat(COMMA)
+                    reqs.append(self.current_token.value)
+                    self.eat(IDENTIFIER)
+                return Require(self.current_token.line, reqs)
         elif self.current_token.type == LBRACE:
             return self.block()
         elif self.current_token.type == FUNC:
@@ -593,15 +609,21 @@ class Parser:
         return Block(self.current_token.line, statements)
 
 
-    
+class Require(ASTNode):
+    def __init__(self, line: int, reqs: list[str]):
+        self.line = line
+        self.reqs: list[str] = reqs
+    def __repr__(self):
+        return f"Require({self.reqs})"
+ 
 class Array(ASTNode):
-    def __init__(self, line, items:list[ASTNode]):
+    def __init__(self, line: int, items:list[ASTNode]):
         self.line = line
         self.items = items
     def __repr__(self):
         return f"Array({self.items})"
 class Block(ASTNode):
-    def __init__(self, line, statements:list[ASTNode]):
+    def __init__(self, line: int, statements:list[ASTNode]):
         self.statements = statements
         self.line = line
     def __repr__(self):
@@ -611,14 +633,14 @@ class Block(ASTNode):
 
 
 class Number(ASTNode):
-    def __init__(self, line, value: int):
+    def __init__(self, line: int, value: int):
         self.value = value
         self.line = line
 
     def __repr__(self) -> str:
         return f"Number({self.value})"
 class Float(ASTNode):
-    def __init__(self, line, value: int):
+    def __init__(self, line: int, value: int):
         self.value = value
         self.line = line
 
@@ -626,14 +648,14 @@ class Float(ASTNode):
         return f"Number({self.value})"
 
 class Bool(ASTNode):
-    def __init__(self, line, value:bool):
+    def __init__(self, line: int, value:bool):
         self.value = value
         self.line = line
     def __repr__(self) -> str:
         return f"Bool({self.value})"
 
 class Call(ASTNode):
-    def __init__(self, line, func:  ASTNode, args: list):
+    def __init__(self, line: int, func:  ASTNode, args: list):
         self.func = func
         self.args = args
         self.line = line
@@ -641,7 +663,7 @@ class Call(ASTNode):
     def __repr__(self) -> str:
         return f"Call({self.func}, {self.args})"
 class Attribute(ASTNode):
-    def __init__(self, line, lhs, rhs):
+    def __init__(self, line: int, lhs, rhs):
         self.lhs: ASTNode = lhs
         self.rhs:str = rhs
         self.line = line
@@ -650,7 +672,7 @@ class Attribute(ASTNode):
         return f"Attribute({self.lhs}, {self.rhs})"
 
 class UnaryOp(ASTNode):
-    def __init__(self, line, op: str, right: ASTNode):
+    def __init__(self, line: int, op: str, right: ASTNode):
         self.op = op
         self.right = right
         self.line = line
@@ -660,7 +682,7 @@ class UnaryOp(ASTNode):
 
 
 class BinOp(ASTNode):
-    def __init__(self, line, left: ASTNode, op: str, right: ASTNode):
+    def __init__(self, line: int, left: ASTNode, op: str, right: ASTNode):
         self.op = op
         self.left = left
         self.right = right
@@ -671,7 +693,7 @@ class BinOp(ASTNode):
 
 
 class Variable(ASTNode):
-    def __init__(self, line, name: str):
+    def __init__(self, line: int, name: str):
         self.name = name
         self.line = line
 
@@ -680,7 +702,7 @@ class Variable(ASTNode):
 
 
 class Assign(ASTNode):
-    def __init__(self, line, name: str, value: ASTNode):
+    def __init__(self, line: int, name: str, value: ASTNode):
         self.name = name
         self.value = value
         self.line = line
@@ -692,7 +714,7 @@ class Assign(ASTNode):
 
 
 class UserFunction(Call):
-    def __init__(self, line, params, body, closure):
+    def __init__(self, line: int, params, body, closure):
         self.params = params
         self.body = body
         self.closure = closure
@@ -703,7 +725,7 @@ class UserFunction(Call):
 
 
 class String(ASTNode):
-    def __init__(self, line, value):
+    def __init__(self, line: int, value):
         self.value = value
         self.line = line
 
@@ -712,7 +734,7 @@ class String(ASTNode):
 
 
 class Return(ASTNode):
-    def __init__(self, line, value):
+    def __init__(self, line: int, value):
         self.value = value
         self.line = line
 
@@ -721,7 +743,7 @@ class Return(ASTNode):
 
 
 class Function(ASTNode):
-    def __init__(self, line, params, body):
+    def __init__(self, line: int, params, body):
         self.params = params
         self.body = body
         self.line = line
@@ -730,7 +752,7 @@ class Function(ASTNode):
         return f"Function({self.params}, {self.body})"
 
 class If(ASTNode):
-    def __init__(self, line, expr:ASTNode, body:Block, else_body:Block | None):
+    def __init__(self, line: int, expr:ASTNode, body:Block, else_body:Block | None):
         self.expr = expr
         self.body = body
         self.else_body = else_body
@@ -739,10 +761,10 @@ class If(ASTNode):
     def __repr__(self):
         return f"If({self.expr}, {self.body}, {self.else_body})"
 class While(ASTNode):
-    def __init__(self, line, expr:ASTNode, body:Block):
+    def __init__(self, line: int, expr:ASTNode, body:Block):
         self.expr = expr
         self.body = body
-        self.line = line
+        self.line: int = line
 
     def __repr__(self):
         return f"If({self.expr}, {self.body})"
@@ -751,7 +773,7 @@ class Export(ASTNode):
     def __init__(self, line:int , lhs: ASTNode, name: str):
         self.lhs = lhs
         self.name = name
-        self.line = line
+        self.line: int = line
 
     def __repr__(self):
         return f"Export({self.lhs}, {self.name})"
@@ -875,6 +897,7 @@ class Compiler():
     def __init__(self, env: list, ASTenv):
         self.constants = []
         self.vars = []
+        self.reqs: list[str] = []
         self.var_map = {}
         self.const_map = {}
         self.code = []
@@ -933,6 +956,7 @@ class Compiler():
         output.append(".version")
         output.append("ENV 1")
         output.append("ISA 1")
+        output.append(".reqs " + " ".join([str(x) for x in self.reqs]))
         output.append(f".frame {self.scopes[-1].next_local}")
 
         output.append(".const")
@@ -950,6 +974,7 @@ class Compiler():
             output += input_source.split("\n") # pyright: ignore[reportOptionalMemberAccess]
         return output
     def compile_ins(self, node:ASTNode, *other):
+        # sourcery skip: remove-unnecessary-else, simplify-len-comparison, swap-if-else-branches
         if isinstance(node, String):
             idx = self.add_constant([TYPES[STRING], node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -959,7 +984,8 @@ class Compiler():
         elif isinstance(node, Float):
             idx = self.add_constant([TYPES[FLOAT], node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
-
+        elif isinstance(node, Require):
+            self.reqs += node.reqs
         elif isinstance(node, Variable):
             #if node.name in self.scopes[-1].var_map:
                 idx = self.get_var(node.name)

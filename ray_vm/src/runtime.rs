@@ -5,6 +5,12 @@ use std::fmt;
 use std::io::{self, Write};
 use std::rc::Rc;
 use std::thread::sleep;
+
+pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
+    vec![
+        "fs".to_string()
+    ]
+});
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<Value>>,
@@ -74,18 +80,6 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn tag(&self) -> i8 {
-        match self {
-            Value::Integer(_) => ValueTag::Integer as i8,
-            Value::String(_) => ValueTag::String as i8,
-            Value::Bool(_) => ValueTag::Bool as i8,
-            Value::Func(_) => ValueTag::Func as i8,
-            Value::Null => ValueTag::Null as i8,
-            Value::Float(_) => ValueTag::Float as i8,
-            Value::Module(_) => ValueTag::Module as i8,
-            Value::Array(_) => ValueTag::Array as i8,
-        }
-    }
     pub fn new(tag: i8, payload: &str) -> Result<Self, VmError> {
         match ValueTag::try_from(tag)? {
             ValueTag::Integer => {
@@ -134,18 +128,6 @@ impl Value {
             Value::Array(_) => "array".to_string(),
         }
     }
-    pub fn val_tag(&self) -> ValueTag {
-        match self {
-            Value::Array(_) => ValueTag::Array,
-            Value::Bool(_) => ValueTag::Bool,
-            Value::Func(_) => ValueTag::Func,
-            Value::Integer(_) => ValueTag::Integer,
-            Value::Float(_) => ValueTag::Float,
-            Value::String(_) => ValueTag::String,
-            Value::Null => ValueTag::Null,
-            Value::Module(_) => ValueTag::Module
-        }
-    }
 }
 #[derive(Debug, Clone)]
 pub enum LsFunc {
@@ -183,15 +165,12 @@ pub enum ErrCode {
     VariableNotFound = 7,
     StackUnderflow = 8,
     TypeError = 9,
-    InvalidOperandTypes = 10,
     FuncNameStr = 11,
     InvalidLocal = 12,
     CompatibilityError = 13,
     NoCode = 14,
     ValueError = 15,
-    InvalidAttribute = 16,
     AttributeError = 17,
-    Other = 0,
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -429,6 +408,7 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
 }
 pub fn vm_hi(_args: &[Value]) -> Result<Value, VmError> {
     println!("hi from math");
+    dbg!(_args);
     Ok(Value::Null)
 }
 pub fn vmenv() -> Vec<Value> {

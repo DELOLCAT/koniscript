@@ -1,2 +1,2 @@
-a = "five"
-print(to_int(a))
+import math
+math.hi("there")

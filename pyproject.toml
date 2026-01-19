@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "mypy>=1.19.1",
+    "pyinstaller>=6.18.0",
     "questionary>=2.1.1",
     "rich>=14.2.0",
     "typer>=0.21.0",
 ]
+

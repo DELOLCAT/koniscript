@@ -5,8 +5,7 @@ Ray is a dynamic programming language that focuses on these main features:
 - A simple VM (RayVM) that you could implement almost anywhere - even in Scratch mods
 - Readability of code
 - Ease of packaging (code compiles down to a single .rvm bytecode file)
-
-Because of the various runtime environments, a compatibility syntax (ex. @require: gui, gpu) is also going to be developed.
+- Compatibility: Supports @require flags (ex. @require fs, gui) so Ray can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future.
 
 ## Roadmap
 
@@ -16,6 +15,7 @@ Because of the various runtime environments, a compatibility syntax (ex. @requir
 | :hourglass:        | Finished     |
 | :x:                | Not started  |
 
+- :x: A Better requirements system
 - :x: Dictionaries
 - :x: More advanced imports
 - :x: Classes (via prototypes)
@@ -23,4 +23,4 @@ Because of the various runtime environments, a compatibility syntax (ex. @requir
 - :x: A standard library (though certain imports, like fs, would need an @require flag)
 - :x: For loops
 - :x: A REPL
-- :hourglass: The requirements syntax
+- :white_check_mark: The requirements syntax

@@ -5,9 +5,13 @@ build/
 dist/
 wheels/
 *.egg-info
+.ruff_cache/
 
 # Virtual environments
 .venv
 
 #Rust
 /ray_vm/target/
+
+#Built
+vm

@@ -23,6 +23,7 @@ def vm_input(prompt: tuple[int, Any]) -> tuple[int, str]:
     out = input(vm_to_str(prompt)[1])
     return (TYPES[STRING], out)
 def vm_to_str(input: tuple[int, Any]) -> tuple[int, str]:
+    # sourcery skip: merge-comparisons, merge-duplicate-blocks, remove-redundant-if
     tag, value = input
     tag = int(tag)
     if tag == TYPES[INT]:
@@ -39,12 +40,13 @@ def vm_to_int(input:tuple[int, Any]) -> tuple[int, int]:
     if tag == TYPES[STRING]:
         return (TYPES[INT], int(value))
     elif tag == TYPES[BOOL]:
-        return (TYPES[INT], int(1 if value else 0))
+        return TYPES[INT], 1 if value else 0
     elif tag == TYPES[INT]:
-        return (int(tag), int(value))
+        return tag, int(value)
     else:
         raise RuntimeError(f"{tag}:{value} cannot be converted to an integer") #TODO: make this better
 def vm_to_bool(value: tuple[int, Any]) -> tuple[int, bool]:
+    # sourcery skip: assign-if-exp, reintroduce-else
     tag, val = value
     tag = int(tag)
 
@@ -69,12 +71,12 @@ def vm_to_bool(value: tuple[int, Any]) -> tuple[int, bool]:
     raise RuntimeError(f"{tag}:{val} cannot be converted to bool")
         
 env = Environment()
-env.set('print', BuiltinFunction('print', print))
-env.set('sleep', BuiltinFunction('sleep', time.sleep))
-env.set('input', BuiltinFunction('input', input))
-env.set('to_str', BuiltinFunction('input', vm_to_str))
-env.set('to_int', BuiltinFunction('input', vm_to_int))
-
+env.set('print',  BuiltinFunction('print', print))
+env.set('sleep',  BuiltinFunction('sleep', time.sleep))
+env.set('input',  BuiltinFunction('input', input))
+env.set('to_str', BuiltinFunction('to_str', vm_to_str))
+env.set('to_int', BuiltinFunction('to_int', vm_to_int))
+env.set('to_bool', BuiltinFunction('to_bool', vm_to_bool))
 
 
 VMenv = [
@@ -102,6 +104,11 @@ VMenv = [
         "type":"builtin",
         "func":vm_to_int,
         "name":"to_int"
+    }),
+    (TYPES[FUNC], {
+        "type":"builtin",
+        "func":vm_to_bool,
+        "name":"to_bool"
     })
 ]
 def vm_hi(*args):

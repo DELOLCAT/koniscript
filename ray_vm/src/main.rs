@@ -125,10 +125,6 @@ impl Frame {
         self.ret_addr = Some(ret_addr);
         self
     }
-    fn i(mut self, i: usize) -> Self {
-        self.i = i;
-        self
-    }
     fn env(mut self, env: Env) -> Self {
         self.env = Rc::new(RefCell::new(env));
         self
@@ -154,6 +150,24 @@ impl VM {
                 i += 1;
                 continue;
             }
+            if line.starts_with(".reqs") {
+                for item in line.split(" ") {
+                    if item == ".reqs" {
+                        continue;
+                    }
+                    if !runtime::SUPPORTED_FEATURES.contains(&item.to_string()) {
+                        return Err(
+                            VmError {
+                                msg: format!("This VM doesn't support `{}`", item),
+                                errcode: ErrCode::CompatibilityError
+                            }
+                        )
+                    }
+                }
+                i+=1;
+                continue;
+            }
+
 
             if line == ".code" {
                 broken = Some(i + 1);
@@ -275,10 +289,10 @@ impl VM {
             source,
         })
     }
-    fn global_env(mut self, env: &[Value]) -> Self {
-        self.global_env = env.to_vec();
-        self
-    }
+    //fn global_env(mut self, env: &[Value]) -> Self {
+    //    self.global_env = env.to_vec();
+    //    self
+    //}
     fn validate(self) -> Option<VmError> {
         for (i, ins) in self.ins.iter().enumerate() {
             for idx in &ins[1..] {
@@ -799,48 +813,78 @@ impl VM {
 fn run(file: String) {
     let contents = fs::read_to_string(file).expect("Could not read file");
     let contents: Vec<String> = contents.lines().map(|s| s.to_string()).collect();
-    let mut vm = VM::new(contents).unwrap();
+    let mut vm = match VM::new(contents) {
+        Ok(v) => v,
+        Err(e) => {
+            println!("{}: {}", "Error while setting up VM".red(),e.msg.red().bold());
+            return;
+        }
+    };
     match vm.run() {
         Ok(opt) => match opt {
             Some(v) => println!("{:?}", v),
             None => {}
         },
         Err(e) => {
-            println!("Exited with error: {}: {}", e.errcode, e.msg);
-            println!("{}", "Traceback: most recent call last".blue().bold());
-            for frame in vm.frames.iter().rev() {
-                if vm.source.is_some() && vm.lines.is_some() {
-                    println!(
-                        "at {}:{} (ins {}):",
-                        frame.name,
-                        vm.clone().lines.unwrap()[frame.i] + 1,
-                        format!("0x{:04X}", &frame.i)
-                    );
-                    let radius = 2;
-                    let line_nr = vm.clone().lines.unwrap()[frame.i] as usize;
-                    let start = line_nr.saturating_sub(radius);
-                    let end = std::cmp::min(line_nr + radius + 1, vm.source.as_ref().unwrap().len());
-                    let window = &vm.source.as_ref().unwrap()[start..end];
-                    for (i, idx) in window.iter().enumerate() {
-                        if start + i == line_nr {
-                            println!("-> {}", idx)
-                        } else {
-                            println!("   {}", idx)
+            // Single, clear error line at the top.
+            println!("{}: {}", e.errcode.to_string().red().bold(), e.msg.red());
+            println!();
+            println!("{}", "Traceback (most recent call last):".bold());
+
+            let lines_opt = vm.lines.as_ref();
+            let source_opt = vm.source.as_ref();
+
+            for (frame_idx, frame) in vm.frames.iter().rev().enumerate() {
+                if frame_idx > 0 {
+                    println!()
+                } // Add space between frames
+
+                // Frame location info
+                let ip_str_val = format!("ins 0x{:04X}", frame.i);
+                let ip_str = ip_str_val.dimmed();
+
+                if let Some(lines) = lines_opt {
+                    if let Some(&line_nr_64) = lines.get(frame.i) {
+                        let line_nr = line_nr_64 as usize;
+                        println!(
+                            "  at {} ({}:{})",
+                            frame.name.cyan(),
+                            "line".green(),
+                            (line_nr + 1).to_string().green()
+                        );
+                        println!("  {}", ip_str);
+                        println!("  {}", format!("ins {}", frame.i).dimmed());
+
+                        // Code snippet
+                        if let Some(source) = source_opt {
+                            let radius = 4;
+                            let start = line_nr.saturating_sub(radius);
+                            let end = std::cmp::min(line_nr + radius + 1, source.len());
+
+                            println!(); // Spacer before code
+                            for i in start..end {
+                                let line_prefix_val = format!("{:>4} |", i + 1);
+                                let line_prefix = line_prefix_val.blue();
+                                if i == line_nr {
+                                    println!(
+                                        "{} {} {}",
+                                        "->".red().bold(),
+                                        line_prefix,
+                                        (&source[i]).bold().underline()
+                                    );
+                                } else {
+                                    println!("   {} {}", line_prefix, &source[i]);
+                                }
+                            }
                         }
+                    } else {
+                        println!("  at {} ({})", frame.name.cyan(), ip_str);
+                        println!("     (No line information for instruction)");
                     }
-                } else if vm.lines.is_some() {
-                    println!(
-                        "at {}:{} (ins {})",
-                        frame.name,
-                        vm.clone().lines.unwrap()[frame.i] + 1,
-                        format!("0x{:04X}", &frame.i)
-                    )
                 } else {
-                    println!("at {}", frame.name);
-                    println!("at ins {}", frame.i);
+                    println!("  at {} ({})", frame.name.cyan(), ip_str);
                 }
             }
-            println!("{}: {}", e.errcode, e.msg);
         }
     }
 }

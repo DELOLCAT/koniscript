@@ -1,4 +1,10 @@
-# Project Overview
+# Info for LLMS
+
+This document is mainly for use for LLMS to follow, mainly to request changes that don't collide with the philosophy.
+
+Please also read `README.md` as well.
+
+## Project Overview
 
 This project is the implementation of the "Ray" programming language, a dynamic language with a simple virtual machine. The project is split into two main parts:
 
@@ -7,9 +13,9 @@ This project is the implementation of the "Ray" programming language, a dynamic 
 
 The main technologies used are Python 3.12+ and Rust. The Python part uses `typer` for the CLI, `rich` for formatted output, and `questionary` for interactive prompts. The Rust part uses `clap` for command-line argument parsing.
 
-## Building and Running
+### Building and Running
 
-### Python Compiler
+#### Python Compiler
 
 To compile a Ray source file, use the `ray.py` script:
 
@@ -26,7 +32,7 @@ python ray.py run <file.ray>
 ```
 Please note that at the moment, additional debug features such as a copy of the source aren't available to the VM with `ray.py run`.
 
-### Rust VM
+#### Rust VM
 
 To run a compiled bytecode file, use the `ray_vm` executable:
 
@@ -38,11 +44,9 @@ To run a compiled bytecode file, use the `ray_vm` executable:
 ./ray_vm/target/debug/ray_vm run test.lsc
 ```
 
-## Development Conventions
+### Development Conventions
 
 *   The Python code follows standard Python conventions and uses `mypy` for type checking.
 *   The Rust code follows standard Rust conventions.
 *   The language is still under development, so the bytecode format and language features are subject to change.
 *   The project uses a `.gitignore` file to exclude common build and cache directories.
-
-For any more info, consult `README.md`.
