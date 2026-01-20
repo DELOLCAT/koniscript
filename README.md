@@ -15,6 +15,8 @@ Ray is a dynamic programming language that focuses on these main features:
 | :hourglass:        | Developing     |
 | :x:                | Not started    |
 
+### Language
+
 - :x: A Better requirements system
 - :x: Dictionaries
 - :x: More advanced imports
@@ -24,6 +26,12 @@ Ray is a dynamic programming language that focuses on these main features:
 - :x: For loops
 - :x: A REPL
 - :white_check_mark: The requirements syntax
+
+### App
+
+- :hourglass: Tests
+- :x: Bundle the VM and the compiler in one executable
+- :x: A proper CLI
 
 ## Build
 
