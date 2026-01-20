@@ -1,8 +1,9 @@
+import platform
 import typer
 import os
 import sys
 from pathlib import Path
-from main import Tokenizer, Parser, EOF, eval_ast, Token, Program, Compiler
+from main import Tokenizer, Parser, EOF, Token, Program, Compiler
 import base_env
 import copy
 import tempfile
@@ -64,8 +65,10 @@ def run(filepath:Path, debug:bool = False, features = []):
             base_path = Path(sys.executable).parent
         else:
             base_path = Path(__file__).parent
-
-        vm_path = os.path.join(base_path, "vm")
+        if platform.system() == "Windows":
+            vm_path = os.path.join(base_path, "vm.exe")
+        else:   
+            vm_path = os.path.join(base_path, "vm")
 
         subprocess.run(
             [

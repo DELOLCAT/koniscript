@@ -1,3 +1,4 @@
+from pathlib import Path
 import shutil
 import subprocess
 import platform
@@ -11,17 +12,15 @@ def run(cmd):
         raise RuntimeError(f"Command failed: {cmd}")
 
 def build_rust():
-    run("cd ray_vm && cargo build")
+    run("cd ray_vm && cargo build -r")
     if platform.system() == "Windows":
-        shutil.move("ray_vm/target/release/ray_vm.exe", "dist/vm")
+        if Path("dist\\vm").exists():
+            os.remove("dist\\vm")
+        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "dist\\vm.exe")
     else:
         shutil.move("ray_vm/target/release/ray_vm", "dist/vm")
 def build_py():
     run("pyinstaller ray.spec")
-    if platform.system() == "Windows":
-        shutil.move("dist/ray.exe", "dist/ray.exe")
-    else:
-        shutil.move("dist/ray", "dist/ray")
 def main():
     tasks = [build_rust, build_py]
     # Run in parallel
