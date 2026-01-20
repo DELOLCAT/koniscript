@@ -1,10 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
-a = Analysis(
+a = Analysis( # type: ignore
     ['src/ray.py'],
     pathex=[],
-    binaries=[],
+    binaries=[('build\\vm.exe', '.')],
     datas=[],
     hiddenimports=[],
     hookspath=[],
@@ -14,9 +14,9 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-pyz = PYZ(a.pure)
+pyz = PYZ(a.pure) # type: ignore
 
-exe = EXE(
+exe = EXE( # type: ignore
     pyz,
     a.scripts,
     a.binaries,

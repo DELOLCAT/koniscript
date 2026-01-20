@@ -8,9 +8,17 @@ import base_env
 import copy
 import tempfile
 import subprocess
+import sys
 from questionary import checkbox, Choice
 app = typer.Typer()
 
+def bundled_exe(name: str) -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    if sys.platform == "win32":
+        name += ".exe"
+    return base / name
+
+    
 class FileNotReadable(Exception):
     def __init__(self, path):
         self.path = path
@@ -59,20 +67,10 @@ def run(filepath:Path, debug:bool = False, features = []):
         f.write("\n".join([str(x) for x in ins]))
         # We need to close the file so that the subprocess can open it.
         f.close()
-
-        if getattr(sys, 'frozen', False):
-            # If the application is run as a bundle, the vm is in the same directory
-            base_path = Path(sys.executable).parent
-        else:
-            base_path = Path(__file__).parent
-        if platform.system() == "Windows":
-            vm_path = os.path.join(base_path, "vm.exe")
-        else:   
-            vm_path = os.path.join(base_path, "vm")
-
+        
         subprocess.run(
             [
-                vm_path,
+                bundled_exe("vm"),
                 "run",
                 f.name
             ]

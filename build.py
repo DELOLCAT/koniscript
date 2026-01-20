@@ -3,10 +3,11 @@ import shutil
 import subprocess
 import platform
 import concurrent.futures
+from rich import print
 import os
 
 def run(cmd):
-    print(f"Running: {cmd}")
+    print(f"[d green]Running: [b]{cmd}")
     proc = subprocess.run(cmd, shell=True)
     if proc.returncode != 0:
         raise RuntimeError(f"Command failed: {cmd}")
@@ -16,24 +17,26 @@ def build_rust():
     if platform.system() == "Windows":
         if Path("dist\\vm").exists():
             os.remove("dist\\vm")
-        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "dist\\vm.exe")
+        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "build\\vm.exe")
     else:
-        shutil.move("ray_vm/target/release/ray_vm", "dist/vm")
+        shutil.move("ray_vm/target/release/ray_vm", "build/vm")
 def build_py():
-    run("pyinstaller ray.spec")
+    if platform.system() == "Windows":
+        run("pyinstaller win.spec")
+    else:
+        run("pyinstaller unix.spec")
 def main():
     tasks = [build_rust, build_py]
     # Run in parallel
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(t) for t in tasks]
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                print(f"❌ Build failed: {e}")
-                return
+    for task in tasks:
+        try:
+            print(f"[b green]Running task {task.__name__}")
+            task()
+        except Exception as e:
+            print(f"❌ Build failed: {e}")
+            return
 
-    print("✅ Build completed!")
+    print("[green b u]✅ Build completed!")
 
 if __name__ == "__main__":
     main()
