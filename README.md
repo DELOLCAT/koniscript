@@ -12,7 +12,7 @@ Ray is a dynamic programming language that focuses on these main features:
 | Icon               | Meaning        |
 |--------------------|----------------|
 | :white_check_mark: | Completed      |
-| :hourglass:        | Deveolping     |
+| :hourglass:        | Developing     |
 | :x:                | Not started    |
 
 - :x: A Better requirements system
@@ -24,3 +24,27 @@ Ray is a dynamic programming language that focuses on these main features:
 - :x: For loops
 - :x: A REPL
 - :white_check_mark: The requirements syntax
+
+## Build
+
+### Prerequisites
+
+- [Rust](https://rust-lang.org/)
+- The [uv](https://docs.astral.sh/uv/) package manager (will also auto-install the correct Python version for this project)
+
+### Steps
+
+Clone the repo:
+
+```bash
+git clone https://github.com/DELOLCAT/ray
+cd ray
+```
+
+Run `build.py` with `uv`:
+
+```bash
+uv run build.py
+```
+
+The output would be stored in `dist/`
