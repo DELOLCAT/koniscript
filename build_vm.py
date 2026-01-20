@@ -18,16 +18,11 @@ def build_rust():
         if Path("build\\vm.exe").exists():
             os.remove("build\\vm.exe")
         os.makedirs("build", exist_ok=True)
-        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "build\\vm.exe")
+        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "dist\\ray_vm.exe")
     else:
-        shutil.move("ray_vm/target/release/ray_vm", "build/vm")
-def build_py():
-    if platform.system() == "Windows":
-        run("pyinstaller win.spec")
-    else:
-        run("pyinstaller unix.spec")
+        shutil.move("ray_vm/target/release/ray_vm", "dist/ray_vm")
 def main():
-    tasks = [build_rust, build_py]
+    tasks = [build_rust]
     # Run in parallel
     for task in tasks:
         try:

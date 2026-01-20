@@ -1,0 +1,27 @@
+.version
+ENV 1
+ISA 1
+.reqs 
+.frame 1
+.const
+2"hi"
+2"there"
+.code
+PUSH_BUILTIN 6
+STORE 0 0
+RETRIEVE 0 0
+GETATTR 0
+PUSH_CONST 1
+CALL 1
+NOP
+.line
+-1
+-1
+1
+1
+1
+1
+0
+.source
+import math
+math.hi("there")
