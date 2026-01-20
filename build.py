@@ -15,8 +15,9 @@ def run(cmd):
 def build_rust():
     run("cd ray_vm && cargo build -r")
     if platform.system() == "Windows":
-        if Path("dist\\vm").exists():
-            os.remove("dist\\vm")
+        if Path("build\\vm.exe").exists():
+            os.remove("build\\vm.exe")
+        os.mkdir("build")
         shutil.move("ray_vm\\target\\release\\ray_vm.exe", "build\\vm.exe")
     else:
         shutil.move("ray_vm/target/release/ray_vm", "build/vm")
