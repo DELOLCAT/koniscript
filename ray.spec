@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['ray.py'],
+    ['src/ray.py'],
     pathex=[],
     binaries=[],
     datas=[],

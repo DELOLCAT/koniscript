@@ -630,7 +630,6 @@ impl VM {
                             let result = func(itm, &args.as_slice())?;
                             self.push_to_stack(result);
                         }
-                    _ => todo!()
                     }
                 }
                 "RET" => {

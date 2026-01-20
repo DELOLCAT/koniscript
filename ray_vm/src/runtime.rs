@@ -117,7 +117,6 @@ impl Value {
             Value::Func(f) => match f {
                 LsFunc::User { entry, name, .. } => format!("[function {} at {}]", name, entry),
                 LsFunc::Builtin { name, .. } => format!("[builtin function {}]", name),
-                LsFunc::UserMethod {name, ..} => format!("[method {}]", name),
                 LsFunc::BuiltinMethod { name, ..} => format!("builtin method {}]", name)
             },
             Value::Null => "null".to_string(),
@@ -132,13 +131,6 @@ impl Value {
 #[derive(Debug, Clone)]
 pub enum LsFunc {
     User {
-        entry: usize,
-        local_count: usize,
-        param_count: usize,
-        closure: Rc<RefCell<Env>>,
-        name: String,
-    },
-    UserMethod {
         entry: usize,
         local_count: usize,
         param_count: usize,
@@ -202,10 +194,6 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             LsFunc::User { entry, name, .. } => {
                 let out = format!("[func {} at ins {}]", name, entry);
                 Result::Ok(Value::String(out))
-            }
-            LsFunc::UserMethod { entry, name, ..} => {
-                let out = format!("[method {} at ins {}]", name, entry);
-                Ok(Value::String(out))
             }
             LsFunc::BuiltinMethod { name, ..} => {
                 let out = format!("[builtin method {}]", name);
