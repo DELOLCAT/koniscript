@@ -1,5 +1,5 @@
 from typing import Any
-import base_env
+from ray import base_env
 class BuiltinFunction:
     def __init__(self, name, func):
         self.name = name

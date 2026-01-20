@@ -2,7 +2,7 @@
 
 
 a = Analysis( # type: ignore
-    ['src/ray.py'],
+    ['src/ray/ray.py'],
     pathex=[],
     binaries=[('build/vm', '.')],
     datas=[],

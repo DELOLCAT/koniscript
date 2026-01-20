@@ -6,6 +6,18 @@ use std::io::{self, Write};
 use std::rc::Rc;
 use std::thread::sleep;
 
+
+#[cfg(debug_assertions)]
+macro_rules! ddbg {
+    ($($t:tt)*) => { dbg!($($t)*) };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! ddbg {
+    ($($t:tt)*) => { $($t)* };
+}
+
+
 pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
     vec![
         "fs".to_string()
@@ -396,7 +408,7 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
 }
 pub fn vm_hi(_args: &[Value]) -> Result<Value, VmError> {
     println!("hi from math");
-    dbg!(_args);
+    ddbg!(_args);
     Ok(Value::Null)
 }
 pub fn vmenv() -> Vec<Value> {

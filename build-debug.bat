@@ -14,7 +14,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-copy ".\target\debug\ray_vm.exe" "..\vm.exe"
+copy ".\target\debug\ray_vm.exe" "src\ray\vm.exe"
 if errorlevel 1 (
     echo "Failed to copy vm"
     popd

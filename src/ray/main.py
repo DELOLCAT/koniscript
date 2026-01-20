@@ -1,8 +1,7 @@
 from typing import Any
-import base_env
+from ray import base_env
 
-# from rich import print
-from runtime import BuiltinFunction, TYPES, Environment, Module, ASTNode, Program, BuiltinModule, BuiltinModulePointer
+from ray.runtime import BuiltinFunction, TYPES, Environment, Module, ASTNode, Program, BuiltinModule, BuiltinModulePointer
 from warnings import warn
 import os
 ADD = "ADD"

@@ -1,10 +1,9 @@
-import platform
 import typer
 import os
 import sys
 from pathlib import Path
-from main import Tokenizer, Parser, EOF, Token, Program, Compiler
-import base_env
+from ray.main import Tokenizer, Parser, EOF, Token, Program, Compiler
+from ray import base_env
 import copy
 import tempfile
 import subprocess
