@@ -28,13 +28,12 @@ def build_py():
         run("pyinstaller unix.spec")
 def main():
     tasks = [build_rust, build_py]
-    # Run in parallel
     for task in tasks:
         try:
             print(f"[b green]Running task {task.__name__}")
             task()
         except Exception as e:
-            print(f"❌ Build failed: {e}")
+            print(f"[red b i]Build failed: {e}")
             return
 
     print("[green b u]Build completed! Result in dist/")
