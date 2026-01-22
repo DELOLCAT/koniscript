@@ -99,4 +99,4 @@ jobs:
           name: ${{ inputs.version }}
           body: ${{ inputs.notes }}
           prerelease: ${{ inputs.prerelease }}
-          files: release-artifacts/*
+          files: release-artifacts/**/*
