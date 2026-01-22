@@ -1,0 +1,87 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. v1.4.0)"
+        required: true
+      prerelease:
+        description: "Mark as prerelease?"
+        required: false
+        type: boolean
+        default: false
+      notes:
+        description: "Release notes / description"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # uv will select Python based on pyproject.toml
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7.2.0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+
+      - name: Lint with ruff
+        run: uvx ruff check src/omni_script/
+
+      - name: Test with pytest
+        run: uv run pytest
+
+      - name: Build
+        run: uv run build.py
+
+      # ---- Release-only steps (run once) ----
+      - name: Ensure tag does not already exist
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if git rev-parse "${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Tag ${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Ensure working tree is clean
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if ! git diff --quiet; then
+            echo "Working tree is dirty after build"
+            git status
+            exit 1
+          fi
+
+      - name: Create tag
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          git tag "${{ inputs.version }}"
+          git push origin "${{ inputs.version }}"
+
+      - name: Create GitHub Release
+        if: matrix.os == 'ubuntu-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
+          body: ${{ inputs.notes }}
+          prerelease: ${{ inputs.prerelease }}
