@@ -7,7 +7,6 @@ from omni_script import base_env
 import copy
 import tempfile
 import subprocess
-import sys
 from questionary import checkbox, Choice
 app = typer.Typer()
 
