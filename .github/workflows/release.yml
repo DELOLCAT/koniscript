@@ -51,13 +51,13 @@ jobs:
 
       - name: Copy build artifact per OS
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          bash -c "if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp dist/omni.exe omni-windows.exe
           elif [[ "${{ runner.os }}" == "Linux" ]]; then
             cp dist/omni omni-linux
           else
             cp dist/omni omni-macos
-          fi
+          fi"
 
       - name: Upload artifact for release
         uses: actions/upload-artifact@v4

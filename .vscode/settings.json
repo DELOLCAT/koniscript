@@ -47,5 +47,8 @@
     "python.analysis.autoFormatStrings": true,
     "python.analysis.autoImportCompletions": true,
     "python.analysis.completeFunctionParens": false,
-    "python.analysis.generateWithTypeAnnotation": false
+    "python.analysis.generateWithTypeAnnotation": false,
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows/release.yml"
+    ]
 }
