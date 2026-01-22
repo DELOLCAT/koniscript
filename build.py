@@ -37,7 +37,7 @@ def main():
             print(f"❌ Build failed: {e}")
             return
 
-    print("[green b u]✅ Build completed! Result in dist/")
+    print("[green b u]Build completed! Result in dist/")
 
 if __name__ == "__main__":
     main()
