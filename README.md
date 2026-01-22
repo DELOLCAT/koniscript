@@ -2,7 +2,7 @@
 
 OmniScript is a dynamic programming language that focuses on these main features:
 
-- A simple VM (OmniScriptVM) that you could implement almost anywhere - even in Scratch mods
+- A simple VM (OmniVM) that you could implement almost anywhere - even in Scratch mods
 - Readability of code
 - Ease of packaging (code compiles down to a single .rvm bytecode file)
 - Compatibility: Supports @require flags (ex. @require fs, gui) so OmniScript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future.
