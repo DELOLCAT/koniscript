@@ -11,7 +11,7 @@ wheels/
 .venv
 
 #Rust
-/ray_vm/target/
+/omni_vm/target/
 
 #Built
 vm

@@ -13,14 +13,14 @@ def run(cmd):
         raise RuntimeError(f"Command failed: {cmd}")
 
 def build_rust():
-    run("cd ray_vm && cargo build -r")
+    run("cd omni_vm && cargo build -r")
     os.makedirs("build", exist_ok=True)
     if platform.system() == "Windows":
         if Path("build\\vm.exe").exists():
             os.remove("build\\vm.exe")
-        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "build\\vm.exe")
+        shutil.move("omni_vm\\target\\release\\omni_vm.exe", "build\\vm.exe")
     else:
-        shutil.move("ray_vm/target/release/ray_vm", "build/vm")
+        shutil.move("omni_vm/target/release/omni_vm", "build/vm")
 def build_py():
     if platform.system() == "Windows":
         run("pyinstaller win.spec")

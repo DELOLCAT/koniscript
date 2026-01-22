@@ -2,8 +2,8 @@ import typer
 import os
 import sys
 from pathlib import Path
-from ray.main import Tokenizer, Parser, EOF, Token, Program, Compiler
-from ray import base_env
+from omni_script.main import Tokenizer, Parser, EOF, Token, Program, Compiler
+from omni_script import base_env
 import copy
 import tempfile
 import subprocess

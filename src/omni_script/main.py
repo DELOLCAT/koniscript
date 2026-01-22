@@ -1,7 +1,7 @@
 from typing import Any
-from ray import base_env
+from omni_script import base_env
 
-from ray.runtime import BuiltinFunction, TYPES, Environment, Module, ASTNode, Program, BuiltinModule, BuiltinModulePointer
+from omni_script.runtime import BuiltinFunction, TYPES, Environment, Module, ASTNode, Program, BuiltinModule, BuiltinModulePointer
 from warnings import warn
 import os
 ADD = "ADD"

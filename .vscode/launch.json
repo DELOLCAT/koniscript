@@ -4,7 +4,7 @@
           "name": "Debug Rust (CodeLLDB)",
           "type": "lldb",
           "request": "launch",
-          "program": "${workspaceFolder}/ray_vm/target/debug/ray_vm",
+          "program": "${workspaceFolder}/omni_vm/target/debug/omni_vm",
           "args": [
             "run",
             "${workspaceFolder}/test.rvm"
@@ -16,11 +16,11 @@
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
-            "program": "./ray.py",
+            "program": "./omni_script.py",
             "console": "integratedTerminal",
             "args": [
                 "compile",
-                "test.ray"
+                "test.om"
             ],
         },
     ]

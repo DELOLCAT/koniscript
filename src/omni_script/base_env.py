@@ -1,5 +1,5 @@
-from ray.runtime import Environment, BuiltinFunction, BuiltinModule, NULL, STRING, FUNC, INT, BOOL, TYPES
-from ray.runtime import ADD, SUB, MUL, DIV, POW, LT, GT, GTE, LTE, EQUAL_TO, NOT_EQUAL_TO, AND, OR
+from omni_script.runtime import Environment, BuiltinFunction, BuiltinModule, NULL, STRING, FUNC, INT, BOOL, TYPES
+from omni_script.runtime import ADD, SUB, MUL, DIV, POW, LT, GT, GTE, LTE, EQUAL_TO, NOT_EQUAL_TO, AND, OR
 import time
 from typing import Any
 T_INT = 1

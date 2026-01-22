@@ -339,6 +339,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "omni_vm"
+version = "0.1.0"
+dependencies = [
+ "base16",
+ "clap",
+ "comfy-table",
+ "indicatif",
+ "inquire",
+ "once_cell",
+ "owo-colors",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -401,19 +414,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a338cc41d27e6cc6dce6cefc13a0729dfbb81c262b1f519331575dd80ef3067f"
 dependencies = [
  "proc-macro2",
-]
-
-[[package]]
-name = "ray_vm"
-version = "0.1.0"
-dependencies = [
- "base16",
- "clap",
- "comfy-table",
- "indicatif",
- "inquire",
- "once_cell",
- "owo-colors",
 ]
 
 [[package]]

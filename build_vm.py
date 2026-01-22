@@ -13,14 +13,14 @@ def run(cmd):
         raise RuntimeError(f"Command failed: {cmd}")
 
 def build_rust():
-    run("cd ray_vm && cargo build -r")
+    run("cd omni_vm && cargo build -r")
     if platform.system() == "Windows":
         if Path("dist\\vm.exe").exists():
             os.remove("dist\\vm.exe")
         os.makedirs("dist", exist_ok=True)
-        shutil.move("ray_vm\\target\\release\\ray_vm.exe", "dist\\ray_vm.exe")
+        shutil.move("omni_vm\\target\\release\\omni_vm.exe", "dist\\omni_vm.exe")
     else:
-        shutil.move("ray_vm/target/release/ray_vm", "dist/ray_vm")
+        shutil.move("omni_vm/target/release/omni_vm", "dist/omni_vm")
 def main():
     tasks = [build_rust]
     # Run in parallel

@@ -5,13 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug executable 'ray_vm'",
+            "name": "Debug executable 'omni_vm'",
             "type": "lldb",
             "request": "launch",
             "cargo": {
                 "args": [
                     "run",
-                    "--bin=ray_vm",
+                    "--bin=omni_vm",
                 ]
             },
             "args": [
@@ -20,13 +20,13 @@
             ]
         },
         {
-            "name": "Debug unit tests in executable 'ray_vm'",
+            "name": "Debug unit tests in executable 'omni_vm'",
             "type": "lldb",
             "request": "launch",
             "cargo": {
                 "args": [
                     "test",
-                    "--bin=ray_vm"
+                    "--bin=omni_vm"
                 ]
             }
         }

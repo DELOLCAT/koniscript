@@ -1,11 +1,11 @@
-# Ray: Write once, run wherever you want
+# OmniScript: Write once, run wherever you want
 
-Ray is a dynamic programming language that focuses on these main features:
+OmniScript is a dynamic programming language that focuses on these main features:
 
-- A simple VM (RayVM) that you could implement almost anywhere - even in Scratch mods
+- A simple VM (OmniScriptVM) that you could implement almost anywhere - even in Scratch mods
 - Readability of code
 - Ease of packaging (code compiles down to a single .rvm bytecode file)
-- Compatibility: Supports @require flags (ex. @require fs, gui) so Ray can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future.
+- Compatibility: Supports @require flags (ex. @require fs, gui) so OmniScript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future.
 
 ## Roadmap
 
@@ -48,8 +48,8 @@ Ray is a dynamic programming language that focuses on these main features:
 Clone the repo:
 
 ```bash
-git clone https://github.com/DELOLCAT/ray
-cd ray
+git clone https://github.com/DELOLCAT/omni_script
+cd omni_script
 ```
 
 Run `build.py` with `uv`:

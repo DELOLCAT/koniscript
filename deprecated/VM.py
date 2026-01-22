@@ -1,6 +1,6 @@
 """
 This whole file is __extremely__ deprecated.
-Use /ray_vm instead (Rust).
+Use /omni instead (Rust).
 """
 
 from typer import Typer

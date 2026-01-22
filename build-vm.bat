@@ -1,9 +1,9 @@
 @echo off
 setlocal
 
-pushd ray_vm
+pushd omni_vm
 if errorlevel 1 (
-    echo "Failed to cd into ray_vm"
+    echo "Failed to cd into omni_vm"
     exit /b 1
 )
 
@@ -22,7 +22,7 @@ if errorlevel 1 (
 )
 
 if not exist ".\build" mkdir ".\build"
-copy ".\target\release\ray_vm.exe" "..\dist\vm.exe"
+copy ".\target\release\omni_vm.exe" "..\dist\vm.exe"
 if errorlevel 1 (
     echo "Failed to copy vm"
     popd

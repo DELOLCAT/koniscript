@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Ensure the script is run from the project root
-if [ ! -f "src/ray.py" ]; then
+if [ ! -f "src/omni_script.py" ]; then
     echo "Please run this script from the project root directory."
     exit 1
 fi
