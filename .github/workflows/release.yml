@@ -42,7 +42,7 @@ jobs:
         uses: astral-sh/setup-uv@v7.2.0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@v1
+        uses: MatteoH2O1999/setup-rust@v2.1.1
 
       - name: Lint with ruff
         run: uvx ruff check src/omni_script/
