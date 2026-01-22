@@ -2,7 +2,7 @@
 
 
 a = Analysis( # type: ignore
-    ['src/omni_script/omni_script.py'],
+    ['src/omni_script/omni.py'],
     pathex=[],
     binaries=[('build/vm', '.')],
     datas=[],
@@ -22,7 +22,7 @@ exe = EXE( # type: ignore
     a.binaries,
     a.datas,
     [],
-    name='omni_script',
+    name='omni',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

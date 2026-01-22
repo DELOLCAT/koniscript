@@ -26,4 +26,4 @@ testpaths = [
 ]
 pythonpath = ["src"]
 [project.scripts]
-omni_script = "omni_script.omni_script:app"
+omni = "omni_script.omni:app"

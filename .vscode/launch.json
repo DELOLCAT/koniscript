@@ -16,7 +16,7 @@
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
-            "program": "./omni_script.py",
+            "program": "./omni.py",
             "console": "integratedTerminal",
             "args": [
                 "compile",

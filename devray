@@ -1,2 +1,2 @@
 #!/bin/bash
-uv run src/omni_script.py "$@"
+uv run src/omni_script/omni.py "$@"

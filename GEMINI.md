@@ -17,10 +17,10 @@ The main technologies used are Python 3.12+ and Rust. The Python part uses `type
 
 #### Python Compiler
 
-To compile a OmniScript source file, use the `omni_script.py` script:
+To compile a OmniScript source file, use the `omni.py` script:
 
 ```bash
-python src/omni_script/omni_script.py compile <file.om>
+python src/omni_script/omni.py compile <file.om>
 ```
 
 This will generate a `test.lsc` file in the root directory (later the filename will be configurable, and would default to the name of the source file).
@@ -28,9 +28,9 @@ This will generate a `test.lsc` file in the root directory (later the filename w
 To run a OmniScript source file directly, which compiles and then executes it with the VM:
 
 ```bash
-python src/omni_script/omni_script.py run <file.om>
+python src/omni_script/omni.py run <file.om>
 ```
-Please note that at the moment, additional debug features such as a copy of the source aren't available to the VM with `omni_script.py run`.
+Please note that at the moment, additional debug features such as a copy of the source aren't available to the VM with `omni.py run`.
 
 #### Rust VM
 
