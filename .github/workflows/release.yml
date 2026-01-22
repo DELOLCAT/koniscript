@@ -73,11 +73,11 @@ jobs:
       - name: Copy build artifact
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp omni.exe omni-windows.exe
+            cp dist/omni.exe omni-windows.exe
           elif [[ "${{ runner.os }}" == "Linux" ]]; then
-            cp omni omni-linux
+            cp dist/omni omni-linux
           else
-            cp omni omni-macos
+            cp dist/omni omni-macos
           fi
 
       - name: Upload artifact
