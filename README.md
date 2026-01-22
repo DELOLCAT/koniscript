@@ -62,7 +62,7 @@ print(5 + 5 / 2)
 - Conditionals:
 
 ```omniscript
-num = input("Enter a number\n>>> ") # The enter number prints a message and waits for user input, returning the input given by the user.
+num = input("Enter a number\n>>> ") # The input function prints a message and waits for user input, returning the input given by the user.
 
 print(num == 5)
 if num == 5 {
