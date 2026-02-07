@@ -104,7 +104,7 @@ jobs:
 
       - name: Get release body
         id: body
-        run: DELIM=a_random_string_that_shouldn't_be_in__the_output_32j124ij1o43
+        run: DELIM="a_random_string_that_shouldn't_be_in__the_output_32j124ij1o43"
              echo "body<<$DELIM" >> $GITHUB_OUTPUT
              cat RELEASE_BODY.txt >> $GITHUB_OUTPUT
              echo "$DELIM" >> $GITHUB_OUTPUT
