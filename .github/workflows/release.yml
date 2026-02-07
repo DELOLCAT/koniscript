@@ -51,7 +51,7 @@ jobs:
 
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
-        run: cp cp dist/omni.exe omni-windows.exe
+        run: cp dist\omni.exe omni-windows.exe
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: cp dist/omni omni-linux
