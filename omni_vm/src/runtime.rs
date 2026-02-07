@@ -96,27 +96,27 @@ impl Value {
         match ValueTag::try_from(tag)? {
             ValueTag::Integer => {
                 let out = vm_to_int(std::slice::from_ref(&Value::String(payload.to_string())))?;
-                return Ok(out);
+                Ok(out)
             }
             ValueTag::Bool => {
                 let out = vm_to_bool(std::slice::from_ref(&Value::String(payload.to_string())))?;
-                return Ok(out);
+                Ok(out)
             }
-            ValueTag::Null => return Ok(Value::Null),
-            ValueTag::String => return Ok(Value::String(payload.to_string())),
+            ValueTag::Null => Ok(Value::Null),
+            ValueTag::String => Ok(Value::String(payload.to_string())),
             ValueTag::Float => {
                 let out = vm_to_float(std::slice::from_ref(&Value::String(payload.to_string())))?;
-                return Ok(out);
+                Ok(out)
             }
 
             _ => {
-                return Err(VmError {
+                Err(VmError {
                     msg: format!(
                         "Cannot convert a value with tag {} to an internal value",
                         tag
                     ),
                     errcode: ErrCode::ConversionNotPossible,
-                });
+                })
             }
         }
     }
@@ -351,7 +351,7 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
     }
 
     println!("{}", rust_args.join(" "));
-    return Ok(Value::Null);
+    Ok(Value::Null)
 }
 pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
     let [s] = args else {
@@ -369,7 +369,7 @@ pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
             });
         }
     }
-    return Ok(Value::Null);
+    Ok(Value::Null)
 }
 
 pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {

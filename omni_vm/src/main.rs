@@ -589,7 +589,7 @@ impl VM {
                         }
                     };
                     match func {
-                        LsFunc::Builtin { name: _, func } => match func(&args.as_slice()) {
+                        LsFunc::Builtin { name: _, func } => match func(args.as_slice()) {
                             Ok(v) => self.push_to_stack(v),
                             Err(v) => return Err(v),
                         },
@@ -627,7 +627,7 @@ impl VM {
                                     }
                                 )
                             };
-                            let result = func(itm, &args.as_slice())?;
+                            let result = func(itm, args.as_slice())?;
                             self.push_to_stack(result);
                         }
                     }
@@ -820,10 +820,7 @@ fn run(file: String) {
         }
     };
     match vm.run() {
-        Ok(opt) => match opt {
-            Some(v) => println!("{:?}", v),
-            None => {}
-        },
+        Ok(opt) => if let Some(v) = opt { println!("{:?}", v) },
         Err(e) => {
             // Single, clear error line at the top.
             println!("{}: {}", e.errcode.to_string().red().bold(), e.msg.red());
@@ -869,7 +866,7 @@ fn run(file: String) {
                                         "{} {} {}",
                                         "->".red().bold(),
                                         line_prefix,
-                                        (&source[i]).bold().underline()
+                                        source[i].bold().underline()
                                     );
                                 } else {
                                     println!("   {} {}", line_prefix, &source[i]);
