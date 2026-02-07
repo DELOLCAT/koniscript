@@ -99,15 +99,15 @@ jobs:
 
       - name: Get release title
         id: title
-        run: echo "title<<EOF" >> $GITHUB_OUTPUT
-             cat RELEASE_TITLE.txt >> $GITHUB_OUTPUT
-             echo "EOF" >> $GITHUB_OUTPUT 
+        run: echo "title=$(<RELEASE_TITLE.txt)" >> $GITHUB_OUTPUT
+ 
 
       - name: Get release body
         id: body
-        run: echo "body<<EOF" >> $GITHUB_OUTPUT
-             cat RELEASE_BODY.md >> $GITHUB_OUTPUT
-             echo "EOF" >> $GITHUB_OUTPUT
+        run: DELIM=a_random_string_that_shouldn't_be_in__the_output_32j124ij1o43
+             echo "body<<$DELIM" >> $GITHUB_OUTPUT
+             cat RELEASE_BODY.txt >> $GITHUB_OUTPUT
+             echo "$DELIM" >> $GITHUB_OUTPUT
 
       - name: Check if release is a prerelease
         id: pre
