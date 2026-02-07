@@ -2,7 +2,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import platform
-import concurrent.futures
 from rich import print
 import os
 
