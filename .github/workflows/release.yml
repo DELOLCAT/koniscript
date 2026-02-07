@@ -1,24 +1,22 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version (e.g. v1.4.0)"
-        required: true
-      prerelease:
-        description: "Mark as prerelease?"
-        required: false
-        type: boolean
-        default: false
-      notes:
-        description: "Release notes / description"
-        required: false
-
+  push:
+    branches:
+      - main
+    tags:
+      - v*
 permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -52,14 +50,16 @@ jobs:
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
         run: |
-          cp dist\omni.exe omni-windows.exe && 
-          cp dist\vm.exe omvm-windows.exe && 
+          cp dist\omni.exe omni-windows.exe
+          cp dist\vm.exe omvm-windows.exe
+        shell: pwsh
 
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: |
           cp dist/omni omni-linux
           cp dist/vm omvm-linux
+
       - name: Copy build artifact per OS (macOS)
         if: ${{ runner.os == 'macOS'}}
         run: |
@@ -74,6 +74,9 @@ jobs:
           path: |
             ./omni-*.exe
             ./omni-*
+            ./omvm-*.exe
+            ./omvm-*
+
 
   release:
     runs-on: ubuntu-latest
@@ -83,21 +86,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create tag
-        run: |
-          git tag "${{ inputs.version }}"
-          git push origin "${{ inputs.version }}"
-
       - name: Download matrix artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
+      - name: Copy README.md
+        run: cp README.md release-artifacts/
+
+      - name: Get tag name
+        id: tag 
+        run: echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Get release title
+        id: title
+        run: echo "title=$(<RELEASE_TITLE.txt)" >> $GITHUB_OUTPUT
+ 
+
+
+      - name: Check if release is a prerelease
+        id: pre
+        run: |
+          if [[ "${{ steps.tag.outputs.tag_name }}" == *"pre"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version }}
-          name: ${{ inputs.version }}
-          body: ${{ inputs.notes }}
-          prerelease: ${{ inputs.prerelease }}
-          files: release-artifacts/**/* 
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: ${{ steps.title.outputs.title }}
+          body_path: RELEASE_BODY.md
+          prerelease: ${{ steps.pre.outputs.prerelease }}
+          files: release-artifacts/**/*
+        
