@@ -105,11 +105,11 @@ omni compile examples/fib.om
 
 ## Roadmap
 
-| Icon               | Meaning                       |
-|--------------------|-------------------------------|
-| :hourglass:        | Developing                    |
-| :x:                | Not started                   |
-| :pause_button      | Started but currently stopped |
+| Icon                | Meaning                       |
+|---------------------|-------------------------------|
+| :hourglass:         | Developing                    |
+| :x:                 | Not started                   |
+| :pause_button:      | Started but currently stopped |
 
 (completed features will be moved to [Currently Implemented Features](#currently-implemented-features))
 
@@ -131,7 +131,6 @@ omni compile examples/fib.om
 ### App
 
 - :x: Tests
-- :x: Bundle the VM and the compiler in one executable
 - :x: A proper CLI
 
 ## Build
