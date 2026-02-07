@@ -107,7 +107,7 @@ jobs:
         run: |
               {
                 echo "body<<EOF"
-                cat RELEASE_BODY.txt
+                cat RELEASE_BODY.md
                 echo "EOF"
               } >> $GITHUB_OUTPUT
 
