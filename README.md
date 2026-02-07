@@ -103,6 +103,12 @@ To compile a program (not CI ready yet), use `omni compile`:
 omni compile examples/fib.om
 ```
 
+To run compiled programs, use `omvm run`:
+
+```bash
+omvm run ./fib.omc
+```
+
 ## Roadmap
 
 | Icon                | Meaning                       |
