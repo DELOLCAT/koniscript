@@ -105,12 +105,11 @@ jobs:
       - name: Get release body
         id: body
         run: |
-            DELIM="__DELIM_$(date +%s)_$RANDOM__"
-            {
-              echo "body<<${DELIM}"
-              cat RELEASE_BODY.md
-              echo "${DELIM}"
-            } >> $GITHUB_OUTPUT
+          DELIM="__DELIM_$(date +%s)_$RANDOM__"
+          printf "title<<%s\n" "$DELIM" >> "$GITHUB_OUTPUT"
+          body<<%s\n" "$DELIM" >> "$GITHUB_OUTPUT"
+          cat RELEASE_BODY.md >> "$GITHUB_OUTPUT"
+          printf "\n%s\n" "$DELIM" >> "$GITHUB_OUTPUT"
 
       - name: Check if release is a prerelease
         id: pre
