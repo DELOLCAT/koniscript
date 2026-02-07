@@ -102,14 +102,6 @@ jobs:
         run: echo "title=$(<RELEASE_TITLE.txt)" >> $GITHUB_OUTPUT
  
 
-      - name: Get release body
-        id: body
-        run: |
-          DELIM="__DELIM_$(date +%s)_$RANDOM__"
-          printf "title<<%s\n" "$DELIM" >> "$GITHUB_OUTPUT"
-          body<<%s\n" "$DELIM" >> "$GITHUB_OUTPUT"
-          cat RELEASE_BODY.md >> "$GITHUB_OUTPUT"
-          printf "\n%s\n" "$DELIM" >> "$GITHUB_OUTPUT"
 
       - name: Check if release is a prerelease
         id: pre
@@ -125,7 +117,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: ${{ steps.title.outputs.title }}
-          body: ${{ steps.body.outputs.body }}
+          body_path: RELEASE_BODY.md
           prerelease: ${{ steps.pre.outputs.prerelease }}
           files: release-artifacts/**/*
         
