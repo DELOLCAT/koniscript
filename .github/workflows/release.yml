@@ -51,13 +51,20 @@ jobs:
 
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
-        run: cp dist\omni.exe omni-windows.exe
+        run: |
+          cp dist\omni.exe omni-windows.exe && 
+          cp dist\vm.exe omvm-windows.exe && 
+
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
-        run: cp dist/omni omni-linux
+        run: |
+          cp dist/omni omni-linux
+          cp dist/vm omvm-linux
       - name: Copy build artifact per OS (macOS)
         if: ${{ runner.os == 'macOS'}}
-        run: cp dist/omni omni-macos
+        run: |
+          cp dist/omni omni-macos
+          cp dist/vm omvm-macos
 
 
       - name: Upload artifact for release

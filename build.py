@@ -13,13 +13,14 @@ def run(cmd):
 
 def build_rust():
     run("cd omni_vm && cargo build -r")
-    os.makedirs("build", exist_ok=True)
+    os.makedirs("dist", exist_ok=True)
     if platform.system() == "Windows":
-        if Path("build\\vm.exe").exists():
-            os.remove("build\\vm.exe")
-        shutil.move("omni_vm\\target\\release\\omni_vm.exe", "build\\vm.exe")
+        if Path("dist\\vm.exe").exists():
+            os.remove("dist\\vm.exe")
+        shutil.move("omni_vm\\target\\release\\omni_vm.exe", "dist\\vm.exe")
     else:
-        shutil.move("omni_vm/target/release/omni_vm", "build/vm")
+        shutil.move("omni_vm/target/release/omni_vm", "dist/vm")
+
 def build_py():
     if platform.system() == "Windows":
         run("pyinstaller win.spec")
@@ -34,7 +35,6 @@ def main():
         except Exception as e:
             print(f"[red b i]Build failed: {e}")
             return
-
     print("[green b u]Build completed! Result in dist/")
 
 if __name__ == "__main__":
