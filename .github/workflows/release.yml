@@ -49,15 +49,16 @@ jobs:
       - name: Build
         run: uv run build.py
 
-      - name: Copy build artifact per OS
-        run: |
-          bash -c "if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp dist/omni.exe omni-windows.exe
-          elif [[ "${{ runner.os }}" == "Linux" ]]; then
-            cp dist/omni omni-linux
-          else
-            cp dist/omni omni-macos
-          fi"
+      - name: Copy build artifact per OS (Windows)
+        if: ${{ runner.os == 'Windows'}}
+        run: cp cp dist/omni.exe omni-windows.exe
+      - name: Copy build artifact per OS (Linux)
+        if: ${{ runner.os == 'Linux'}}
+        run: cp dist/omni omni-linux
+      - name: Copy build artifact per OS (macOS)
+        if: ${{ runner.os == 'macOS'}}
+        run: cp dist/omni omni-macos
+
 
       - name: Upload artifact for release
         uses: actions/upload-artifact@v4
