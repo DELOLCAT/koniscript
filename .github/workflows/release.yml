@@ -75,6 +75,9 @@ jobs:
           path: |
             ./omni-*.exe
             ./omni-*
+            ./omvm-*.exe
+            ./omvm-*
+
 
   release:
     runs-on: ubuntu-latest
