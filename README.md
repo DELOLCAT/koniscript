@@ -123,10 +123,11 @@ omni compile examples/fib.om
 - :x: A standard library (though certain imports, like fs, would need an @require flag)
 - :x: For loops
 - :x: A REPL
-- :x: More builtins
+- :pause_button: More builtins
   - :x: Builtin Functions
   - :pause_button: Builtin Methods
     - :pause_button: Array methods
+- :x: Dynamic modules
 
 ### App
 

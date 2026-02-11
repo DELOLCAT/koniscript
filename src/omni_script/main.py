@@ -188,7 +188,7 @@ class Tokenizer:
             self .advance(1)
             return Token(AT_RATE, None, start_line, start_col)
         elif current_char == "#":
-            while self.get_current_char() != "\n":
+            while self.get_current_char() is not None and self.get_current_char() != "\n":
                 self.advance()
             return self.get_next_token()
         elif current_char == "+":

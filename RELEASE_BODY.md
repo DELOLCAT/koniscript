@@ -1,10 +1,1 @@
-This is the first pre-release of OmniScript.
-It includes these features:
-
-- Variables
-- Functions
-- Basic builtins (print, input, to_(type))
-- Arrays (methods indev)
-- The requirements syntax
-
-There really isn't that much more to this release. See `README.md` for more.
+This is a small patch for the tokenizer, as it can get stuck in an infinite loop if the file ends with a comment.
