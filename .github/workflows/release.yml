@@ -120,4 +120,5 @@ jobs:
           body_path: RELEASE_BODY.md
           prerelease: ${{ steps.pre.outputs.prerelease }}
           files: release-artifacts/**/*
+          draft: true
         

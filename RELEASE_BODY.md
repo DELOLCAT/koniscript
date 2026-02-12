@@ -1,1 +1,1 @@
-This is a small patch for the tokenizer, as it can get stuck in an infinite loop if the file ends with a comment.
+This is yet another small patch to fix the fact that you cannot check if a string is equal to a string (quite embarrassing).
