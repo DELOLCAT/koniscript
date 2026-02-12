@@ -635,6 +635,7 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Integer(va), Value::Float(vb)) => Ok(Value::Bool(*va as f64 == *vb)),
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va == *vb as f64)),
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
+        (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
 
         _ => Err(VmError {
             msg: format!(
