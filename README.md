@@ -133,7 +133,7 @@ omvm run ./fib.omc
   - :x: Builtin Functions
   - :pause_button: Builtin Methods
     - :pause_button: Array methods
-- :x: Dynamic modules
+- :pause_button: Dynamic modules
 
 ### App
 
