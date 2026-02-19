@@ -1,6 +1,6 @@
 # Info for LLMS
 
-This document is mainly for use for LLMS to follow, mainly to request changes that don't collide with the philosophy.
+This document is mainly for use for LLMS to follow, mainly to request changes that don't collide with the philosophy. LLM assisted code generation should follow the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Please also read `README.md` as well.
 
@@ -8,7 +8,7 @@ Please also read `README.md` as well.
 
 This project is the implementation of the "OmniScript" programming language, a dynamic language with a simple virtual machine. The project is split into two main parts:
 
-1.  **Compiler:** Written in Python, it tokenizes, parses, and compiles OmniScript source code (`.om` files) into bytecode (`.rvm` files).
+1.  **Compiler:** Written in Python, it tokenizes, parses, and compiles OmniScript source code (`.om` files) into bytecode (`.omc` files).
 2.  **Virtual Machine (VM):** Written in Rust, it executes the compiled bytecode.
 
 The main technologies used are Python 3.12+ and Rust. The Python part uses `typer` for the CLI, `rich` for formatted output, and `questionary` for interactive prompts. The Rust part uses `clap` for command-line argument parsing.
