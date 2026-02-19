@@ -2,6 +2,8 @@
 
 ## NOTICE: OmniScript is still indev, expect breaking changes
 
+For contributing, see [CONTRIBUTING.md](CONTRIBUTING.md)
+
 OmniScript is a dynamic programming language that focuses on these main features:
 
 - A simple VM (OmniVM) that you could implement almost anywhere - even in Scratch mods

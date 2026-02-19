@@ -17,3 +17,5 @@ wheels/
 vm
 #Other
 *.log
+
+tmp/

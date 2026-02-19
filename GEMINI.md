@@ -1,6 +1,6 @@
 # Info for LLMS
 
-This document is mainly for use for LLMS to follow, mainly to request changes that don't collide with the philosophy.
+This document is mainly for use for LLMS to follow, mainly to request changes that don't collide with the philosophy. LLM assisted code generation should follow the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Please also read `README.md` as well.
 
