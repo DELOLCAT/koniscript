@@ -27,3 +27,5 @@ testpaths = [
 pythonpath = ["src"]
 [project.scripts]
 omni = "omni_script.omni:app"
+[tool.ruff.format]
+quote-style = "single"

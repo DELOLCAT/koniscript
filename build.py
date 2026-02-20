@@ -5,37 +5,43 @@ import platform
 from rich import print
 import os
 
+
 def run(cmd):
-    print(f"[d green]Running: [b]{cmd}")
+    print(f'[d green]Running: [b]{cmd}')
     proc = subprocess.run(cmd, shell=True)
     if proc.returncode != 0:
-        raise RuntimeError(f"Command failed: {cmd}")
+        raise RuntimeError(f'Command failed: {cmd}')
+
 
 def build_rust():
-    run("cd omni_vm && cargo build -r")
-    os.makedirs("dist", exist_ok=True)
-    if platform.system() == "Windows":
-        if Path("dist\\vm.exe").exists():
-            os.remove("dist\\vm.exe")
-        shutil.move("omni_vm\\target\\release\\omni_vm.exe", "dist\\vm.exe")
+    run('cd omni_vm && cargo build -r')
+    os.makedirs('dist', exist_ok=True)
+    if platform.system() == 'Windows':
+        if Path('dist\\vm.exe').exists():
+            os.remove('dist\\vm.exe')
+        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\vm.exe')
     else:
-        shutil.move("omni_vm/target/release/omni_vm", "dist/vm")
+        shutil.move('omni_vm/target/release/omni_vm', 'dist/vm')
+
 
 def build_py():
-    if platform.system() == "Windows":
-        run("pyinstaller win.spec")
+    if platform.system() == 'Windows':
+        run('pyinstaller win.spec')
     else:
-        run("pyinstaller unix.spec")
+        run('pyinstaller unix.spec')
+
+
 def main():
     tasks = [build_rust, build_py]
     for task in tasks:
         try:
-            print(f"[b green]Running task {task.__name__}")
+            print(f'[b green]Running task {task.__name__}')
             task()
         except Exception as e:
-            print(f"[red b i]Build failed: {e}")
+            print(f'[red b i]Build failed: {e}')
             return
-    print("[green b u]Build completed! Result in dist/")
+    print('[green b u]Build completed! Result in dist/')
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
