@@ -18,4 +18,10 @@ src/omni_script/omvm*
 #Other
 *.log
 
+#For development
 tmp/
+#Nuitka
+omni.dist/
+omni.onefile-build/
+omni.build/
+omni.bin

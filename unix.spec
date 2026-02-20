@@ -4,7 +4,7 @@
 a = Analysis( # type: ignore
     ['src/omni_script/omni.py'],
     pathex=[],
-    binaries=[('dist/vm', '.')],
+    binaries=[],
     datas=[],
     hiddenimports=[],
     hookspath=[],

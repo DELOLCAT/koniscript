@@ -28,7 +28,6 @@ def build_rust():
 
 def main():
     tasks = [build_rust]
-    # Run in parallel
     for task in tasks:
         try:
             print(f'[b green]Running task {task.__name__}')

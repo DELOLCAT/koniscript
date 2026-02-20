@@ -6,11 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "mypy>=1.19.1",
-    "pyinstaller>=6.18.0",
+    "nuitka>=4.0.1",
+    "pyinstaller>=6.19.0",
     "pytest>=9.0.2",
     "questionary>=2.1.1",
-    "rich>=14.2.0",
-    "typer>=0.21.0",
+    "rich>=14.3.3",
+    "typer>=0.24.0",
 ]
 
 [build-system]
