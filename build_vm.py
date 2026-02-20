@@ -38,7 +38,10 @@ def main():
             return
 
     print('[green b u]Build completed! Result in dist/')
-    print('[blue b]If you are developing for OmniScript, move `dist/omvm` or `dist/omvm.exe` into `src/omni_script`')
+    print(
+        '[blue b]If you are developing for OmniScript, move `dist/omvm` or `dist/omvm.exe` into `src/omni_script`'
+    )
+
 
 if __name__ == '__main__':
     main()

@@ -1078,7 +1078,10 @@ class Compiler:
                 yield from self.compile_ins(node.value, node.name)
                 idx = self.declare_local(node.name)
                 self.emit(node.line, OP_SET_VAR, idx, depth)
-                yield self.Warn(f'Reassignment to a function attempted for {node.name} on {node.line}. This is usually not recommended.', node.line)
+                yield self.Warn(
+                    f'Reassignment to a function attempted for {node.name} on {node.line}. This is usually not recommended.',
+                    node.line,
+                )
         elif isinstance(node, Assign):
             res = self.get_var(node.name)
             if res is None:

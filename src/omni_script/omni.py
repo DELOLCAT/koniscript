@@ -1,6 +1,4 @@
 import shutil
-
-from rich.pretty import pprint
 import typer
 import os
 import sys
@@ -12,16 +10,17 @@ import tempfile
 import subprocess
 from rich import print
 from rich.console import Console
-from typing import Generator
 
 app = typer.Typer()
 
 console = Console()
 
+
 def exec_name(name: str) -> str:
     if sys.platform == 'win32':
         return name + '.exe'
     return name
+
 
 def bundled_exe(name: str) -> Path:
     base = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
@@ -56,7 +55,7 @@ def comp(filepath: Path, features=None):
             yield next(cmp)
         except StopIteration as e:
             return e.value
-    #pprint(cmp)
+    # pprint(cmp)
 
 
 @app.command()
@@ -101,16 +100,16 @@ def compile(
     else:
         out = '+ '.join(comp_features) + ' info'
     print(
-        f'Compiling with [b green]{out}[/]{" [d](source+line info)[/]" if out=='debug' else ""}. [blue]See `omni compile --help` for more info'
+        f'Compiling with [b green]{out}[/]{" [d](source+line info)[/]" if out == "debug" else ""}. [blue]See `omni compile --help` for more info'
     )
     it = iter(comp(filepath, comp_features))
-    
+
     instructions = None
     while True:
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
-                print(f"[yellow b]{value.message}")
+                print(f'[yellow b]{value.message}')
         except StopIteration as e:
             instructions = e.value
             break
@@ -134,20 +133,22 @@ def run(filepath: Path, debug: bool = False, features=[]):
             while True:
                 v = next(gen)
                 if isinstance(v, Compiler.Warn):
-                    print(f"[yellow b]{v.message}", file=sys.stdout)
+                    print(f'[yellow b]{v.message}', file=sys.stdout)
         except StopIteration as e:
             instructions = e.value
-        
+
         f.write('\n'.join([str(x) for x in instructions]))
         # We need to close the file so that the subprocess can open it.
         f.close()
-        vm_path = shutil.which("omvm")
+        vm_path = shutil.which('omvm')
         if (Path(__file__) / 'omvm').is_file():
             vm_path = Path(__file__).parent / exec_name('omvm')
         elif vm_path is not None:
             pass
         else:
-            print('[red b]Could not find `omvm` (OmniVM), which is required to run programs')
+            print(
+                '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
+            )
             sys.exit(127)
         subprocess.run([str(vm_path), 'run', f.name])
     finally:
