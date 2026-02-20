@@ -99,16 +99,19 @@ To run a program (not all dev features ready yet, CLI still indev), use `omni ru
 omni run examples/fib.om
 ```
 
-To compile a program (not CI ready yet), use `omni compile`:
+To compile a program, use `omni compile`:
 
 ```bash
-omni compile examples/fib.om
+$ omni compile examples/fib.om
+Compiling with debug (source+line info). See `omni compile --help` for more info
+Wrote to examples/fib.omc
 ```
 
 To run compiled programs, use `omvm run`:
 
 ```bash
-omvm run ./fib.omc
+$ omvm run ./examples/fib.omc
+55
 ```
 
 ## Roadmap
@@ -140,7 +143,6 @@ omvm run ./fib.omc
 ### App
 
 - :x: Tests
-- :x: A proper CLI
 
 ## Build
 
