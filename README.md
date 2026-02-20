@@ -93,7 +93,7 @@ print(fib(10)) # => 55
 
 ### CLI
 
-To run a program (not all dev features ready yet, CLI still indev), use `omni run`:
+To run a program, use `omni run`:
 
 ```bash
 omni run examples/fib.om
