@@ -55,7 +55,6 @@ def comp(filepath: Path, features=None):
             yield next(cmp)
         except StopIteration as e:
             return e.value
-    # pprint(cmp)
 
 
 @app.command()

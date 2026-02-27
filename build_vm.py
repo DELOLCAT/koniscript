@@ -4,6 +4,12 @@ import subprocess
 import platform
 from rich import print
 import os
+import sys
+
+debug = False
+if '-d' in sys.argv[1:] or '--debug' in sys.argv[1:]:
+    debug = True
+    print("[blue]Debug on")
 
 
 def run(cmd):
@@ -14,16 +20,17 @@ def run(cmd):
 
 
 def build_rust():
-    run('cd omni_vm && cargo build -r')
+    fld = "debug" if debug else "release"
+    run(f'cd omni_vm && cargo build {'-r' if not debug else ''}')
     if not Path('dist/').exists():
         os.mkdir('dist/')
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
         os.makedirs('dist', exist_ok=True)
-        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\omvm.exe')
+        shutil.move(f'omni_vm\\target\\{fld}\\omni_vm.exe', 'dist\\omvm.exe')
     else:
-        shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
+        shutil.move(f'omni_vm/target/{fld}/omni_vm', 'dist/omvm')
 
 
 def main():
@@ -38,7 +45,7 @@ def main():
 
     print('[green b u]Build completed! Result in dist/')
     print(
-        '[blue b]If you are developing for OmniScript, move `dist/omvm` or `dist/omvm.exe` into `src/omni_script`'
+        '[blue b]If you are developing for OmniScript, move `dist/omvm` or `dist/omvm.exe` into `src/omni_script`. Also, use `uv run build_vm.py -d`.'
     )
 
 

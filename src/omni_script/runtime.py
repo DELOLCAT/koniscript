@@ -1,6 +1,7 @@
 from typing import Any
 from omni_script import base_env
-
+def get_with_default(lst: list | tuple, index: int, default: Any = None):
+    return lst[index] if 0 <= index < len(lst) else default
 
 class BuiltinFunction:
     def __init__(self, name, func):
@@ -127,7 +128,7 @@ class ASTNode:
 
 
 def to_type(value: tuple[int, Any]) -> Any:
-    tag, val = value
+    tag, _ = value
     match tag:
         case 1:
             return int(base_env.vm_to_int(value)[1])

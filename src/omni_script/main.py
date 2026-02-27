@@ -1044,7 +1044,7 @@ class Compiler:
             output += input_source.splitlines()  # pyright: ignore[reportOptionalMemberAccess]
         return output
 
-    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, None]:
+    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
         if isinstance(node, String):
             idx = self.add_constant([TYPES[STRING], node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -1070,23 +1070,33 @@ class Compiler:
             if res is None:
                 idx = self.declare_local(node.name)
                 yield from self.compile_ins(node.value, node.name)
+                if len(other) > 0 and other[0]:
+                    self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, 0)
+                return idx, 0
             else:
                 idx, cat, depth = res
                 if cat == 'builtin':
                     raise RuntimeError('Attempted to assign a value to a builtin')
                 yield from self.compile_ins(node.value, node.name)
+                
                 idx = self.declare_local(node.name)
+                if len(other) > 0 and other[0]:
+                    self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, depth)
+
                 yield self.Warn(
                     f'Reassignment to a function attempted for {node.name} on {node.line}. This is usually not recommended.',
                     node.line,
                 )
+                return idx, 0
         elif isinstance(node, Assign):
             res = self.get_var(node.name)
             if res is None:
                 yield from self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
+                if len(other) > 0 and other[0]:
+                    self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
                 idx, cat, depth = res
@@ -1094,6 +1104,8 @@ class Compiler:
                     raise RuntimeError('Attempted to assign a value to a builtin')
                 yield from self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
+                if len(other) > 0 and other[0]:
+                    self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, depth)
         elif isinstance(node, BuiltinModulePointer):
             ref = self.ASTenv[node.idx]
@@ -1180,14 +1192,16 @@ class Compiler:
                 )
             else:
                 raise RuntimeError(
-                    '(internal) Expected array `other` to have at least 1 value, found 0'
+                    '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.'
                 )
         elif isinstance(node, Return):
             yield from self.compile_ins(node.value)
             self.emit(node.line, 'RET')
         elif isinstance(node, Export):
-            yield from self.compile_ins(node.lhs, node.name)
+            yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
+            input(self.code)
             idx = self.add_constant((2, node.name))
+            print(self.var_map)
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
             yield from self.compile_ins(node.lhs)
