@@ -96,7 +96,8 @@ print(fib(10)) # => 55
 To run a program, use `omni run`:
 
 ```bash
-omni run examples/fib.om
+$ omni run examples/fib.om 
+55
 ```
 
 To compile a program, use `omni compile`:
