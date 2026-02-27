@@ -1,53 +1,54 @@
 from pathlib import Path
 import shutil
-import subprocess
 import platform
 from rich import print
 import os
-import sys
-
-debug = False
-if '-d' in sys.argv[1:] or '--debug' in sys.argv[1:]:
-    debug = True
-    print("[blue]Debug on")
+import asyncio
 
 
-def run(cmd):
+async def run(cmd):
     print(f'[d green]Running: [b]{cmd}')
-    proc = subprocess.run(cmd, shell=True)
-    if proc.returncode != 0:
+    proc = await asyncio.create_subprocess_shell(cmd)
+    code = await proc.wait()
+    if code != 0:
         raise RuntimeError(f'Command failed: {cmd}')
 
 
-def build_rust():
-    fld = "debug" if debug else "release"
-    run(f'cd omni_vm && cargo build {'-r' if not debug else ''}')
-    if not Path('dist/').exists():
-        os.mkdir('dist/')
+async def build_rust():
+    await run('cd omni_vm && cargo build -r')
+    os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
-        os.makedirs('dist', exist_ok=True)
-        shutil.move(f'omni_vm\\target\\{fld}\\omni_vm.exe', 'dist\\omvm.exe')
+        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\vm.exe')
     else:
-        shutil.move(f'omni_vm/target/{fld}/omni_vm', 'dist/omvm')
+        shutil.move('omni_vm/target/release/omni_vm', 'dist/vm')
 
 
-def main():
-    tasks = [build_rust]
-    for task in tasks:
-        try:
-            print(f'[b green]Running task {task.__name__}')
-            task()
-        except Exception as e:
-            print(f'Build failed: {e}')
-            return
+async def build_py():
+    if platform.system() == "Windows":
+        await run('pyinstaller win.spec')
+    else:
+        await run('pyinstaller unix.spec')
 
-    print('[green b u]Build completed! Result in dist/')
-    print(
-        '[blue b]If you are developing for OmniScript, move `dist/omvm` or `dist/omvm.exe` into `src/omni_script`. Also, use `uv run build_vm.py -d`.'
-    )
+
+async def run_task(task):
+    print(f'[b green]Running task {task.__name__}')
+    await task()
+    print(f'[b green]Finished task {task.__name__}')
+
+
+async def main():
+    try:
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(run_task(build_rust))
+            tg.create_task(run_task(build_py))
+        print('[green b u]Build completed! Result in dist/')
+    except* Exception as e:
+        print('[red b]Build failed:')
+        for ex in e.exceptions:
+            print(f'    [red b]{e}')
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
