@@ -1,1 +1,1 @@
-Fix string equality
+Fixed `export` not adding item to scope + better CLI output + no more bundled VM
