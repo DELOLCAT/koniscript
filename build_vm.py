@@ -1,21 +1,21 @@
 from pathlib import Path
 import shutil
 import platform
+import subprocess
 from rich import print
 import os
-import asyncio
 
 
-async def run(cmd):
+def run(cmd):
     print(f'[d green]Running: [b]{cmd}')
-    proc = await asyncio.create_subprocess_shell(cmd)
-    code = await proc.wait()
+    code = subprocess.call(cmd, shell=True)
+    
     if code != 0:
         raise RuntimeError(f'Command failed: {cmd}')
 
 
-async def build_rust():
-    await run('cd omni_vm && cargo build -r')
+def build_rust():
+    run('cd omni_vm && cargo build -r')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
@@ -25,24 +25,22 @@ async def build_rust():
         shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
 
 
-async def build_py():
+def build_py():
     if platform.system() == "Windows":
-        await run('pyinstaller win.spec')
+        run('pyinstaller win.spec')
     else:
-        await run('pyinstaller unix.spec')
+        run('pyinstaller unix.spec')
 
 
-async def run_task(task):
+def run_task(task):
     print(f'[b green]Running task {task.__name__}')
-    await task()
+    task()
     print(f'[b green]Finished task {task.__name__}')
 
 
-async def main():
+def main():
     try:
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(run_task(build_rust))
-            tg.create_task(run_task(build_py))
+        build_rust()
         print('[green b u]Build completed! Result in dist/')
     except* Exception as e:
         print('[red b]Build failed:')
@@ -51,4 +49,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
