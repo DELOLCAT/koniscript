@@ -1,0 +1,3 @@
+#!/bin/bash
+uv run build_vm.py -d
+dist/omvm "$@"

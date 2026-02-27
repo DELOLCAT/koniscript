@@ -16,11 +16,11 @@
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
-            "program": "./omni.py",
+            "program": "./src/omni_script/omni.py",
             "console": "integratedTerminal",
             "args": [
                 "compile",
-                "test.om"
+                "examples/fib.om"
             ],
         },
     ]

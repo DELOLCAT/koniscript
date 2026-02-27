@@ -1,0 +1,3 @@
+   Compiling omni_vm v0.1.0 (/home/ahmad/coding/OmniScript/omni_vm)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.17s
+[src/main.rs:757:21] self.frames.last().unwrap().env.borrow().values.len() = 2

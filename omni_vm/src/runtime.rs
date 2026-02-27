@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use std::rc::Rc;
 use std::thread::sleep;
 
+pub type ValueRef = Rc<Value>;
 
 #[cfg(debug_assertions)]
 macro_rules! ddbg {
@@ -17,21 +18,16 @@ macro_rules! ddbg {
     ($($t:tt)*) => { $($t)* };
 }
 
-
-pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
-    vec![
-        "fs".to_string()
-    ]
-});
+pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| vec!["fs".to_string()]);
 #[derive(Debug, Clone)]
 pub struct Env {
-    pub values: Vec<Option<Value>>,
+    pub values: Vec<Option<ValueRef>>,
     pub parent: Option<Rc<RefCell<Env>>>,
-    pub exports: HashMap<String, Value>,
+    pub exports: HashMap<String, ValueRef>,
 }
 #[derive(Debug, Clone)]
 pub struct Module {
-    pub exports: HashMap<String, Value>,
+    pub exports: HashMap<String, ValueRef>,
     pub name: Option<String>,
 }
 #[derive(Debug)]
@@ -87,7 +83,7 @@ pub enum Value {
     Func(LsFunc),
     Float(f64),
     Module(Module),
-    Array(Rc<RefCell<Vec<Value>>>),
+    Array(Rc<RefCell<Vec<ValueRef>>>),
     Null,
 }
 
@@ -109,15 +105,13 @@ impl Value {
                 Ok(out)
             }
 
-            _ => {
-                Err(VmError {
-                    msg: format!(
-                        "Cannot convert a value with tag {} to an internal value",
-                        tag
-                    ),
-                    errcode: ErrCode::ConversionNotPossible,
-                })
-            }
+            _ => Err(VmError {
+                msg: format!(
+                    "Cannot convert a value with tag {} to an internal value",
+                    tag
+                ),
+                errcode: ErrCode::ConversionNotPossible,
+            }),
         }
     }
     pub fn display(&self) -> String {
@@ -129,7 +123,7 @@ impl Value {
             Value::Func(f) => match f {
                 LsFunc::User { entry, name, .. } => format!("[function {} at {}]", name, entry),
                 LsFunc::Builtin { name, .. } => format!("[builtin function {}]", name),
-                LsFunc::BuiltinMethod { name, ..} => format!("builtin method {}]", name)
+                LsFunc::BuiltinMethod { name, .. } => format!("builtin method {}]", name),
             },
             Value::Null => "null".to_string(),
             Value::Module(m) => match &m.name {
@@ -155,8 +149,8 @@ pub enum LsFunc {
     },
     BuiltinMethod {
         name: String,
-        func: fn(Value, &[Value]) -> Result<Value, VmError>,
-    }
+        func: fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
+    },
 }
 #[derive(Debug)]
 pub enum ErrCode {
@@ -207,7 +201,7 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
                 let out = format!("[func {} at ins {}]", name, entry);
                 Result::Ok(Value::String(out))
             }
-            LsFunc::BuiltinMethod { name, ..} => {
+            LsFunc::BuiltinMethod { name, .. } => {
                 let out = format!("[builtin method {}]", name);
                 Ok(Value::String(out))
             }
@@ -440,10 +434,10 @@ pub fn vmenv() -> Vec<Value> {
         Value::Module(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
-                Value::Func(LsFunc::Builtin {
+                Rc::new(Value::Func(LsFunc::Builtin {
                     name: "hi".to_string(),
                     func: vm_hi,
-                }),
+                })),
             )]),
             name: Some("math".to_string()),
         }),
@@ -693,7 +687,7 @@ static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> 
 pub fn funcs() -> &'static HashMap<String, fn(Value, Value) -> Result<Value, VmError>> {
     &FUNCS
 }
-fn expect_args(args: &[Value], n: usize) -> Result<(), VmError> {
+fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
     if args.len() != n {
         Err(VmError {
             msg: format!("Expected {} argument(s), got {}", n, args.len()),
@@ -703,13 +697,13 @@ fn expect_args(args: &[Value], n: usize) -> Result<(), VmError> {
         Ok(())
     }
 }
-fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
+fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     expect_args(args, 1)?;
 
-    match item {
+    match item.as_ref() {
         Value::Array(ar) => {
             ar.borrow_mut().push(args[0].clone());
-            Ok(Value::Array(ar))
+            Ok(item.clone())
         }
 
         other => Err(VmError {
@@ -718,18 +712,17 @@ fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
         }),
     }
 }
-pub static ATTRMAP: Lazy<HashMap<ValueTag, HashMap<String, fn(Value, &[Value]) -> Result<Value, VmError>>>> = Lazy::new(|| {
+pub static ATTRMAP: Lazy<
+    HashMap<ValueTag, HashMap<String, fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>>>,
+> = Lazy::new(|| {
     let mut attramp = HashMap::new(); // Initialize properly
 
     // 1. Create the inner map
-    let mut array_methods: HashMap<String, fn(Value, &[Value]) -> Result<Value, VmError>> = HashMap::new();
-    
+    let mut array_methods: HashMap<String, fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>> =
+        HashMap::new();
+
     // 2. Explicitly cast the function to the signature type
-    //array_methods.insert("push".to_string(), arr_push as fn(Value, Value) -> Result<Value, VmError>);
-    array_methods.insert(
-        "push".to_string(),
-        arr_push
-    );
+    array_methods.insert("push".to_string(), arr_push);
     attramp.insert(ValueTag::Array, array_methods);
     attramp
 });

@@ -1,4 +1,4 @@
-use crate::runtime::{Env, Module, Value, VmError, VmPanic};
+use crate::runtime::{Env, Module, Value, ValueRef, VmError, VmPanic};
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use std::cell::RefCell;
@@ -97,13 +97,13 @@ struct VM {
     const_pool: Vec<Value>,
     lines: Option<Vec<i64>>,
     frames: Vec<Frame>,
-    source: Option<Vec<String>>
+    source: Option<Vec<String>>,
 }
 #[derive(Debug, Clone)]
 struct Frame {
     env: Rc<RefCell<Env>>,
     ret_addr: Option<usize>,
-    stack: Vec<Value>,
+    stack: Vec<ValueRef>,
     name: String,
     i: usize,
 }
@@ -156,18 +156,15 @@ impl VM {
                         continue;
                     }
                     if !runtime::SUPPORTED_FEATURES.contains(&item.to_string()) {
-                        return Err(
-                            VmError {
-                                msg: format!("This VM doesn't support `{}`", item),
-                                errcode: ErrCode::CompatibilityError
-                            }
-                        )
+                        return Err(VmError {
+                            msg: format!("This VM doesn't support `{}`", item),
+                            errcode: ErrCode::CompatibilityError,
+                        });
                     }
                 }
-                i+=1;
+                i += 1;
                 continue;
             }
-
 
             if line == ".code" {
                 broken = Some(i + 1);
@@ -284,7 +281,11 @@ impl VM {
             ins,
             global_env: runtime::vmenv(),
             const_pool: const_table,
-            lines: if sup_lines.is_some() { Some(lines) } else { None },
+            lines: if sup_lines.is_some() {
+                Some(lines)
+            } else {
+                None
+            },
             frames: vec![frame],
             source,
         })
@@ -312,12 +313,11 @@ impl VM {
     fn get_i(&self) -> usize {
         self.frames.last().unwrap().i
     }
-    fn push_to_stack(&mut self, item: Value) {
+    fn push_to_stack(&mut self, item: ValueRef) {
         self.frames.last_mut().unwrap().stack.push(item);
     }
-    
 
-    fn run(&mut self) -> Result<Option<Value>, VmError> {
+    fn run(&mut self) -> Result<Option<ValueRef>, VmError> {
         while self.get_i() < self.ins.len() {
             let operators = &self.ins[self.get_i()];
 
@@ -340,7 +340,7 @@ impl VM {
                         }
                     };
 
-                    let cond = match condv {
+                    let cond = match condv.as_ref() {
                         Value::Bool(v) => v,
                         _ => {
                             return Err(VmError {
@@ -371,7 +371,7 @@ impl VM {
                         }
                     };
 
-                    let cond = match condv {
+                    let cond = match condv.as_ref() {
                         Value::Bool(v) => v,
                         _ => {
                             return Err(VmError {
@@ -392,41 +392,41 @@ impl VM {
                 "BUILD_ARRAY" => {
                     let ops = match operators.get(1) {
                         Some(v) => v.parse::<usize>().unwrap(),
-                        None => return Err(
-                            VmError {
+                        None => {
+                            return Err(VmError {
                                 msg: "Expected 1 argument for BUILD_ARRAY".to_string(),
-                                errcode: ErrCode::ValueError
-                            }
-                        )
+                                errcode: ErrCode::ValueError,
+                            });
+                        }
                     };
-                    let mut items: Vec<Value> = Vec::new();
+                    let mut items: Vec<ValueRef> = Vec::new();
                     for _ in 0..ops {
                         match self.frames.last_mut().unwrap().stack.pop() {
                             Some(v) => items.push(v),
-                            None => return Err(
-                                VmError {
+                            None => {
+                                return Err(VmError {
                                     msg: "Stack underflow".to_string(),
-                                    errcode: ErrCode::StackUnderflow
-                                }
-                            )
+                                    errcode: ErrCode::StackUnderflow,
+                                });
+                            }
                         }
                     }
-                    self.push_to_stack(Value::Array(Rc::new(RefCell::new(items))));
+                    self.push_to_stack(Rc::new(Value::Array(Rc::new(RefCell::new(items)))));
                 }
                 "PUSH_CONST" => {
                     let item: Value =
                         self.const_pool[operators[1].parse::<usize>().unwrap()].clone();
-                    self.push_to_stack(item);
+                    self.push_to_stack(Rc::new(item));
                 }
                 "PUSH_BUILTIN" => {
                     let item: Value =
                         self.global_env[operators[1].parse::<usize>().unwrap()].clone();
-                    self.push_to_stack(item);
+                    self.push_to_stack(Rc::new(item));
                 }
                 "BREAK" => {
                     println!("Breakpoint: at {}:", self.frames.last().unwrap().name);
                     println!("Stack : {:#?}", self.frames.last().unwrap().stack);
-                    let mut b= String::new();
+                    let mut b = String::new();
                     print!("Press enter to continue");
                     let _ = std::io::stdin().read_line(&mut b);
                 }
@@ -434,70 +434,75 @@ impl VM {
                     let attrand: usize = operators[1].parse().expect("Invalid bytecode");
                     let attrand = match self.const_pool.get(attrand) {
                         Some(v) => v,
-                        None => return Err(
-                            VmError {
-                                msg: format!("Cannot find a value from the constant pool at index {}", attrand),
-                                errcode: ErrCode::InvalidBytecode
-                            }
-                        )
+                        None => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Cannot find a value from the constant pool at index {}",
+                                    attrand
+                                ),
+                                errcode: ErrCode::InvalidBytecode,
+                            });
+                        }
                     };
                     let attrand = match attrand {
                         Value::String(v) => v,
-                        _ => return Err(
-                            VmError {
-                                msg: format!("Expected attrand for GET_ATTR to be a string, found a {}", attrand.display()),
-                                errcode: ErrCode::InvalidBytecode
-                            }
-                        )
+                        _ => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Expected attrand for GET_ATTR to be a string, found a {}",
+                                    attrand.display()
+                                ),
+                                errcode: ErrCode::InvalidBytecode,
+                            });
+                        }
                     };
                     let attrl = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
-                        None => return Err(
-                            VmError {
+                        None => {
+                            return Err(VmError {
                                 msg: "Stack underflow".to_string(),
-                                errcode: ErrCode::StackUnderflow
-                            }
-                        )
-                    };
-                    let out = match attrl {
-                        Value::Module(m) => {
-                            match m.exports.get(attrand) {
-                                Some(v) => v.clone(),
-                                None => return Err(
-                                    VmError {
-                                        msg: format!("Could not find export {}, did you mark that value as public (export func/var)?", attrand),
-                                        errcode: ErrCode::AttributeError
-                                    }
-                                )
-                            }
+                                errcode: ErrCode::StackUnderflow,
+                            });
                         }
+                    };
+                    let out = match attrl.as_ref() {
+                        Value::Module(m) => match m.exports.get(attrand) {
+                            Some(v) => v.clone(),
+                            None => {
+                                return Err(VmError {
+                                    msg: format!(
+                                        "Could not find export {}, did you mark that value as public (export func/var)?",
+                                        attrand
+                                    ),
+                                    errcode: ErrCode::AttributeError,
+                                });
+                            }
+                        },
                         Value::Array(_) => {
-                            
                             self.frames.last_mut().unwrap().stack.push(attrl);
-                            
+
                             let methods = runtime::ATTRMAP.get(&runtime::ValueTag::Array).unwrap();
                             if let Some(v) = methods.get(attrand) {
-                                Value::Func(
-                                    LsFunc::BuiltinMethod {
-                                        name: "arr_push".to_string(),
-                                        func: *v
-                                    }
-                                )
+                                Rc::new(Value::Func(LsFunc::BuiltinMethod {
+                                    name: "arr_push".to_string(),
+                                    func: *v,
+                                }))
                             } else {
-                                return Err(
-                                    VmError {
-                                        msg: format!("No attribute `{}` for type array", attrand),
-                                        errcode: ErrCode::AttributeError
-                                    }
-                                )
+                                return Err(VmError {
+                                    msg: format!("No attribute `{}` for type array", attrand),
+                                    errcode: ErrCode::AttributeError,
+                                });
                             }
                         }
-                        _ => return Err(
-                            VmError {
-                                msg: format!("Cannot get an attribute from a type of {}", attrl.display()),
-                                errcode: ErrCode::AttributeError
-                            }
-                        )
+                        _ => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Cannot get an attribute from a type of {}",
+                                    attrl.display()
+                                ),
+                                errcode: ErrCode::AttributeError,
+                            });
+                        }
                     };
                     self.frames.last_mut().unwrap().stack.push(out);
                 }
@@ -552,12 +557,25 @@ impl VM {
                                 errcode: runtime::ErrCode::VariableNotFound,
                             });
                         }
-                        Some(v) => self.push_to_stack(v.clone().unwrap()),
+                        Some(v) => self.push_to_stack(
+                            match v {
+                                Some(v) => v,
+                                None => {
+                                    return Err(VmError {
+                                        msg: format!(
+                                            "The variable at {idx}:{depth} is unallocated."
+                                        ),
+                                        errcode: runtime::ErrCode::ValueError,
+                                    });
+                                }
+                            }
+                            .clone(),
+                        ),
                     }
                 }
                 "CALL" => {
                     let arg_count: usize = operators[1].parse().expect("Invalid bytecode");
-                    let mut args: Vec<Value> = Vec::new();
+                    let mut args: Vec<ValueRef> = Vec::new();
                     args.reverse();
                     for _ in 0..arg_count {
                         match self.frames.last_mut().unwrap().stack.pop() {
@@ -579,7 +597,7 @@ impl VM {
                             });
                         }
                     };
-                    let func = match func {
+                    let func = match func.as_ref() {
                         Value::Func(f) => f,
                         _ => {
                             return Err(VmError {
@@ -589,10 +607,14 @@ impl VM {
                         }
                     };
                     match func {
-                        LsFunc::Builtin { name: _, func } => match func(args.as_slice()) {
-                            Ok(v) => self.push_to_stack(v),
-                            Err(v) => return Err(v),
-                        },
+                        LsFunc::Builtin { name: _, func } => {
+                            let dereferenced_args: Vec<Value> =
+                                args.iter().map(|arg| arg.as_ref().clone()).collect();
+                            match func(dereferenced_args.as_slice()) {
+                                Ok(v) => self.push_to_stack(Rc::new(v)),
+                                Err(v) => return Err(v),
+                            }
+                        }
                         LsFunc::User {
                             entry,
                             local_count,
@@ -601,31 +623,34 @@ impl VM {
                             name,
                         } => {
                             let mut fenv = Env {
-                                values: vec![None; local_count],
-                                parent: Some(closure),
+                                values: vec![None; *local_count],
+                                parent: Some(closure.clone()),
                                 exports: HashMap::new(),
                             };
-                            let mut rust_args: Vec<Option<Value>> = vec![];
+                            let mut rust_args: Vec<Option<ValueRef>> = vec![];
                             for arg in args {
                                 rust_args.push(Some(arg))
                             }
-                            for i in 0..param_count {
+                            for i in 0..*param_count {
                                 fenv.values[i] = rust_args[i].clone()
                             }
-                            let fframe = Frame::new().env(fenv).ret_addr(self.get_i()).name(name);
+                            let fframe = Frame::new()
+                                .env(fenv)
+                                .ret_addr(self.get_i())
+                                .name(name.clone());
                             self.frames.push(fframe);
-                            self.frames.last_mut().unwrap().i = entry;
+                            self.frames.last_mut().unwrap().i = *entry;
                             continue;
                         }
-                        LsFunc::BuiltinMethod {name: _, func} => {
+                        LsFunc::BuiltinMethod { name: _, func } => {
                             let itm = match self.frames.last_mut().unwrap().stack.pop() {
                                 Some(v) => v,
-                                None => return Err(
-                                    VmError {
+                                None => {
+                                    return Err(VmError {
                                         msg: "StackUnderflow".to_string(),
-                                        errcode: ErrCode::StackUnderflow
-                                    }
-                                )
+                                        errcode: ErrCode::StackUnderflow,
+                                    });
+                                }
                             };
                             let result = func(itm, args.as_slice())?;
                             self.push_to_stack(result);
@@ -668,8 +693,8 @@ impl VM {
                             });
                         }
                     };
-                    let out = match v {
-                        Value::Integer(val) => Value::Integer(0 - val),
+                    let out = match v.as_ref() {
+                        Value::Integer(val) => Rc::new(Value::Integer(0 - val)),
                         _ => {
                             return Err(VmError {
                                 msg: format!(
@@ -688,9 +713,9 @@ impl VM {
                         exports: self.frames.last().unwrap().env.borrow().exports.clone(),
                         name: None,
                     };
-                    self.push_to_stack(Value::Module(new_mod));
+                    self.push_to_stack(Rc::new(Value::Module(new_mod)));
                 }
-                
+
                 "EXPORT" => {
                     let name = match operators.get(1) {
                         Some(v) => v,
@@ -704,27 +729,33 @@ impl VM {
                     let name: usize = name.parse().expect("Invalid bytecode");
                     let name = match self.const_pool.get(name) {
                         Some(v) => v,
-                        None => return Err(
-                            VmError {
-                                msg: format!("Could not find a value in the constant pool at idx {} for EXPORT", name),
-                                errcode: ErrCode::ValueError
-                            }
-                        )
+                        None => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Could not find a value in the constant pool at idx {} for EXPORT",
+                                    name
+                                ),
+                                errcode: ErrCode::ValueError,
+                            });
+                        }
                     };
                     let name = match name {
                         Value::String(v) => v,
-                        _ => return Err(
-                            VmError {
-                                msg: format!("Expected EXPORT to reference to a string, not a {}", name.display()),
-                                errcode: ErrCode::TypeError
-                            }
-                        )
+                        _ => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Expected EXPORT to reference to a string, not a {}",
+                                    name.display()
+                                ),
+                                errcode: ErrCode::TypeError,
+                            });
+                        }
                     };
                     let to_ex = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
                         None => {
                             return Err(VmError {
-                                msg: "Stack underflow".to_string(),
+                                msg: "Stack underflow a".to_string(),
                                 errcode: ErrCode::StackUnderflow,
                             });
                         }
@@ -752,15 +783,31 @@ impl VM {
                             });
                         }
                     };
-                    let closure = &self.frames.last().unwrap().env;
-                    let item = Value::Func(LsFunc::User {
+                    let closure = self.frames.last().unwrap().env.clone();
+                    let item = Rc::new(Value::Func(LsFunc::User {
                         entry,
                         local_count,
                         param_count,
-                        closure: closure.clone(),
+                        closure,
                         name: name.to_string(),
-                    });
+                    }));
                     self.push_to_stack(item);
+                }
+                "DUP" => {
+                    let to_dup: ValueRef;
+                    {
+                        to_dup = match self.frames.last().unwrap().stack.last() {
+                            None => {
+                                return Err(VmError {
+                                    msg: "Stack underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow,
+                                });
+                            }
+                            Some(v) => v.clone(),
+                        };
+                    }
+
+                    self.frames.last_mut().unwrap().stack.push(to_dup);
                 }
                 _ => {
                     if runtime::funcs().contains_key(&operators[0]) {
@@ -787,8 +834,8 @@ impl VM {
                                 };
                             }
                         };
-                        match op(lhs, rhs) {
-                            Ok(v) => self.push_to_stack(v),
+                        match op(lhs.as_ref().clone(), rhs.as_ref().clone()) {
+                            Ok(v) => self.push_to_stack(Rc::new(v)),
                             Err(e) => return Err(e),
                         }
                     } else {
@@ -815,12 +862,20 @@ fn run(file: String) {
     let mut vm = match VM::new(contents) {
         Ok(v) => v,
         Err(e) => {
-            println!("{}: {}", "Error while setting up VM".red(),e.msg.red().bold());
+            println!(
+                "{}: {}",
+                "Error while setting up VM".red(),
+                e.msg.red().bold()
+            );
             return;
         }
     };
     match vm.run() {
-        Ok(opt) => if let Some(v) = opt { println!("{:?}", v) },
+        Ok(opt) => {
+            if let Some(v) = opt {
+                println!("{:?}", v)
+            }
+        }
         Err(e) => {
             // Single, clear error line at the top.
             println!("{}: {}", e.errcode.to_string().red().bold(), e.msg.red());
