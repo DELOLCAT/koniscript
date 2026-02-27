@@ -20,9 +20,9 @@ async def build_rust():
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
-        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\vm.exe')
+        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\omvm.exe')
     else:
-        shutil.move('omni_vm/target/release/omni_vm', 'dist/vm')
+        shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
 
 
 async def build_py():
