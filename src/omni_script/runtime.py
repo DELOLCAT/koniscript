@@ -1,19 +1,10 @@
+from dataclasses import dataclass
 from typing import Any
-from omni_script import base_env
 def get_with_default(lst: list | tuple, index: int, default: Any = None):
     return lst[index] if 0 <= index < len(lst) else default
-
+@dataclass
 class BuiltinFunction:
-    def __init__(self, name, func):
-        self.name = name
-        self.func = func
-
-    def __call__(self, *args) -> Any:
-        return self.func(*args)
-
-    def __repr__(self) -> str:
-        return f'BuiltinFunction({self.name}, {self.func})'
-
+    name: str
 
 class Environment:
     def __init__(self, parent=None):
@@ -126,55 +117,19 @@ T_FLOAT = 7
 class ASTNode:
     pass
 
-
-def to_type(value: tuple[int, Any]) -> Any:
-    tag, _ = value
-    match tag:
-        case 1:
-            return int(base_env.vm_to_int(value)[1])
-        case 2:
-            return str(base_env.vm_to_str(value)[1])
-        case 3:
-            return bool(base_env.vm_to_bool(value)[1])
-        case 4:
-            raise NotImplementedError
-        case 5:
-            raise DeprecationWarning
-        case 6:
-            return None
-
-
+@dataclass
 class Program(ASTNode):
-    def __init__(self, statements):
-        self.statements: list[ASTNode] = statements
-
-    def __repr__(self) -> str:
-        return f'Program({self.statements})'
-
-
+    statements: list[ASTNode]
+@dataclass
 class Module(ASTNode):
-    def __init__(self, line: int, body: Program, name: str):
-        self.line = line
-        self.body = body
-        self.name = name
-
-    def __repr__(self):
-        return f'Module({self.body})'
-
-
+    line: int
+    body: Program
+    name: str
+@dataclass
 class BuiltinModulePointer(ASTNode):
-    def __init__(self, line: int, idx: int):
-        self.line = line
-        self.idx = idx
-
-    def __repr__(self):
-        return f'BuiltinModulePointer({self.line}, {self.idx})'
-
-
+    line: int
+    idx: int
+@dataclass
 class BuiltinModule:
-    def __init__(self, exports: list, name: str):
-        self.exports = exports
-        self.name = name
-
-    def __repr__(self):
-        return f'BuiltinModule({self.exports}, {self.name})'
+    exports: list
+    name: str
