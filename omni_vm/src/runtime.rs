@@ -353,7 +353,7 @@ pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
         Value::Float(secs) => sleep(std::time::Duration::from_secs_f64(*secs)),
         _ => {
             return Err(VmError {
-                msg: format!("Expected integer, got {}", s.display()),
+                msg: format!("Expected integer or float, got {}", s.display()),
                 errcode: ErrCode::IncorrectType,
             });
         }
