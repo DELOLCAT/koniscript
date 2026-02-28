@@ -8,11 +8,6 @@ use std::{fs, vec};
 mod runtime;
 use runtime::{ErrCode, LsFunc};
 
-#[cfg(not(debug_assertions))]
-macro_rules! ddbg {
-    ($($t:tt)*) => { $($t)* };
-}
-
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -878,8 +873,7 @@ fn run(file: String) {
         }
         Err(e) => {
             // Single, clear error line at the top.
-            println!("{}: {}", e.errcode.to_string().red().bold(), e.msg.red());
-            println!();
+            println!("{}: {}\n", e.errcode.to_string().red().bold(), e.msg.red());
             println!("{}", "Traceback (most recent call last):".bold());
 
             let lines_opt = vm.lines.as_ref();
@@ -891,20 +885,19 @@ fn run(file: String) {
                 } // Add space between frames
 
                 // Frame location info
-                let ip_str_val = format!("ins 0x{:04X}", frame.i);
+                let ip_str_val = format!("ins 0x{:04X} ({})", frame.i, frame.i);
                 let ip_str = ip_str_val.dimmed();
 
                 if let Some(lines) = lines_opt {
                     if let Some(&line_nr_64) = lines.get(frame.i) {
                         let line_nr = line_nr_64 as usize;
                         println!(
-                            "  at {} ({}:{})",
+                            "  at {} ({} {})",
                             frame.name.cyan(),
                             "line".green(),
                             (line_nr + 1).to_string().green()
                         );
                         println!("  {}", ip_str);
-                        println!("  {}", format!("ins {}", frame.i).dimmed());
 
                         // Code snippet
                         if let Some(source) = source_opt {

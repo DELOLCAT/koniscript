@@ -8,15 +8,6 @@ use std::thread::sleep;
 
 pub type ValueRef = Rc<Value>;
 
-#[cfg(debug_assertions)]
-macro_rules! ddbg {
-    ($($t:tt)*) => { dbg!($($t)*) };
-}
-
-#[cfg(not(debug_assertions))]
-macro_rules! ddbg {
-    ($($t:tt)*) => { $($t)* };
-}
 
 pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| vec!["fs".to_string()]);
 #[derive(Debug, Clone)]
@@ -400,7 +391,6 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
 }
 pub fn vm_hi(_args: &[Value]) -> Result<Value, VmError> {
     println!("hi from math");
-    ddbg!(_args);
     Ok(Value::Null)
 }
 pub fn vmenv() -> Vec<Value> {
