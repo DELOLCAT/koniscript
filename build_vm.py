@@ -4,7 +4,13 @@ import platform
 import subprocess
 from rich import print
 import os
+import sys
 
+if '-r' in sys.argv:
+    debug = False
+else:
+    debug = True
+    print("[b]Debug mode")
 
 def run(cmd):
     print(f'[d green]Running: [b]{cmd}')
@@ -15,21 +21,14 @@ def run(cmd):
 
 
 def build_rust():
-    run('cd omni_vm && cargo build -r')
+    run(f'cd omni_vm && cargo build{' -r' if not debug else ''}')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
-        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\omvm.exe')
+        shutil.move(f'omni_vm\\target\\{'debug' if debug else 'release'}\\omni_vm.exe', 'dist\\omvm.exe')
     else:
-        shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
-
-
-def build_py():
-    if platform.system() == "Windows":
-        run('pyinstaller win.spec')
-    else:
-        run('pyinstaller unix.spec')
+        shutil.move(f'omni_vm/target/{'debug' if debug else 'release'}/omni_vm', 'dist/omvm')
 
 
 def run_task(task):

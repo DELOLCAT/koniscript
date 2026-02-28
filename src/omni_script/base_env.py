@@ -10,7 +10,6 @@ T_FUNC = 4
 T_BUILTIN = 5
 T_NULL = 6
 
-compiler_env = ['print', 'sleep', 'input', 'to_str', 'to_int', 'to_bool']
 ASTenv = [
     ('print', BuiltinFunction('print')),
     ('sleep', BuiltinFunction('sleep')),
@@ -18,5 +17,7 @@ ASTenv = [
     ('to_str', BuiltinFunction('to_str')),
     ('to_int', BuiltinFunction('to_int')),
     ('to_bool', BuiltinFunction('to_bool')),
+    ('to_float', BuiltinFunction('to_float')),
     ('math', BuiltinModule([BuiltinFunction('hi')], 'math')),
 ]
+compiler_env = [x[0] for x in ASTenv]

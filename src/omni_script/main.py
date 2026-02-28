@@ -853,7 +853,6 @@ class Compiler:
         return index
 
     def get_var(self, name):
-        # walk outward for nested scopes (later)
         for depth, scope in enumerate(reversed(self.scopes)):
             if name in scope.var_map:
                 return scope.var_map[name], 'user', depth
@@ -937,8 +936,6 @@ class Compiler:
                 return idx, 0
             else:
                 idx, cat, depth = res
-                if cat == 'builtin':
-                    raise RuntimeError('Attempted to assign a value to a builtin')
                 yield from self.compile_ins(node.value, node.name)
                 
                 idx = self.declare_local(node.name)
@@ -961,8 +958,6 @@ class Compiler:
                 self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
                 idx, cat, depth = res
-                if cat == 'builtin':
-                    raise RuntimeError('Attempted to assign a value to a builtin')
                 yield from self.compile_ins(node.value)
                 idx = self.declare_local(node.name)
                 if len(other) > 0 and other[0]:

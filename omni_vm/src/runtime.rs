@@ -174,6 +174,7 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
     };
     match item {
         Value::Integer(val) => Result::Ok(Value::String(val.to_string())),
+        Value::Float(val) => Result::Ok(Value::String(val.to_string())),
         Value::Bool(val) => {
             if *val {
                 Result::Ok(Value::String("true".to_string()))
@@ -221,15 +222,16 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             output.push(']');
             Ok(Value::String(output))
         }
-        _ => {
-            let out = format!("Cannot convert a {} to a string", item.display());
-            Result::Err(VmError {
-                msg: out,
-                errcode: ErrCode::ConversionNotPossible,
-            })
+        Value::Module(v) => {
+            if v.name.is_some() {
+                Ok(Value::String(format!("[module {} with {} exports]", v.name.as_ref().unwrap(), v.exports.len())))
+            } else {
+                Ok(Value::String(format!("[module with {} exports]", v.exports.len())))
+            }
         }
     }
 }
+
 pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
@@ -239,6 +241,7 @@ pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
     };
     match item {
         Value::Integer(val) => Result::Ok(Value::Float(*val as f64)),
+        Value::Float(val) => Result::Ok(Value::Float(*val)),
         Value::Bool(val) => {
             if *val {
                 Result::Ok(Value::Float(1.0))
@@ -279,6 +282,7 @@ pub fn vm_to_int(args: &[Value]) -> Result<Value, VmError> {
 
     match item {
         Value::Integer(v) => Ok(Value::Integer(*v)),
+        Value::Float(v) => Ok(Value::Integer(*v as i64)),
         Value::Bool(v) => Ok(Value::Integer(if *v { 1 } else { 0 })),
         Value::String(v) => v.parse::<i64>().map(Value::Integer).map_err(|_| VmError {
             msg: format!("Invalid string for conversion to integer: {}", v),
@@ -302,6 +306,7 @@ pub fn vm_to_bool(args: &[Value]) -> Result<Value, VmError> {
     let b = match item {
         Value::Bool(v) => *v,
         Value::Integer(v) => *v != 0,
+        Value::Float(v) => *v != 0.0,
         Value::String(v) => !v.is_empty(),
         Value::Null => false,
         _ => {
@@ -345,6 +350,7 @@ pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
     };
     match s {
         Value::Integer(secs) => sleep(std::time::Duration::from_secs(secs.cast_unsigned())),
+        Value::Float(secs) => sleep(std::time::Duration::from_secs_f64(*secs)),
         _ => {
             return Err(VmError {
                 msg: format!("Expected integer, got {}", s.display()),
@@ -418,6 +424,10 @@ pub fn vmenv() -> Vec<Value> {
         Value::Func(LsFunc::Builtin {
             name: "to_bool".to_string(),
             func: vm_to_bool,
+        }),
+        Value::Func(LsFunc::Builtin {
+            name: "to_float".to_string(),
+            func: vm_to_float,
         }),
         Value::Module(Module {
             exports: HashMap::from([(
@@ -706,8 +716,10 @@ pub static ATTRMAP: Lazy<
     let mut attramp = HashMap::new(); // Initialize properly
 
     // 1. Create the inner map
-    let mut array_methods: HashMap<String, fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>> =
-        HashMap::new();
+    let mut array_methods: HashMap<
+        String,
+        fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
+    > = HashMap::new();
 
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
