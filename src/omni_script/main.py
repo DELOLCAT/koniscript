@@ -708,13 +708,6 @@ class Assign(ASTNode):
     name: str
     value: ASTNode
 @dataclass
-class UserFunction(Call):
-    line: int
-    params: Any #FIXME
-    body: Any
-    closure: Any
-
-@dataclass
 class String(ASTNode):
     line: int
     value: str
