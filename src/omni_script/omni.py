@@ -149,10 +149,10 @@ def run(filepath: Path, debug: bool = False, features=[]):
                 '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
             )
             sys.exit(127)
-        subprocess.run([str(vm_path), 'run', f.name])
+        out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
     finally:
         os.unlink(f.name)
-
+    return out.stdout # For tests
 
 if __name__ == '__main__':
     app()

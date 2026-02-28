@@ -41,19 +41,19 @@ jobs:
       - name: Lint with ruff
         run: uvx ruff check src/omni_script/
 
-      - name: Test with pytest
-        run: uv run pytest
-
       - name: Build
         run: uv run build.py
 
+      - name: Test with pytest
+        run: uv run pytest
+        
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
         run: |
           cp dist\omni.exe omni-windows.exe
           cp dist\omvm.exe omvm-windows.exe
-        shell: pwsh
-
+          shell: pwsh
+        
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: |
