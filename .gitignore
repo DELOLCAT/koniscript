@@ -25,3 +25,6 @@ omni.dist/
 omni.onefile-build/
 omni.build/
 omni.bin
+
+#Compiled scripts
+*.omc
