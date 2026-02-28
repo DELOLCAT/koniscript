@@ -1055,7 +1055,7 @@ class Compiler:
         output.append('.const')
         for const in self.constants:
             output.append(
-                f'{const[0]}"{str(const[1]).replace("\n", "\\n").replace(r"\\", r"\\")}"'
+                f'{const[0]};{str(const[1])}'
             )
         output.append('.code')
         for instr in self.code:

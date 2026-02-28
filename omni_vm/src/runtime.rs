@@ -41,6 +41,7 @@ pub enum VmPanic {
     StringEndedUnexpectedly,
     StringNeverEnded,
     TagConversionFailed,
+    UnexpectedValue
 }
 #[repr(i8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

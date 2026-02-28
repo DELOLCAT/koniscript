@@ -8,6 +8,16 @@ use std::{fs, vec};
 mod runtime;
 use runtime::{ErrCode, LsFunc};
 
+#[cfg(debug_assertions)]
+macro_rules! ddbg {
+    ($($t:tt)*) => { dbg!($($t)*) };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! ddbg {
+    ($($t:tt)*) => { $($t)* };
+}
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -28,21 +38,19 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
         if c.is_ascii_digit() {
             tag.push(c);
             iter.next();
-        } else {
+        } else if c == ';' {
+            iter.next();
             break;
+        } else {
+            return Err(VmPanic::UnexpectedValue)
         }
-    }
-
-    // Expect opening quote
-    match iter.next() {
-        Some('"') => {}
-        _ => return Err(VmPanic::StringNeverStarted),
     }
 
     let mut output = String::new();
 
     while let Some(c) = iter.next() {
         match c {
+            /*
             '"' => match tag.parse::<i8>() {
                 Ok(v) => {
                     return match Value::new(v, output.as_str()) {
@@ -52,23 +60,20 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
                 }
                 Err(_) => return Err(VmPanic::TagConversionFailed),
             },
-
-            '\\' => {
-                let esc = iter.next().ok_or(VmPanic::StringEndedUnexpectedly)?;
-
-                match esc {
-                    'n' => output.push('\n'),
-                    '"' => output.push('"'),
-                    '\\' => output.push('\\'),
-                    other => output.push(other),
-                }
-            }
+            */
 
             other => output.push(other),
         }
     }
-
-    Err(VmPanic::StringNeverEnded)
+    match tag.parse::<i8>() {
+        Ok(v) => {
+            match Value::new(v, output.as_str()) {
+                Ok(v) => Ok(v),
+                Err(_) => Err(VmPanic::TagConversionFailed)
+            }
+        }
+        Err(_) => Err(VmPanic::TagConversionFailed)
+    }
 }
 
 fn main() {
