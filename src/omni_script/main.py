@@ -125,6 +125,8 @@ class Tokenizer:
         self.col: int = 0
 
     def advance(self, steps: int = 1) -> str | None:
+        if steps <= 0: # To make sure that `ch` isn't `Unbound`
+            return self.get_current_char()
         for _ in range(steps):
             ch = self.get_current_char()
             if ch is None:
@@ -135,7 +137,7 @@ class Tokenizer:
                 self.col = 1
             else:
                 self.col += 1
-        return ch
+        return ch # pyright: ignore reportPossiblyUnboundVariable
 
     def get_current_char(self) -> str | None:
         if self.current_idx >= len(self.string):
@@ -284,6 +286,29 @@ class Tokenizer:
                 raise SyntaxError('Unterminated string literal')
             self.advance()
             return Token(STRING, value, start_line, start_col)
+        elif current_char == "'":
+            self.advance(1)
+            value = ''
+            while (
+                self.get_current_char() is not None and self.get_current_char() != "'"
+            ):
+                if self.get_current_char() == '\\':
+                    self.advance()
+                    match self.get_current_char():
+                        case 'n':
+                            value += '\n'
+                        case 't':
+                            value += '\t'
+                        case _:
+                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+                else:
+                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+                self.advance()
+            if self.get_current_char() != "'":
+                raise SyntaxError('Unterminated string literal')
+            self.advance()
+            return Token(STRING, value, start_line, start_col)
+
 
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
