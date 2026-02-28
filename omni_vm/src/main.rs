@@ -224,7 +224,7 @@ impl VM {
             let line = instructions[i].trim();
             if line == ".line" {
                 mode = "line";
-                sup_lines = match Some(i).try_into() {
+                sup_lines = match i.try_into() {
                     Ok(v) => v,
                     Err(_) => {
                         return Err(VmError {
