@@ -152,7 +152,7 @@ def run(filepath: Path, debug: bool = False, features=[]):
         out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
     finally:
         os.unlink(f.name)
-    return out.stdout # For tests
+    return out # For tests
 
 if __name__ == '__main__':
     app()
