@@ -8,11 +8,6 @@ use std::{fs, vec};
 mod runtime;
 use runtime::{ErrCode, LsFunc};
 
-#[cfg(debug_assertions)]
-macro_rules! ddbg {
-    ($($t:tt)*) => { dbg!($($t)*) };
-}
-
 #[cfg(not(debug_assertions))]
 macro_rules! ddbg {
     ($($t:tt)*) => { $($t)* };

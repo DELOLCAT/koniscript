@@ -37,9 +37,6 @@ pub struct VmError {
 }
 #[derive(Debug)]
 pub enum VmPanic {
-    StringNeverStarted,
-    StringEndedUnexpectedly,
-    StringNeverEnded,
     TagConversionFailed,
     UnexpectedValue
 }
