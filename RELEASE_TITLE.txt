@@ -1,1 +1,1 @@
-Fixed `export` not adding item to scope + better CLI output + no more bundled VM
+Fixed the multiply instruction

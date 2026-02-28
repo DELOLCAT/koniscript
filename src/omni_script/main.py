@@ -1201,7 +1201,6 @@ class Compiler:
             yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
             input(self.code)
             idx = self.add_constant((2, node.name))
-            print(self.var_map)
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
             yield from self.compile_ins(node.lhs)

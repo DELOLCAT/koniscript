@@ -671,7 +671,7 @@ fn and(a: Value, b: Value) -> Result<Value, VmError> {
 static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> = Lazy::new(|| {
     let mut fs: HashMap<String, fn(Value, Value) -> Result<Value, VmError>> = HashMap::new();
     fs.insert("ADD".to_string(), add);
-    fs.insert("MUL".to_string(), mul);
+    fs.insert("MULTIPLY".to_string(), mul);
     fs.insert("DIV".to_string(), div);
     fs.insert("SUBTRACT".to_string(), sub);
     fs.insert("POW".to_string(), pow);

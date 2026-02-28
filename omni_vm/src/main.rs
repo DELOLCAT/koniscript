@@ -755,7 +755,7 @@ impl VM {
                         Some(v) => v,
                         None => {
                             return Err(VmError {
-                                msg: "Stack underflow a".to_string(),
+                                msg: "Stack underflow".to_string(),
                                 errcode: ErrCode::StackUnderflow,
                             });
                         }
