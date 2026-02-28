@@ -2,9 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
 from omni_script.runtime import (
-    BuiltinFunction,
     TYPES,
-    Environment,
     Module,
     ASTNode,
     Program,
@@ -99,23 +97,12 @@ class IncompleteInput(Exception):
     pass
 
 
-class ReturnSignal(Exception):
-    def __init__(self, value):
-        self.value = value
-
-
+@dataclass
 class Token:
-    def __init__(self, cat: str, value: Any, line: int, col: int):
-        self.type = cat
-        self.value = value
-        self.line: int = line
-
-    def __str__(self):
-        return f'Token({self.type}, {self.value})'
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
+    type: str
+    value: Any
+    line: int
+    col: int
 
 class Tokenizer:
     def __init__(self, string: str):
@@ -659,151 +646,88 @@ class Parser:
         self.eat(RBRACE)
         return Block(self.current_token.line, statements)
 
-
+@dataclass
 class Require(ASTNode):
-    def __init__(self, line: int, reqs: list[str]):
-        self.line = line
-        self.reqs: list[str] = reqs
+    line: int
+    reqs: list[str]
 
-    def __repr__(self):
-        return f'Require({self.reqs})'
-
-
+@dataclass
 class Array(ASTNode):
-    def __init__(self, line: int, items: list[ASTNode]):
-        self.line = line
-        self.items = items
-
-    def __repr__(self):
-        return f'Array({self.items})'
-
-
+    line: int
+    items: list[ASTNode]
+@dataclass
 class Block(ASTNode):
-    def __init__(self, line: int, statements: list[ASTNode]):
-        self.statements = statements
-        self.line = line
-
-    def __repr__(self):
-        return f'Block({self.statements})'
-
-
+    line: int
+    statements: list[ASTNode]
+    
+@dataclass
 class Number(ASTNode):
-    def __init__(self, line: int, value: int):
-        self.value = value
-        self.line = line
+    line: int
+    value: int
 
-    def __repr__(self) -> str:
-        return f'Number({self.value})'
-
-
+@dataclass
 class Float(ASTNode):
-    def __init__(self, line: int, value: int):
-        self.value = value
-        self.line = line
+    line: int
+    value: float
 
-    def __repr__(self) -> str:
-        return f'Number({self.value})'
-
-
+@dataclass
 class Bool(ASTNode):
-    def __init__(self, line: int, value: bool):
-        self.value = value
-        self.line = line
-
-    def __repr__(self) -> str:
-        return f'Bool({self.value})'
-
-
+    line: int
+    value: bool
+@dataclass
 class Call(ASTNode):
-    def __init__(self, line: int, func: ASTNode, args: list):
-        self.func = func
-        self.args = args
-        self.line = line
-
-    def __repr__(self) -> str:
-        return f'Call({self.func}, {self.args})'
-
-
+    line: int
+    func: ASTNode
+    args: list
+@dataclass
 class Attribute(ASTNode):
-    def __init__(self, line: int, lhs, rhs):
-        self.lhs: ASTNode = lhs
-        self.rhs: str = rhs
-        self.line = line
+    line: int
+    lhs: ASTNode
+    rhs: str
 
-    def __repr__(self) -> str:
-        return f'Attribute({self.lhs}, {self.rhs})'
-
-
+@dataclass
 class UnaryOp(ASTNode):
-    def __init__(self, line: int, op: str, right: ASTNode):
-        self.op = op
-        self.right = right
-        self.line = line
-
-    def __repr__(self) -> str:
-        return f'BinOp({self.op}, {self.right})'
-
-
+    line: int
+    op: str
+    right: ASTNode
+@dataclass
 class BinOp(ASTNode):
-    def __init__(self, line: int, left: ASTNode, op: str, right: ASTNode):
-        self.op = op
-        self.left = left
-        self.right = right
-        self.line = line
+    line: int
+    left: ASTNode
+    op: str
+    right: ASTNode
 
-    def __repr__(self) -> str:
-        return f'BinOp({self.left}, {self.op}, {self.right})'
-
-
+@dataclass
 class Variable(ASTNode):
-    def __init__(self, line: int, name: str):
-        self.name = name
-        self.line = line
+    line: int
+    name: str
 
-    def __repr__(self):
-        return f'Variable({self.name})'
-
-
+@dataclass
 class Assign(ASTNode):
-    def __init__(self, line: int, name: str, value: ASTNode):
-        self.name = name
-        self.value = value
-        self.line = line
-
-    def __repr__(self):
-        return f'Assign({self.name}, {self.value})'
-
-
+    line: int
+    name: str
+    value: ASTNode
+@dataclass
 class UserFunction(Call):
-    def __init__(self, line: int, params, body, closure):
-        self.params = params
-        self.body = body
-        self.closure = closure
-        self.line = line
+    line: int
+    params: Any #FIXME
+    body: Any
+    closure: Any
 
-    def __repr__(self):
-        return f'UserFunction({self.params}, {self.body}, {self.closure})'
-
-
+@dataclass
 class String(ASTNode):
-    def __init__(self, line: int, value):
-        self.value = value
-        self.line = line
+    line: int
+    value: str
 
-    def __repr__(self):
-        return f'String({self.value})'
-
-
+@dataclass
 class Return(ASTNode):
-    def __init__(self, line: int, value):
-        self.value = value
-        self.line = line
-
-    def __repr__(self):
-        return f'Return({self.value})'
-
-
+    line: int
+    value: ASTNode | None
+@dataclass
 class Function(ASTNode):
+    line: int
+    params: list[ASTNode]
+    body: Block
     def __init__(self, line: int, params, body):
         self.params = params
         self.body = body
@@ -812,107 +736,26 @@ class Function(ASTNode):
     def __repr__(self):
         return f'Function({self.params}, {self.body})'
 
-
+@dataclass
 class If(ASTNode):
-    def __init__(self, line: int, expr: ASTNode, body: Block, else_body: Block | None):
-        self.expr = expr
-        self.body = body
-        self.else_body = else_body
-        self.line = line
+    line: int
+    expr: ASTNode
+    body: Block
+    else_body: Block | None
 
-    def __repr__(self):
-        return f'If({self.expr}, {self.body}, {self.else_body})'
-
-
+@dataclass
 class While(ASTNode):
-    def __init__(self, line: int, expr: ASTNode, body: Block):
-        self.expr = expr
-        self.body = body
-        self.line: int = line
-
-    def __repr__(self):
-        return f'If({self.expr}, {self.body})'
-
-
+    line: int
+    expr: ASTNode
+    body: Block
+@dataclass
 class Export(ASTNode):
-    def __init__(self, line: int, lhs: ASTNode, name: str):
-        self.lhs = lhs
-        self.name = name
-        self.line: int = line
-
-    def __repr__(self):
-        return f'Export({self.lhs}, {self.name})'
-
+    line: int
+    lhs: ASTNode
+    name: str
 
 class NOP(ASTNode):
     pass
-
-
-def eval_ast(node: ASTNode, env: Environment):  # DEPRECATED
-    if isinstance(node, NOP):
-        pass
-    if isinstance(node, Number):
-        return node.value
-    if isinstance(node, BinOp):
-        left = eval_ast(node.left, env)
-        right = eval_ast(node.right, env)
-
-        try:
-            return OPERATORS[node.op](left, right)
-        except TypeError:
-            raise TypeError(f'Invalid operands for {node.op}')
-
-    if isinstance(node, Call):
-        fn = eval_ast(node.func, env)
-        args = [eval_ast(arg, env) for arg in node.args]
-
-        if isinstance(fn, BuiltinFunction) or type(fn):
-            return fn(*args)
-        if isinstance(fn, UserFunction):
-            call_env = Environment(parent=fn.closure)
-
-            for name, value in zip(fn.params, args):
-                call_env.set(name, value)
-
-            return eval_ast(fn.body, call_env)
-        raise SyntaxError(f'{type(fn).__name__} is not callable')
-    if isinstance(node, Variable):
-        return env.get(node.name)
-    if isinstance(node, Assign):
-        value = eval_ast(node.value, env)
-        env.set(node.name, value)
-        return value
-    if isinstance(node, String):
-        return node.value
-    if isinstance(node, Block):
-        local_env = Environment(parent=env)
-        result = None
-        try:
-            for stmt in node.statements:
-                result = eval_ast(stmt, local_env)
-        except ReturnSignal as r:
-            return r.value
-        return result
-    if isinstance(node, Function):
-        return UserFunction(
-            node.line,
-            node.params,
-            node.body,
-            env,  # capture closure
-        )
-    if isinstance(node, Return):
-        raise ReturnSignal(eval_ast(node.value, env))
-    if isinstance(node, Bool):
-        return node.value
-    if isinstance(node, If):
-        if eval_ast(node.expr, env):
-            return eval_ast(node.body, env)
-        elif node.else_body:
-            return eval_ast(node.else_body, env)
-        else:
-            return NOP()
-
-    raise RuntimeError(f'Unknown node {node}')
 
 
 OP_SET_VAR = 'STORE'
@@ -1220,6 +1063,10 @@ class Compiler:
                     '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.'
                 )
         elif isinstance(node, Return):
+            if node.value is None:
+                idx = self.add_constant((6, ''))
+                self.emit(node.line, OP_PUSH_CONST, idx)
+                return
             yield from self.compile_ins(node.value)
             self.emit(node.line, 'RET')
         elif isinstance(node, Export):
