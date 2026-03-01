@@ -571,7 +571,6 @@ impl VM {
                 "CALL" => {
                     let arg_count: usize = operators[1].parse().expect("Invalid bytecode");
                     let mut args: Vec<ValueRef> = Vec::new();
-                    args.reverse();
                     for _ in 0..arg_count {
                         match self.frames.last_mut().unwrap().stack.pop() {
                             None => {
@@ -583,6 +582,7 @@ impl VM {
                             Some(v) => args.push(v),
                         }
                     }
+                    args.reverse();
                     let func = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
                         None => {
