@@ -460,11 +460,9 @@ impl VM {
                             }
                         },
                         _ => {
-                            if runtime::ATTRMAP.contains_key(&attrl.get_tag()) {
+                            if let Some(methods) = runtime::ATTRMAP.get(&attrl.get_tag()) {
                                 self.frames.last_mut().unwrap().stack.push(attrl.clone());
 
-                                let methods =
-                                    runtime::ATTRMAP.get(&attrl.get_tag()).unwrap();
                                 if let Some(v) = methods.get(attrand) {
                                     Rc::new(Value::Func(LsFunc::BuiltinMethod {
                                         name: attrand.to_string(),
