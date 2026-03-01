@@ -32,7 +32,7 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
             iter.next();
             break;
         } else {
-            return Err(VmPanic::UnexpectedValue)
+            return Err(VmPanic::UnexpectedValue);
         }
     }
 
@@ -40,29 +40,15 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
 
     while let Some(c) = iter.next() {
         match c {
-            /*
-            '"' => match tag.parse::<i8>() {
-                Ok(v) => {
-                    return match Value::new(v, output.as_str()) {
-                        Ok(v) => Ok(v),
-                        Err(_) => return Err(VmPanic::TagConversionFailed),
-                    };
-                }
-                Err(_) => return Err(VmPanic::TagConversionFailed),
-            },
-            */
-
             other => output.push(other),
         }
     }
     match tag.parse::<i8>() {
-        Ok(v) => {
-            match Value::new(v, output.as_str()) {
-                Ok(v) => Ok(v),
-                Err(_) => Err(VmPanic::TagConversionFailed)
-            }
-        }
-        Err(_) => Err(VmPanic::TagConversionFailed)
+        Ok(v) => match Value::new(v, output.as_str()) {
+            Ok(v) => Ok(v),
+            Err(_) => Err(VmPanic::TagConversionFailed),
+        },
+        Err(_) => Err(VmPanic::TagConversionFailed),
     }
 }
 
@@ -473,30 +459,32 @@ impl VM {
                                 });
                             }
                         },
-                        Value::Array(_) => {
-                            self.frames.last_mut().unwrap().stack.push(attrl);
+                        _ => {
+                            if runtime::ATTRMAP.contains_key(&attrl.get_tag()) {
+                                self.frames.last_mut().unwrap().stack.push(attrl.clone());
 
-                            let methods = runtime::ATTRMAP.get(&runtime::ValueTag::Array).unwrap();
-                            if let Some(v) = methods.get(attrand) {
-                                Rc::new(Value::Func(LsFunc::BuiltinMethod {
-                                    name: "arr_push".to_string(),
-                                    func: *v,
-                                }))
+                                let methods =
+                                    runtime::ATTRMAP.get(&attrl.get_tag()).unwrap();
+                                if let Some(v) = methods.get(attrand) {
+                                    Rc::new(Value::Func(LsFunc::BuiltinMethod {
+                                        name: attrand.to_string(),
+                                        func: *v,
+                                    }))
+                                } else {
+                                    return Err(VmError {
+                                        msg: format!("No attribute `{}` for type {}", attrand, attrl.display()),
+                                        errcode: ErrCode::AttributeError,
+                                    });
+                                }
                             } else {
                                 return Err(VmError {
-                                    msg: format!("No attribute `{}` for type array", attrand),
+                                    msg: format!(
+                                        "Cannot get an attribute from a type of {}",
+                                        attrl.display()
+                                    ),
                                     errcode: ErrCode::AttributeError,
                                 });
                             }
-                        }
-                        _ => {
-                            return Err(VmError {
-                                msg: format!(
-                                    "Cannot get an attribute from a type of {}",
-                                    attrl.display()
-                                ),
-                                errcode: ErrCode::AttributeError,
-                            });
                         }
                     };
                     self.frames.last_mut().unwrap().stack.push(out);

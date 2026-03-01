@@ -29,7 +29,7 @@ pub struct VmError {
 #[derive(Debug)]
 pub enum VmPanic {
     TagConversionFailed,
-    UnexpectedValue
+    UnexpectedValue,
 }
 #[repr(i8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -43,9 +43,10 @@ pub enum ValueTag {
     Module = 8,
     Array = 9,
 }
+
 impl TryFrom<i8> for ValueTag {
     type Error = VmError;
-
+    
     fn try_from(tag: i8) -> Result<Self, VmError> {
         match tag {
             1 => Ok(ValueTag::Integer),
@@ -93,7 +94,7 @@ impl Value {
                 let out = vm_to_float(std::slice::from_ref(&Value::String(payload.to_string())))?;
                 Ok(out)
             }
-
+            
             _ => Err(VmError {
                 msg: format!(
                     "Cannot convert a value with tag {} to an internal value",
@@ -120,6 +121,18 @@ impl Value {
                 None => "[module]".to_string(),
             },
             Value::Array(_) => "array".to_string(),
+        }
+    }
+    pub fn get_tag(&self) -> ValueTag {
+        match self {
+            Value::String(_) => ValueTag::String,
+            Value::Integer(_) => ValueTag::Integer,
+            Value::Array(_) => ValueTag::Array,
+            Value::Bool(_) => ValueTag::Bool,
+            Value::Float(_) => ValueTag::Float,
+            Value::Module(_) => ValueTag::Module,
+            Value::Func(_) => ValueTag::Func,
+            Value::Null => ValueTag::Null
         }
     }
 }
@@ -224,9 +237,16 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         }
         Value::Module(v) => {
             if v.name.is_some() {
-                Ok(Value::String(format!("[module {} with {} exports]", v.name.as_ref().unwrap(), v.exports.len())))
+                Ok(Value::String(format!(
+                    "[module {} with {} exports]",
+                    v.name.as_ref().unwrap(),
+                    v.exports.len()
+                )))
             } else {
-                Ok(Value::String(format!("[module with {} exports]", v.exports.len())))
+                Ok(Value::String(format!(
+                    "[module with {} exports]",
+                    v.exports.len()
+                )))
             }
         }
     }
@@ -721,11 +741,41 @@ pub static ATTRMAP: Lazy<
         fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
     > = HashMap::new();
 
+    let mut str_methods: HashMap<
+        String,
+        fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
+    > = HashMap::new();
+
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
     attramp.insert(ValueTag::Array, array_methods);
+
+    str_methods.insert("upper".to_string(), str_upper);
+    str_methods.insert("lower".to_string(), str_lower);
+    attramp.insert(ValueTag::String, str_methods);
+
     attramp
 });
+
+pub fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::String(v.to_uppercase()))),
+        _ => Err(VmError {
+            msg: format!("Expected a string, not a {}.", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
+
+pub fn str_lower(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::String(v.to_lowercase()))),
+        _ => Err(VmError {
+            msg: format!("Expected a string, not a {}.", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
 
 #[cfg(test)]
 mod tests {
