@@ -135,10 +135,11 @@ $ omvm run ./examples/fib.omc
 - :x: A standard library (though certain imports, like fs, would need an @require flag)
 - :x: For loops
 - :x: A REPL
-- :pause_button: More builtins
+- :hourglass: More builtins
   - :x: Builtin Functions
-  - :pause_button: Builtin Methods
+  - :hourglass: Builtin Methods
     - :pause_button: Array methods
+    - :hourglass: String methods
 - :pause_button: Dynamic modules
 
 ### App
