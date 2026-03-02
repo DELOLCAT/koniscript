@@ -471,7 +471,11 @@ impl VM {
                                     }))
                                 } else {
                                     return Err(VmError {
-                                        msg: format!("No attribute `{}` for type {}", attrand, attrl.display()),
+                                        msg: format!(
+                                            "No attribute `{}` for type {}",
+                                            attrand,
+                                            attrl.display()
+                                        ),
                                         errcode: ErrCode::AttributeError,
                                     });
                                 }
@@ -595,7 +599,7 @@ impl VM {
                                 Ok(v) => self.push_to_stack(Rc::new(v)),
                                 Err(v) => match v.errcode {
                                     ErrCode::ExitSignal(c) => return Ok(c),
-                                    _ => return Err(v)
+                                    _ => return Err(v),
                                 },
                             }
                         }
@@ -643,12 +647,10 @@ impl VM {
                 }
                 "RET" => {
                     if self.frames.len() <= 1 {
-                        return Err(
-                            VmError {
-                                msg: "Cannot return in the main frame".to_string(),
-                                errcode: ErrCode::InvalidOperation
-                            }
-                        )
+                        return Err(VmError {
+                            msg: "Cannot return in the main frame".to_string(),
+                            errcode: ErrCode::InvalidOperation,
+                        });
                     }
                     let to_ret = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,

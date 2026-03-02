@@ -173,7 +173,7 @@ pub enum ErrCode {
     ValueError = 15,
     AttributeError = 17,
     ExitSignal(i32) = 18,
-    InvalidOperation = 19
+    InvalidOperation = 19,
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -471,16 +471,14 @@ pub fn vmenv() -> Vec<Value> {
 
 fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
     if args.len() > 1 {
-        return Err(
-            VmError {
-                msg: format!("Expected 0 to 1 argument, got {}.", args.len()),
-                errcode: ErrCode::InvalidArgCount
-            }
-        )
+        return Err(VmError {
+            msg: format!("Expected 0 to 1 argument, got {}.", args.len()),
+            errcode: ErrCode::InvalidArgCount,
+        });
     }
     let item = match args.get(0) {
         Some(v) => v,
-        None => &Value::Integer(0)
+        None => &Value::Integer(0),
     };
     let code = match item {
         Value::Integer(v) => v,
