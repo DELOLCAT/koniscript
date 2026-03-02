@@ -2,8 +2,13 @@ from dataclasses import dataclass
 from typing import Any
 def get_with_default(lst: list | tuple, index: int, default: Any = None):
     return lst[index] if 0 <= index < len(lst) else default
+
 @dataclass
-class BuiltinFunction:
+class Builtin:
+    pass
+
+@dataclass
+class BuiltinFunction(Builtin):
     name: str
     req_args: int
     max_args: int | None
@@ -132,6 +137,6 @@ class BuiltinModulePointer(ASTNode):
     line: int
     idx: int
 @dataclass
-class BuiltinModule:
+class BuiltinModule(Builtin):
     exports: list
     name: str

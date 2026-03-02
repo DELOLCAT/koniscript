@@ -5,6 +5,9 @@ from rich import print
 import os
 import asyncio
 
+    
+
+
 
 async def run(cmd):
     print(f'[d green]Running: [b]{cmd}')
@@ -26,6 +29,7 @@ async def build_rust():
 
 
 async def build_py():
+    await run('uv sync --extra nuitka')
     await run('uv run nuitka --follow-imports --mode=onefile src/omni_script/omni.py')
 
 

@@ -1,0 +1,11 @@
+func something(a, b) {
+    print(a * b)
+}
+something("hi", 5)
+
+func something_else(a, b=5) {
+    print(a * b)
+}
+
+something_else('hi')
+something_else('hi', 10)
