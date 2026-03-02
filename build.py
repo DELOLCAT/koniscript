@@ -26,7 +26,7 @@ async def build_rust():
 
 
 async def build_py():
-    if platform.system() == "Windows":
+    if platform.system() == 'Windows':
         await run('pyinstaller win.spec')
     else:
         await run('pyinstaller unix.spec')

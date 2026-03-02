@@ -5,9 +5,6 @@ from rich import print
 import os
 import asyncio
 
-    
-
-
 
 async def run(cmd):
     print(f'[d green]Running: [b]{cmd}')

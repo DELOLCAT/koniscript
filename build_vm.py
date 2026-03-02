@@ -10,25 +10,31 @@ if '-r' in sys.argv:
     debug = False
 else:
     debug = True
-    print("[b]Debug mode")
+    print('[b]Debug mode')
+
 
 def run(cmd):
     print(f'[d green]Running: [b]{cmd}')
     code = subprocess.call(cmd, shell=True)
-    
+
     if code != 0:
         raise RuntimeError(f'Command failed: {cmd}')
 
 
 def build_rust():
-    run(f'cd omni_vm && cargo build{' -r' if not debug else ''}')
+    run(f'cd omni_vm && cargo build{" -r" if not debug else ""}')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
-        shutil.move(f'omni_vm\\target\\{'debug' if debug else 'release'}\\omni_vm.exe', 'dist\\omvm.exe')
+        shutil.move(
+            f'omni_vm\\target\\{"debug" if debug else "release"}\\omni_vm.exe',
+            'dist\\omvm.exe',
+        )
     else:
-        shutil.move(f'omni_vm/target/{'debug' if debug else 'release'}/omni_vm', 'dist/omvm')
+        shutil.move(
+            f'omni_vm/target/{"debug" if debug else "release"}/omni_vm', 'dist/omvm'
+        )
 
 
 def run_task(task):
