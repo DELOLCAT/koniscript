@@ -485,25 +485,34 @@ class Parser:
             node = Call(call_line, node, args)
         return node
 
+    def skip_newline(self):
+        while self.current_token.type == NEWLINE:
+            self.eat(NEWLINE)
+    
     def primary(self):
         token = self.current_token
         if token.type == INT:
             self.eat(INT)
             return Number(token.line, token.value)
         elif token.type == LBRACKET:
+            self.eat(LBRACKET)
             if self.current_token.type == EOF:
                 raise IncompleteInput
-            self.eat(LBRACKET)
+            if self.current_token.type == NEWLINE:
+                self.eat(NEWLINE)
             items = []
             if self.current_token.type != RBRACKET:
                 if self.current_token.type == EOF:
                     raise IncompleteInput
+                self.skip_newline()
                 items.append(self.expr())
                 while self.current_token.type == COMMA:
                     self.eat(COMMA)
                     if self.current_token.type == EOF:
                         raise IncompleteInput
+                    self.skip_newline()
                     items.append(self.expr())
+                self.skip_newline()
             self.eat(RBRACKET)
             return Array(token.line, items)
         elif token.type == FLOAT:
