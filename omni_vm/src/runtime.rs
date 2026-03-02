@@ -9,7 +9,7 @@ use std::thread::sleep;
 pub type ValueRef = Rc<Value>;
 
 
-pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| vec!["fs".to_string()]);
+pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| vec!["fs".to_string(), "string_methods".to_string()]);
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<ValueRef>>,
