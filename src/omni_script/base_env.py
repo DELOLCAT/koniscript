@@ -12,13 +12,14 @@ T_BUILTIN = 5
 T_NULL = 6
 
 ASTenv: list[tuple[str, Builtin]] = [
-    ('print', BuiltinFunction('print')),
-    ('sleep', BuiltinFunction('sleep')),
-    ('input', BuiltinFunction('input')),
-    ('to_str', BuiltinFunction('to_str')),
-    ('to_int', BuiltinFunction('to_int')),
-    ('to_bool', BuiltinFunction('to_bool')),
-    ('to_float', BuiltinFunction('to_float')),
-    ('math', BuiltinModule([BuiltinFunction('hi')], 'math')),
+    ("print", BuiltinFunction("print", 1, None)),
+    ("sleep", BuiltinFunction("sleep", 1, 1)),
+    ("input", BuiltinFunction("input", 0, 1)),
+    ("to_str", BuiltinFunction("to_str", 1, 1)),
+    ("to_int", BuiltinFunction("to_int", 1, 1)),
+    ("to_bool", BuiltinFunction("to_bool", 1, 1)),
+    ("to_float", BuiltinFunction("to_float", 1, 1)),
+    ("exit", BuiltinFunction("exit", 1, 1)),
+    ("math", BuiltinModule([BuiltinFunction("hi", 0, 0)],"math")),
 ]
 compiler_env: list[str] = [x[0] for x in ASTenv]

@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::process::exit;
 use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
@@ -32,7 +33,7 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
             iter.next();
             break;
         } else {
-            return Err(VmPanic::UnexpectedValue)
+            return Err(VmPanic::UnexpectedValue);
         }
     }
 
@@ -40,29 +41,15 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
 
     while let Some(c) = iter.next() {
         match c {
-            /*
-            '"' => match tag.parse::<i8>() {
-                Ok(v) => {
-                    return match Value::new(v, output.as_str()) {
-                        Ok(v) => Ok(v),
-                        Err(_) => return Err(VmPanic::TagConversionFailed),
-                    };
-                }
-                Err(_) => return Err(VmPanic::TagConversionFailed),
-            },
-            */
-
             other => output.push(other),
         }
     }
     match tag.parse::<i8>() {
-        Ok(v) => {
-            match Value::new(v, output.as_str()) {
-                Ok(v) => Ok(v),
-                Err(_) => Err(VmPanic::TagConversionFailed)
-            }
-        }
-        Err(_) => Err(VmPanic::TagConversionFailed)
+        Ok(v) => match Value::new(v, output.as_str()) {
+            Ok(v) => Ok(v),
+            Err(_) => Err(VmPanic::TagConversionFailed),
+        },
+        Err(_) => Err(VmPanic::TagConversionFailed),
     }
 }
 
@@ -138,7 +125,7 @@ impl VM {
         let mut mode = "none";
         let mut local_count = None;
         while i < instructions.len() {
-            let line = instructions[i].trim();
+            let line = &instructions[i];
 
             if line == ".const" {
                 mode = "const";
@@ -182,7 +169,7 @@ impl VM {
             }
 
             if mode == "const" {
-                match eval_string(line) {
+                match eval_string(&line) {
                     Ok(v) => const_table.push(v),
                     Err(v) => {
                         return Err(VmError {
@@ -312,7 +299,7 @@ impl VM {
         self.frames.last_mut().unwrap().stack.push(item);
     }
 
-    fn run(&mut self) -> Result<Option<ValueRef>, VmError> {
+    fn run(&mut self) -> Result<i32, VmError> {
         while self.get_i() < self.ins.len() {
             let operators = &self.ins[self.get_i()];
 
@@ -473,30 +460,30 @@ impl VM {
                                 });
                             }
                         },
-                        Value::Array(_) => {
-                            self.frames.last_mut().unwrap().stack.push(attrl);
+                        _ => {
+                            if let Some(methods) = runtime::ATTRMAP.get(&attrl.get_tag()) {
+                                self.frames.last_mut().unwrap().stack.push(attrl.clone());
 
-                            let methods = runtime::ATTRMAP.get(&runtime::ValueTag::Array).unwrap();
-                            if let Some(v) = methods.get(attrand) {
-                                Rc::new(Value::Func(LsFunc::BuiltinMethod {
-                                    name: "arr_push".to_string(),
-                                    func: *v,
-                                }))
+                                if let Some(v) = methods.get(attrand) {
+                                    Rc::new(Value::Func(LsFunc::BuiltinMethod {
+                                        name: attrand.to_string(),
+                                        func: *v,
+                                    }))
+                                } else {
+                                    return Err(VmError {
+                                        msg: format!("No attribute `{}` for type {}", attrand, attrl.display()),
+                                        errcode: ErrCode::AttributeError,
+                                    });
+                                }
                             } else {
                                 return Err(VmError {
-                                    msg: format!("No attribute `{}` for type array", attrand),
+                                    msg: format!(
+                                        "Cannot get an attribute from a type of {}",
+                                        attrl.display()
+                                    ),
                                     errcode: ErrCode::AttributeError,
                                 });
                             }
-                        }
-                        _ => {
-                            return Err(VmError {
-                                msg: format!(
-                                    "Cannot get an attribute from a type of {}",
-                                    attrl.display()
-                                ),
-                                errcode: ErrCode::AttributeError,
-                            });
                         }
                     };
                     self.frames.last_mut().unwrap().stack.push(out);
@@ -524,7 +511,6 @@ impl VM {
 
                     let mut env = env_rc.borrow_mut();
 
-                    // 🔒 Safety check (VERY IMPORTANT)
                     if idx >= env.values.len() {
                         return Err(VmError {
                             msg: format!("Invalid local index {}", idx),
@@ -607,7 +593,10 @@ impl VM {
                                 args.iter().map(|arg| arg.as_ref().clone()).collect();
                             match func(dereferenced_args.as_slice()) {
                                 Ok(v) => self.push_to_stack(Rc::new(v)),
-                                Err(v) => return Err(v),
+                                Err(v) => match v.errcode {
+                                    ErrCode::ExitSignal(c) => return Ok(c),
+                                    _ => return Err(v)
+                                },
                             }
                         }
                         LsFunc::User {
@@ -654,15 +643,12 @@ impl VM {
                 }
                 "RET" => {
                     if self.frames.len() <= 1 {
-                        match self.frames.last_mut().unwrap().stack.pop() {
-                            Some(v) => return Ok(Some(v)),
-                            None => {
-                                return Err(VmError {
-                                    msg: "Stack underflow".to_string(),
-                                    errcode: ErrCode::StackUnderflow,
-                                });
+                        return Err(
+                            VmError {
+                                msg: "Cannot return in the main frame".to_string(),
+                                errcode: ErrCode::InvalidOperation
                             }
-                        }
+                        )
                     }
                     let to_ret = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
@@ -847,7 +833,7 @@ impl VM {
             }
             self.frames.last_mut().unwrap().i += 1
         }
-        Ok(None)
+        Ok(0)
     }
 }
 
@@ -867,9 +853,7 @@ fn run(file: String) {
     };
     match vm.run() {
         Ok(opt) => {
-            if let Some(v) = opt {
-                println!("{:?}", v)
-            }
+            exit(opt);
         }
         Err(e) => {
             // Single, clear error line at the top.

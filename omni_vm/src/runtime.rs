@@ -8,8 +8,8 @@ use std::thread::sleep;
 
 pub type ValueRef = Rc<Value>;
 
-
-pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| vec!["fs".to_string()]);
+pub static SUPPORTED_FEATURES: Lazy<Vec<String>> =
+    Lazy::new(|| vec!["fs".to_string(), "string_methods".to_string()]);
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<ValueRef>>,
@@ -29,7 +29,7 @@ pub struct VmError {
 #[derive(Debug)]
 pub enum VmPanic {
     TagConversionFailed,
-    UnexpectedValue
+    UnexpectedValue,
 }
 #[repr(i8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -43,6 +43,7 @@ pub enum ValueTag {
     Module = 8,
     Array = 9,
 }
+
 impl TryFrom<i8> for ValueTag {
     type Error = VmError;
 
@@ -122,6 +123,18 @@ impl Value {
             Value::Array(_) => "array".to_string(),
         }
     }
+    pub fn get_tag(&self) -> ValueTag {
+        match self {
+            Value::String(_) => ValueTag::String,
+            Value::Integer(_) => ValueTag::Integer,
+            Value::Array(_) => ValueTag::Array,
+            Value::Bool(_) => ValueTag::Bool,
+            Value::Float(_) => ValueTag::Float,
+            Value::Module(_) => ValueTag::Module,
+            Value::Func(_) => ValueTag::Func,
+            Value::Null => ValueTag::Null,
+        }
+    }
 }
 #[derive(Debug, Clone)]
 pub enum LsFunc {
@@ -141,6 +154,7 @@ pub enum LsFunc {
         func: fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
     },
 }
+#[repr(i32)]
 #[derive(Debug)]
 pub enum ErrCode {
     InvalidArgCount = 1,
@@ -158,6 +172,8 @@ pub enum ErrCode {
     NoCode = 14,
     ValueError = 15,
     AttributeError = 17,
+    ExitSignal(i32) = 18,
+    InvalidOperation = 19
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -224,9 +240,16 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         }
         Value::Module(v) => {
             if v.name.is_some() {
-                Ok(Value::String(format!("[module {} with {} exports]", v.name.as_ref().unwrap(), v.exports.len())))
+                Ok(Value::String(format!(
+                    "[module {} with {} exports]",
+                    v.name.as_ref().unwrap(),
+                    v.exports.len()
+                )))
             } else {
-                Ok(Value::String(format!("[module with {} exports]", v.exports.len())))
+                Ok(Value::String(format!(
+                    "[module with {} exports]",
+                    v.exports.len()
+                )))
             }
         }
     }
@@ -429,6 +452,10 @@ pub fn vmenv() -> Vec<Value> {
             name: "to_float".to_string(),
             func: vm_to_float,
         }),
+        Value::Func(LsFunc::Builtin {
+            name: "exit".to_string(),
+            func: vm_exit,
+        }),
         Value::Module(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
@@ -442,6 +469,22 @@ pub fn vmenv() -> Vec<Value> {
     ]
 }
 
+fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
+    expect_args(args, 1)?;
+    let code = match args[0] {
+        Value::Integer(v) => v,
+        _ => {
+            return Err(VmError {
+                msg: format!("Expected an integer, got a {}", args[0].display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    };
+    Err(VmError {
+        msg: "".to_string(),
+        errcode: ErrCode::ExitSignal(code as i32),
+    })
+}
 fn add(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va + vb)),
@@ -721,11 +764,51 @@ pub static ATTRMAP: Lazy<
         fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
     > = HashMap::new();
 
+    let mut str_methods: HashMap<
+        String,
+        fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
+    > = HashMap::new();
+
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
     attramp.insert(ValueTag::Array, array_methods);
+
+    str_methods.insert("upper".to_string(), str_upper);
+    str_methods.insert("lower".to_string(), str_lower);
+    str_methods.insert("strip".to_string(), str_strip);
+    attramp.insert(ValueTag::String, str_methods);
+
     attramp
 });
+
+fn str_strip(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::String(v.trim().to_string()))),
+        _ => Err(VmError {
+            msg: format!("Expected a string, not a {}.", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
+fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::String(v.to_uppercase()))),
+        _ => Err(VmError {
+            msg: format!("Expected a string, not a {}.", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
+
+pub fn str_lower(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::String(v.to_lowercase()))),
+        _ => Err(VmError {
+            msg: format!("Expected a string, not a {}.", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
 
 #[cfg(test)]
 mod tests {

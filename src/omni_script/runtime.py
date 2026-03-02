@@ -10,6 +10,8 @@ class Builtin:
 @dataclass
 class BuiltinFunction(Builtin):
     name: str
+    req_args: int
+    max_args: int | None
 
 class Environment:
     def __init__(self, parent=None):

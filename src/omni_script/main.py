@@ -957,7 +957,9 @@ class Compiler:
         output.append('.version')
         output.append('ENV 1')
         output.append('ISA 1')
-        output.append('.reqs ' + ' '.join([str(x) for x in self.reqs]))
+        if len(self.reqs) > 0:
+            output.append('.reqs ' + ' '.join([str(x) for x in self.reqs]))
+            
         output.append(f'.frame {self.scopes[-1].next_local}')
 
         output.append('.const')
