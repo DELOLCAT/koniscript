@@ -3,7 +3,6 @@ from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
 from omni_script.runtime import (
     TYPES,
-    BuiltinFunction,
     Module,
     ASTNode,
     Program,
@@ -1073,10 +1072,14 @@ class Compiler:
                         params = itm.value.params
                         req: list[FunctionParameter] = []
                         for item in params:
-                            if item.option is not None:
+                            if item.option is None:
                                 req.append(item)
                         if not (len(req) <= len(node.args) <= len(params)):
-                            raise RuntimeError(f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}")
+                            if not len(req) == len(params):
+                                raise RuntimeError(f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}")
+                            else:
+                                raise RuntimeError(f"Expected exactly {len(req)} arguments, got {len(node.args)}")
+
             for arg in node.args:
                 yield from self.compile_ins(arg)
             if isinstance(node.func, Variable):
@@ -1092,10 +1095,12 @@ class Compiler:
                             for item in params[len(req):]:
                                 yield from self.compile_ins(item.option) # pyright: ignore[reportArgumentType]
                         self.emit(node.line, OP_CALL, len(params))
-                    elif isinstance(node, BuiltinFunction):
-                        self.emit(node.line, OP_CALL, len(node.args))
                     else:
                         raise # This would never happen due to the if cases before
+                elif isinstance(itm, self.BuiltinScopeItem):
+                    self.emit(node.line, OP_CALL, len(node.args))
+                else:
+                    raise
             else:
                 raise NotImplementedError # TODO: make it so you can call functions that aren't in variables
         elif isinstance(node, While):
