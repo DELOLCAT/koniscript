@@ -5,6 +5,8 @@ def get_with_default(lst: list | tuple, index: int, default: Any = None):
 @dataclass
 class BuiltinFunction:
     name: str
+    req_args: int
+    max_args: int | None
 
 class Environment:
     def __init__(self, parent=None):

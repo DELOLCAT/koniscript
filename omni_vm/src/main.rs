@@ -511,7 +511,6 @@ impl VM {
 
                     let mut env = env_rc.borrow_mut();
 
-                    // 🔒 Safety check (VERY IMPORTANT)
                     if idx >= env.values.len() {
                         return Err(VmError {
                             msg: format!("Invalid local index {}", idx),
