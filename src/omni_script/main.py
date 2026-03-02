@@ -635,20 +635,26 @@ class Parser:
 
         self.eat(LPAREN)
         params: list[FunctionParameter] = []
-
+        optional = False
         if self.current_token.type == IDENTIFIER:
             params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
             self.eat(IDENTIFIER)
             if self.current_token.type == ASSIGN:
+                optional = True
                 self.eat(ASSIGN)
                 params[-1].option = self.primary()
+            elif optional:
+                raise RuntimeError("Cannot have a non-optional argument after an optional argument")
             while self.current_token.type == COMMA:
                 self.eat(COMMA)
-            params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
-            self.eat(IDENTIFIER)
-            if self.current_token.type == ASSIGN:
-                self.eat(ASSIGN)
-                params[-1].option = self.primary()
+                params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
+                self.eat(IDENTIFIER)
+                if self.current_token.type == ASSIGN:
+                    optional = True
+                    self.eat(ASSIGN)
+                    params[-1].option = self.primary()
+                elif optional:
+                    raise RuntimeError("Cannot have a non-optional argument after an optional argument")
         self.eat(RPAREN)
 
         body = self.block()
