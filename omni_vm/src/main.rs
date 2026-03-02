@@ -39,7 +39,7 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
 
     let mut output = String::new();
 
-    while let Some(c) = iter.next() {
+    for c in iter {
         match c {
             other => output.push(other),
         }
@@ -169,7 +169,7 @@ impl VM {
             }
 
             if mode == "const" {
-                match eval_string(&line) {
+                match eval_string(line) {
                     Ok(v) => const_table.push(v),
                     Err(v) => {
                         return Err(VmError {

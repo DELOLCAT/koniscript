@@ -476,7 +476,7 @@ fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
             errcode: ErrCode::InvalidArgCount,
         });
     }
-    let item = match args.get(0) {
+    let item = match args.first() {
         Some(v) => v,
         None => &Value::Integer(0),
     };
