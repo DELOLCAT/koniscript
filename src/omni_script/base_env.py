@@ -1,6 +1,7 @@
 from omni_script.runtime import (
     BuiltinFunction,
     BuiltinModule,
+    Builtin
 )
 
 T_INT = 1
@@ -10,7 +11,7 @@ T_FUNC = 4
 T_BUILTIN = 5
 T_NULL = 6
 
-ASTenv = [
+ASTenv: list[tuple[str, Builtin]] = [
     ('print', BuiltinFunction('print')),
     ('sleep', BuiltinFunction('sleep')),
     ('input', BuiltinFunction('input')),
@@ -20,4 +21,4 @@ ASTenv = [
     ('to_float', BuiltinFunction('to_float')),
     ('math', BuiltinModule([BuiltinFunction('hi')], 'math')),
 ]
-compiler_env = [x[0] for x in ASTenv]
+compiler_env: list[str] = [x[0] for x in ASTenv]
