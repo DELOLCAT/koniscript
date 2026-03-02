@@ -124,7 +124,7 @@ impl VM {
         let mut mode = "none";
         let mut local_count = None;
         while i < instructions.len() {
-            let line = instructions[i].trim();
+            let line = &instructions[i];
 
             if line == ".const" {
                 mode = "const";
@@ -168,7 +168,7 @@ impl VM {
             }
 
             if mode == "const" {
-                match eval_string(line) {
+                match eval_string(&line) {
                     Ok(v) => const_table.push(v),
                     Err(v) => {
                         return Err(VmError {

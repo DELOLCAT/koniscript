@@ -752,12 +752,24 @@ pub static ATTRMAP: Lazy<
 
     str_methods.insert("upper".to_string(), str_upper);
     str_methods.insert("lower".to_string(), str_lower);
+    str_methods.insert("strip".to_string(), str_strip);
     attramp.insert(ValueTag::String, str_methods);
 
     attramp
 });
 
-pub fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+fn str_strip(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::String(v.trim().to_string()))),
+        _ => Err(
+            VmError {
+                msg: format!("Expected a string, not a {}.", val.display()),
+                errcode: ErrCode::TypeError
+            }
+        )
+    }
+}
+fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     match val.as_ref() {
         Value::String(v) => Ok(Rc::new(Value::String(v.to_uppercase()))),
         _ => Err(VmError {
