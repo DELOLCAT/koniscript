@@ -7,7 +7,7 @@ use std::process::exit;
 use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
-use runtime::{ErrCode, LsFunc};
+use runtime::{ErrCode, OmniFunc};
 
 #[derive(Parser)]
 struct Cli {
@@ -465,7 +465,7 @@ impl VM {
                                 self.frames.last_mut().unwrap().stack.push(attrl.clone());
 
                                 if let Some(v) = methods.get(attrand) {
-                                    Rc::new(Value::Func(LsFunc::BuiltinMethod {
+                                    Rc::new(Value::Func(OmniFunc::BuiltinMethod {
                                         name: attrand.to_string(),
                                         func: *v,
                                     }))
@@ -592,7 +592,7 @@ impl VM {
                         }
                     };
                     match func {
-                        LsFunc::Builtin { name: _, func } => {
+                        OmniFunc::Builtin { name: _, func } => {
                             let dereferenced_args: Vec<Value> =
                                 args.iter().map(|arg| arg.as_ref().clone()).collect();
                             match func(dereferenced_args.as_slice()) {
@@ -603,7 +603,7 @@ impl VM {
                                 },
                             }
                         }
-                        LsFunc::User {
+                        OmniFunc::User {
                             entry,
                             local_count,
                             param_count,
@@ -630,7 +630,7 @@ impl VM {
                             self.frames.last_mut().unwrap().i = *entry;
                             continue;
                         }
-                        LsFunc::BuiltinMethod { name: _, func } => {
+                        OmniFunc::BuiltinMethod { name: _, func } => {
                             let itm = match self.frames.last_mut().unwrap().stack.pop() {
                                 Some(v) => v,
                                 None => {
@@ -767,7 +767,7 @@ impl VM {
                         }
                     };
                     let closure = self.frames.last().unwrap().env.clone();
-                    let item = Rc::new(Value::Func(LsFunc::User {
+                    let item = Rc::new(Value::Func(OmniFunc::User {
                         entry,
                         local_count,
                         param_count,

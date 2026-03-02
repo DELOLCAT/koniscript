@@ -70,7 +70,7 @@ pub enum Value {
     Integer(i64),
     String(String),
     Bool(bool),
-    Func(LsFunc),
+    Func(OmniFunc),
     Float(f64),
     Module(Module),
     Array(Rc<RefCell<Vec<ValueRef>>>),
@@ -111,9 +111,9 @@ impl Value {
             Value::Bool(_) => "boolean".to_string(),
             Value::Float(_) => "float".to_string(),
             Value::Func(f) => match f {
-                LsFunc::User { entry, name, .. } => format!("[function {} at {}]", name, entry),
-                LsFunc::Builtin { name, .. } => format!("[builtin function {}]", name),
-                LsFunc::BuiltinMethod { name, .. } => format!("builtin method {}]", name),
+                OmniFunc::User { entry, name, .. } => format!("[function {} at {}]", name, entry),
+                OmniFunc::Builtin { name, .. } => format!("[builtin function {}]", name),
+                OmniFunc::BuiltinMethod { name, .. } => format!("builtin method {}]", name),
             },
             Value::Null => "null".to_string(),
             Value::Module(m) => match &m.name {
@@ -137,7 +137,7 @@ impl Value {
     }
 }
 #[derive(Debug, Clone)]
-pub enum LsFunc {
+pub enum OmniFunc {
     User {
         entry: usize,
         local_count: usize,
@@ -199,15 +199,15 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             }
         }
         Value::Func(val) => match val {
-            LsFunc::Builtin { name, .. } => {
+            OmniFunc::Builtin { name, .. } => {
                 let out = format!("[builtin func {}]", name);
                 Result::Ok(Value::String(out))
             }
-            LsFunc::User { entry, name, .. } => {
+            OmniFunc::User { entry, name, .. } => {
                 let out = format!("[func {} at ins {}]", name, entry);
                 Result::Ok(Value::String(out))
             }
-            LsFunc::BuiltinMethod { name, .. } => {
+            OmniFunc::BuiltinMethod { name, .. } => {
                 let out = format!("[builtin method {}]", name);
                 Ok(Value::String(out))
             }
@@ -424,42 +424,42 @@ pub fn vm_hi(_args: &[Value]) -> Result<Value, VmError> {
 }
 pub fn vmenv() -> Vec<Value> {
     vec![
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "print".to_string(),
             func: vm_print,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "sleep".to_string(),
             func: vm_sleep,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "input".to_string(),
             func: vm_input,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "to_str".to_string(),
             func: vm_to_str,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "to_int".to_string(),
             func: vm_to_int,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "to_bool".to_string(),
             func: vm_to_bool,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "to_float".to_string(),
             func: vm_to_float,
         }),
-        Value::Func(LsFunc::Builtin {
+        Value::Func(OmniFunc::Builtin {
             name: "exit".to_string(),
             func: vm_exit,
         }),
         Value::Module(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
-                Rc::new(Value::Func(LsFunc::Builtin {
+                Rc::new(Value::Func(OmniFunc::Builtin {
                     name: "hi".to_string(),
                     func: vm_hi,
                 })),
@@ -829,7 +829,7 @@ mod tests {
     fn type_checks_panic() {
         add(Value::String("hi".to_string()), Value::Float(5.0)).unwrap_err();
         add(
-            Value::Func(LsFunc::Builtin {
+            Value::Func(OmniFunc::Builtin {
                 name: "print".to_string(),
                 func: vm_print,
             }),
