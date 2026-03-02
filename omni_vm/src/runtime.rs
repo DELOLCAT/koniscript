@@ -470,8 +470,19 @@ pub fn vmenv() -> Vec<Value> {
 }
 
 fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
-    expect_args(args, 1)?;
-    let code = match args[0] {
+    if args.len() > 1 {
+        return Err(
+            VmError {
+                msg: format!("Expected 0 to 1 argument, got {}.", args.len()),
+                errcode: ErrCode::InvalidArgCount
+            }
+        )
+    }
+    let item = match args.get(0) {
+        Some(v) => v,
+        None => &Value::Integer(0)
+    };
+    let code = match item {
         Value::Integer(v) => v,
         _ => {
             return Err(VmError {
@@ -482,7 +493,7 @@ fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
     };
     Err(VmError {
         msg: "".to_string(),
-        errcode: ErrCode::ExitSignal(code as i32),
+        errcode: ErrCode::ExitSignal(*code as i32),
     })
 }
 fn add(a: Value, b: Value) -> Result<Value, VmError> {

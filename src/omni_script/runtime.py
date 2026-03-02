@@ -1,17 +1,22 @@
 from dataclasses import dataclass
 from typing import Any
+
+
 def get_with_default(lst: list | tuple, index: int, default: Any = None):
     return lst[index] if 0 <= index < len(lst) else default
+
 
 @dataclass
 class Builtin:
     pass
+
 
 @dataclass
 class BuiltinFunction(Builtin):
     name: str
     req_args: int
     max_args: int | None
+
 
 class Environment:
     def __init__(self, parent=None):
@@ -124,18 +129,25 @@ T_FLOAT = 7
 class ASTNode:
     pass
 
+
 @dataclass
 class Program(ASTNode):
     statements: list[ASTNode]
+
+
 @dataclass
 class Module(ASTNode):
     line: int
     body: Program
     name: str
+
+
 @dataclass
 class BuiltinModulePointer(ASTNode):
     line: int
     idx: int
+
+
 @dataclass
 class BuiltinModule(Builtin):
     exports: list
