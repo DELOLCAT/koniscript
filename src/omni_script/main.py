@@ -3,6 +3,7 @@ from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
 from omni_script.runtime import (
     TYPES,
+    BuiltinFunction,
     Module,
     ASTNode,
     Program,
@@ -1081,6 +1082,16 @@ class Compiler:
                                 raise RuntimeError(f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}")
                             else:
                                 raise RuntimeError(f"Expected exactly {len(req)} arguments, got {len(node.args)}")
+                elif isinstance(itm, self.BuiltinScopeItem) and isinstance(itm.value, BuiltinFunction):
+                    if itm.value.max_args is None:
+                        if not (itm.value.req_args <= len(node.args)):
+                            raise RuntimeError(f"Expected at least {itm.value.req_args} args, got {len(node.args)}")
+                    else:
+                        if not (itm.value.req_args <= len(node.args) <= itm.value.max_args):
+                            if itm.value.req_args == itm.value.max_args:
+                                raise RuntimeError(f'Expected exactly {itm.value.req_args} args, got {len(node.args)}')
+                            else:
+                                raise RuntimeError(f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}')
 
             for arg in node.args:
                 yield from self.compile_ins(arg)
