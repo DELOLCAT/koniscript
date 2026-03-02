@@ -159,8 +159,8 @@ $ omvm run ./examples/fib.omc
 Clone the repo:
 
 ```bash
-git clone https://github.com/DELOLCAT/omni_script
-cd omni_script
+git clone https://github.com/DELOLCAT/OmniScript.git
+cd OmniScript
 ```
 
 Run `build.py` with `uv`:
