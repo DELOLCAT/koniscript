@@ -1215,7 +1215,7 @@ class Compiler:
             else:
                 self.code[jmp] = ('JMPIFF', len(self.code))
         elif isinstance(node, Array):
-            for item in node.items:
+            for item in reversed(node.items):
                 yield from self.compile_ins(item)
             self.emit(node.line, 'BUILD_ARRAY', len(node.items))
         elif isinstance(node, NOP):
