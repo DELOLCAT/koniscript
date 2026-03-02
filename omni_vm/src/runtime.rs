@@ -8,8 +8,8 @@ use std::thread::sleep;
 
 pub type ValueRef = Rc<Value>;
 
-
-pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| vec!["fs".to_string(), "string_methods".to_string()]);
+pub static SUPPORTED_FEATURES: Lazy<Vec<String>> =
+    Lazy::new(|| vec!["fs".to_string(), "string_methods".to_string()]);
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<ValueRef>>,
@@ -46,7 +46,7 @@ pub enum ValueTag {
 
 impl TryFrom<i8> for ValueTag {
     type Error = VmError;
-    
+
     fn try_from(tag: i8) -> Result<Self, VmError> {
         match tag {
             1 => Ok(ValueTag::Integer),
@@ -94,7 +94,7 @@ impl Value {
                 let out = vm_to_float(std::slice::from_ref(&Value::String(payload.to_string())))?;
                 Ok(out)
             }
-            
+
             _ => Err(VmError {
                 msg: format!(
                     "Cannot convert a value with tag {} to an internal value",
@@ -132,7 +132,7 @@ impl Value {
             Value::Float(_) => ValueTag::Float,
             Value::Module(_) => ValueTag::Module,
             Value::Func(_) => ValueTag::Func,
-            Value::Null => ValueTag::Null
+            Value::Null => ValueTag::Null,
         }
     }
 }
@@ -154,6 +154,7 @@ pub enum LsFunc {
         func: fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
     },
 }
+#[repr(i32)]
 #[derive(Debug)]
 pub enum ErrCode {
     InvalidArgCount = 1,
@@ -171,6 +172,8 @@ pub enum ErrCode {
     NoCode = 14,
     ValueError = 15,
     AttributeError = 17,
+    ExitSignal(i32) = 18,
+    InvalidOperation = 19
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -449,6 +452,10 @@ pub fn vmenv() -> Vec<Value> {
             name: "to_float".to_string(),
             func: vm_to_float,
         }),
+        Value::Func(LsFunc::Builtin {
+            name: "exit".to_string(),
+            func: vm_exit,
+        }),
         Value::Module(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
@@ -462,6 +469,22 @@ pub fn vmenv() -> Vec<Value> {
     ]
 }
 
+fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
+    expect_args(args, 1)?;
+    let code = match args[0] {
+        Value::Integer(v) => v,
+        _ => {
+            return Err(VmError {
+                msg: format!("Expected an integer, got a {}", args[0].display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    };
+    Err(VmError {
+        msg: "".to_string(),
+        errcode: ErrCode::ExitSignal(code as i32),
+    })
+}
 fn add(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va + vb)),
@@ -761,12 +784,10 @@ pub static ATTRMAP: Lazy<
 fn str_strip(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     match val.as_ref() {
         Value::String(v) => Ok(Rc::new(Value::String(v.trim().to_string()))),
-        _ => Err(
-            VmError {
-                msg: format!("Expected a string, not a {}.", val.display()),
-                errcode: ErrCode::TypeError
-            }
-        )
+        _ => Err(VmError {
+            msg: format!("Expected a string, not a {}.", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
     }
 }
 fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {

@@ -18,6 +18,7 @@ ASTenv = [
     ('to_int', BuiltinFunction('to_int')),
     ('to_bool', BuiltinFunction('to_bool')),
     ('to_float', BuiltinFunction('to_float')),
+    ('exit', BuiltinFunction('exit')),
     ('math', BuiltinModule([BuiltinFunction('hi')], 'math')),
 ]
 compiler_env = [x[0] for x in ASTenv]

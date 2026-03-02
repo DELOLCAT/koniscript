@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::process::exit;
 use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
@@ -298,7 +299,7 @@ impl VM {
         self.frames.last_mut().unwrap().stack.push(item);
     }
 
-    fn run(&mut self) -> Result<Option<ValueRef>, VmError> {
+    fn run(&mut self) -> Result<i32, VmError> {
         while self.get_i() < self.ins.len() {
             let operators = &self.ins[self.get_i()];
 
@@ -593,7 +594,10 @@ impl VM {
                                 args.iter().map(|arg| arg.as_ref().clone()).collect();
                             match func(dereferenced_args.as_slice()) {
                                 Ok(v) => self.push_to_stack(Rc::new(v)),
-                                Err(v) => return Err(v),
+                                Err(v) => match v.errcode {
+                                    ErrCode::ExitSignal(c) => return Ok(c),
+                                    _ => return Err(v)
+                                },
                             }
                         }
                         LsFunc::User {
@@ -640,15 +644,12 @@ impl VM {
                 }
                 "RET" => {
                     if self.frames.len() <= 1 {
-                        match self.frames.last_mut().unwrap().stack.pop() {
-                            Some(v) => return Ok(Some(v)),
-                            None => {
-                                return Err(VmError {
-                                    msg: "Stack underflow".to_string(),
-                                    errcode: ErrCode::StackUnderflow,
-                                });
+                        return Err(
+                            VmError {
+                                msg: "Cannot return in the main frame".to_string(),
+                                errcode: ErrCode::InvalidOperation
                             }
-                        }
+                        )
                     }
                     let to_ret = match self.frames.last_mut().unwrap().stack.pop() {
                         Some(v) => v,
@@ -833,7 +834,7 @@ impl VM {
             }
             self.frames.last_mut().unwrap().i += 1
         }
-        Ok(None)
+        Ok(0)
     }
 }
 
@@ -853,9 +854,7 @@ fn run(file: String) {
     };
     match vm.run() {
         Ok(opt) => {
-            if let Some(v) = opt {
-                println!("{:?}", v)
-            }
+            exit(opt);
         }
         Err(e) => {
             // Single, clear error line at the top.
