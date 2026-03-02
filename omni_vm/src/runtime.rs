@@ -77,6 +77,8 @@ pub enum Value {
     Null,
 }
 
+
+
 impl Value {
     pub fn new(tag: i8, payload: &str) -> Result<Self, VmError> {
         match ValueTag::try_from(tag)? {
@@ -133,6 +135,41 @@ impl Value {
             Value::Module(_) => ValueTag::Module,
             Value::Func(_) => ValueTag::Func,
             Value::Null => ValueTag::Null,
+        }
+    }
+    pub fn repr(&self) -> String {
+        match self {
+            Value::String(v) => format!("'{v}'"),
+            Value::Integer(v) => v.to_string(),
+            Value::Bool(v) => if *v {"true"} else {"false"}.to_string(),
+            Value::Float(v) => v.to_string(),
+            Value::Func(v) => match v {
+                OmniFunc::Builtin { name, .. } => format!("<builtin fn {}>", name),
+                OmniFunc::User { entry, name, .. } => format!("<fn {} at {}>", name, entry),
+                OmniFunc::BuiltinMethod { name, .. } => format!("<builtin method {}>", name),
+            },
+            Value::Module(v) => {
+                if let Some(name) = &v.name {
+                    format!("<module {} ({} exports)>", name, v.exports.len())
+                } else {
+                    format!("<module ({} exports)>", v.exports.len())
+                }
+            }
+            Value::Null => "null".to_string(),
+            Value::Array(items_rc) => {
+                let items = items_rc.borrow();
+                let mut output = "[".to_string();
+                let mut first = true;
+                for item in items.iter() {
+                    if !first {
+                        output.push_str(", ");
+                    }
+                    output.push_str(&item.repr());
+                    first = false;
+                }
+                output.push(']');
+                output
+            }
         }
     }
 }
@@ -214,29 +251,8 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         },
         Value::String(val) => Result::Ok(Value::String(val.to_string())),
         Value::Null => Result::Ok(Value::String("null".to_string())),
-        Value::Array(items_rc) => {
-            let items = items_rc.borrow();
-            let mut output = "[".to_string();
-            let mut first = true;
-            for item in items.iter() {
-                if !first {
-                    output.push_str(", ");
-                }
-                let asstr = match vm_to_str(std::slice::from_ref(item)) {
-                    Ok(v) => {
-                        if let Value::String(val) = v {
-                            val
-                        } else {
-                            unreachable!("vm_to_str must return a string")
-                        }
-                    }
-                    Err(e) => return Err(e),
-                };
-                output.push_str(&asstr);
-                first = false;
-            }
-            output.push(']');
-            Ok(Value::String(output))
+        Value::Array(_) => {
+            Ok(Value::String(item.repr()))
         }
         Value::Module(v) => {
             if v.name.is_some() {
