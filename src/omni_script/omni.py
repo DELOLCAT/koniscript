@@ -48,7 +48,7 @@ def comp(filepath: Path, features=None):
             break
     psr: Parser = Parser(tkns, base_env.ASTenv)
     program: Program = psr.program()
-    compiler = Compiler(current_env, base_env.ASTenv)
+    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
     cmp = compiler.compile(program, features, file_content)
     while True:
         try:
@@ -152,7 +152,8 @@ def run(filepath: Path):
         out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
     finally:
         os.unlink(f.name)
-    return out # For tests
+    return out  # For tests
+
 
 if __name__ == '__main__':
     app()

@@ -9,7 +9,7 @@ from omni_script.runtime import (
     Program,
     BuiltinModule,
     BuiltinModulePointer,
-    Builtin
+    Builtin,
 )
 import os
 
@@ -106,6 +106,7 @@ class Token:
     line: int
     col: int
 
+
 class Tokenizer:
     def __init__(self, string: str):
         self.string: str = string
@@ -114,7 +115,7 @@ class Tokenizer:
         self.col: int = 0
 
     def advance(self, steps: int = 1) -> str | None:
-        if steps <= 0: # To make sure that `ch` isn't `Unbound`
+        if steps <= 0:  # To make sure that `ch` isn't `Unbound`
             return self.get_current_char()
         for _ in range(steps):
             ch = self.get_current_char()
@@ -126,7 +127,7 @@ class Tokenizer:
                 self.col = 1
             else:
                 self.col += 1
-        return ch # pyright: ignore reportPossiblyUnboundVariable
+        return ch  # pyright: ignore reportPossiblyUnboundVariable
 
     def get_current_char(self) -> str | None:
         if self.current_idx >= len(self.string):
@@ -298,7 +299,6 @@ class Tokenizer:
             self.advance()
             return Token(STRING, value, start_line, start_col)
 
-
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
             self.advance()
@@ -314,6 +314,7 @@ class Tokenizer:
 
         raise SyntaxError(f'Unexpected token "{current_char}"')
 
+
 @dataclass
 class OmniType:
     display: str | None = None
@@ -327,35 +328,48 @@ class OmniType:
                 return instance
         raise ValueError(f"No OmniType subclass with display='{s}' found")
 
+
 @dataclass
 class OmniStr(OmniType):
     def __init__(self):
         self.display = 'str'
+
+
 @dataclass
 class OmniFloat(OmniType):
     def __init__(self):
         self.display = 'float'
+
+
 @dataclass
 class OmniInt(OmniType):
     def __init__(self):
         self.display = 'int'
+
+
 @dataclass
 class OmniFunc(OmniType):
     def __init__(self):
         self.display = 'func'
+
+
 @dataclass
 class OmniModule(OmniType):
     def __init__(self):
         self.display = 'mod'
+
+
 @dataclass
 class OmniArray(OmniType):
     def __init__(self):
         self.display = 'array'
-        
+
+
 @dataclass
 class OmniNull(OmniType):
     def __init__(self):
         self.display = 'null'
+
 
 class Parser:
     def __init__(self, tokens: list[Token], base_env: list[tuple]):
@@ -637,24 +651,36 @@ class Parser:
         params: list[FunctionParameter] = []
         optional = False
         if self.current_token.type == IDENTIFIER:
-            params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
+            params.append(
+                FunctionParameter(
+                    self.current_token.line, self.current_token.value, None
+                )
+            )
             self.eat(IDENTIFIER)
             if self.current_token.type == ASSIGN:
                 optional = True
                 self.eat(ASSIGN)
                 params[-1].option = self.primary()
             elif optional:
-                raise RuntimeError("Cannot have a non-optional argument after an optional argument")
+                raise RuntimeError(
+                    'Cannot have a non-optional argument after an optional argument'
+                )
             while self.current_token.type == COMMA:
                 self.eat(COMMA)
-                params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
+                params.append(
+                    FunctionParameter(
+                        self.current_token.line, self.current_token.value, None
+                    )
+                )
                 self.eat(IDENTIFIER)
                 if self.current_token.type == ASSIGN:
                     optional = True
                     self.eat(ASSIGN)
                     params[-1].option = self.primary()
                 elif optional:
-                    raise RuntimeError("Cannot have a non-optional argument after an optional argument")
+                    raise RuntimeError(
+                        'Cannot have a non-optional argument after an optional argument'
+                    )
         self.eat(RPAREN)
 
         body = self.block()
@@ -702,50 +728,64 @@ class Parser:
         self.eat(RBRACE)
         return Block(self.current_token.line, statements)
 
+
 @dataclass
 class Require(ASTNode):
     line: int
     reqs: list[str]
 
+
 @dataclass
 class Array(ASTNode):
     line: int
     items: list[ASTNode]
+
+
 @dataclass
 class Block(ASTNode):
     line: int
     statements: list[ASTNode]
-    
+
+
 @dataclass
 class Number(ASTNode):
     line: int
     value: int
+
 
 @dataclass
 class Float(ASTNode):
     line: int
     value: float
 
+
 @dataclass
 class Bool(ASTNode):
     line: int
     value: bool
+
+
 @dataclass
 class Call(ASTNode):
     line: int
     func: ASTNode
     args: list[ASTNode]
+
+
 @dataclass
 class Attribute(ASTNode):
     line: int
     lhs: ASTNode
     rhs: str
 
+
 @dataclass
 class UnaryOp(ASTNode):
     line: int
     op: str
     right: ASTNode
+
+
 @dataclass
 class BinOp(ASTNode):
     line: int
@@ -753,34 +793,45 @@ class BinOp(ASTNode):
     op: str
     right: ASTNode
 
+
 @dataclass
 class Variable(ASTNode):
     line: int
     name: str
+
+
 @dataclass
 class FunctionParameter(ASTNode):
-    line:int
+    line: int
     name: str
     option: None | ASTNode
+
+
 @dataclass
 class Assign(ASTNode):
     line: int
     name: str
     value: ASTNode
+
+
 @dataclass
 class String(ASTNode):
     line: int
     value: str
 
+
 @dataclass
 class Return(ASTNode):
     line: int
     value: ASTNode | None
+
+
 @dataclass
 class Function(ASTNode):
     line: int
     params: list[FunctionParameter]
     body: Block
+
     def __init__(self, line: int, params, body):
         self.params = params
         self.body = body
@@ -789,6 +840,7 @@ class Function(ASTNode):
     def __repr__(self):
         return f'Function({self.params}, {self.body})'
 
+
 @dataclass
 class If(ASTNode):
     line: int
@@ -796,16 +848,20 @@ class If(ASTNode):
     body: Block
     else_body: Block | None
 
+
 @dataclass
 class While(ASTNode):
     line: int
     expr: ASTNode
     body: Block
+
+
 @dataclass
 class Export(ASTNode):
     line: int
     lhs: ASTNode
     name: str
+
 
 class NOP(ASTNode):
     pass
@@ -849,8 +905,11 @@ OPCODE_MAP = {
 BUILTIN = 'BUILTIN'
 NULL = 'NULL'
 
+
 class Compiler:
-    def __init__(self, env: list[str], ASTenv: list[tuple[str, Builtin]]):
+    def __init__(
+        self, env: list[str], ASTenv: list[tuple[str, Builtin]], attrs: list[str]
+    ):
         self.constants = []
         self.vars = []
         self.reqs: list[str] = []
@@ -864,18 +923,22 @@ class Compiler:
         self.lines = []
         self.modules = []
         self.exports = []
+        self.attrs: list[str] = attrs
         self.enter_scope()
+
     @dataclass
-    class ScopeItem:    
+    class ScopeItem:
         idx: int
         value: ASTNode
+
     @dataclass
     class BuiltinScopeItem:
         value: Builtin
+
     class Scope:
         def __init__(self, var_map={}, args={}):
             self.var_map: dict[str, Compiler.ScopeItem] = var_map
-            
+
             self.next_local = len(var_map)
             self.args = args
 
@@ -910,7 +973,7 @@ class Compiler:
         scope = self.scopes[-1]
         if name in scope.var_map:
             return scope.var_map[name].idx
-        
+
         index = scope.next_local
         scope.var_map[name] = Compiler.ScopeItem(index, value)
         scope.next_local += 1
@@ -918,7 +981,9 @@ class Compiler:
 
         return index
 
-    def get_var(self, name) -> tuple[int, Literal['user', 'builtin'], int | None] | None:
+    def get_var(
+        self, name
+    ) -> tuple[int, Literal['user', 'builtin'], int | None] | None:
         for depth, scope in enumerate(reversed(self.scopes)):
             if name in scope.var_map:
                 return scope.var_map[name].idx, 'user', depth
@@ -926,7 +991,10 @@ class Compiler:
             if item == name:
                 return i, 'builtin', None
         return None
-    def get_var_obj(self, name: str) -> tuple[ScopeItem, int | None] | tuple[BuiltinScopeItem, None] |None:
+
+    def get_var_obj(
+        self, name: str
+    ) -> tuple[ScopeItem, int | None] | tuple[BuiltinScopeItem, None] | None:
         for depth, scope in enumerate(reversed(self.scopes)):
             if name in scope.var_map:
                 return scope.var_map[name], depth
@@ -960,14 +1028,12 @@ class Compiler:
         output.append('ISA 1')
         if len(self.reqs) > 0:
             output.append('.reqs ' + ' '.join([str(x) for x in self.reqs]))
-            
+
         output.append(f'.frame {self.scopes[-1].next_local}')
 
         output.append('.const')
         for const in self.constants:
-            output.append(
-                f'{const[0]};{str(const[1])}'
-            )
+            output.append(f'{const[0]};{str(const[1])}')
         output.append('.code')
         for instr in self.code:
             output.append(' '.join(map(str, instr)))
@@ -1013,7 +1079,7 @@ class Compiler:
             else:
                 idx, cat, depth = res
                 yield from self.compile_ins(node.value, node.name)
-                
+
                 idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, 'DUP')
@@ -1069,7 +1135,7 @@ class Compiler:
         elif isinstance(node, Call):
             yield from self.compile_ins(node.func)
             if isinstance(node.func, Variable):
-                itm = self.get_var_obj(node.func.name)[0] # pyright: ignore[reportOptionalSubscript]
+                itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
                 if isinstance(itm, self.ScopeItem):
                     if isinstance(itm.value, Function):
                         params = itm.value.params
@@ -1079,24 +1145,38 @@ class Compiler:
                                 req.append(item)
                         if not (len(req) <= len(node.args) <= len(params)):
                             if not len(req) == len(params):
-                                raise RuntimeError(f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}")
+                                raise RuntimeError(
+                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}'
+                                )
                             else:
-                                raise RuntimeError(f"Expected exactly {len(req)} arguments, got {len(node.args)}")
-                elif isinstance(itm, self.BuiltinScopeItem) and isinstance(itm.value, BuiltinFunction):
+                                raise RuntimeError(
+                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}'
+                                )
+                elif isinstance(itm, self.BuiltinScopeItem) and isinstance(
+                    itm.value, BuiltinFunction
+                ):
                     if itm.value.max_args is None:
                         if not (itm.value.req_args <= len(node.args)):
-                            raise RuntimeError(f"Expected at least {itm.value.req_args} args, got {len(node.args)}")
+                            raise RuntimeError(
+                                f'Expected at least {itm.value.req_args} args, got {len(node.args)}'
+                            )
                     else:
-                        if not (itm.value.req_args <= len(node.args) <= itm.value.max_args):
+                        if not (
+                            itm.value.req_args <= len(node.args) <= itm.value.max_args
+                        ):
                             if itm.value.req_args == itm.value.max_args:
-                                raise RuntimeError(f'Expected exactly {itm.value.req_args} args, got {len(node.args)}')
+                                raise RuntimeError(
+                                    f'Expected exactly {itm.value.req_args} args, got {len(node.args)}'
+                                )
                             else:
-                                raise RuntimeError(f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}')
+                                raise RuntimeError(
+                                    f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}'
+                                )
 
             for arg in node.args:
                 yield from self.compile_ins(arg)
             if isinstance(node.func, Variable):
-                itm = self.get_var_obj(node.func.name)[0] # pyright: ignore[reportOptionalSubscript]
+                itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
                 if isinstance(itm, self.ScopeItem):
                     if isinstance(itm.value, Function):
                         params = itm.value.params
@@ -1105,17 +1185,17 @@ class Compiler:
                             if item.option is not None:
                                 req.append(item)
                         if len(req) >= len(node.args):
-                            for item in params[len(req):]:
-                                yield from self.compile_ins(item.option) # pyright: ignore[reportArgumentType]
+                            for item in params[len(req) :]:
+                                yield from self.compile_ins(item.option)  # pyright: ignore[reportArgumentType]
                         self.emit(node.line, OP_CALL, len(params))
                     else:
-                        raise # This would never happen due to the if cases before
+                        raise  # This would never happen due to the if cases before
                 elif isinstance(itm, self.BuiltinScopeItem):
                     self.emit(node.line, OP_CALL, len(node.args))
                 else:
                     raise
             else:
-                raise NotImplementedError # TODO: make it so you can call functions that aren't in variables
+                raise NotImplementedError  # TODO: make it so you can call functions that aren't in variables
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -1182,6 +1262,8 @@ class Compiler:
             idx = self.add_constant((2, node.name))
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
+            if node.rhs not in self.attrs:
+                raise RuntimeError(f'Could not find attribute {node.rhs}')
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((2, node.rhs))
             self.emit(node.line, 'GETATTR', idx)
