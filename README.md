@@ -31,6 +31,8 @@ OmniScript is a dynamic programming language that focuses on these main features
 - Basic builtins (print, input, to_(type))
 - Arrays (methods indev)
 - The requirements syntax
+- Stack traces
+- Optional function arguments
 
 ## Usage
 
@@ -135,12 +137,13 @@ $ omvm run ./examples/fib.omc
 - :x: A standard library (though certain imports, like fs, would need an @require flag)
 - :x: For loops
 - :x: A REPL
-- :hourglass: More builtins
+- :pause_button: More builtins
   - :x: Builtin Functions
-  - :hourglass: Builtin Methods
+  - :pause_button: Builtin Methods
     - :pause_button: Array methods
-    - :hourglass: String methods
+    - :pause_button: String methods
 - :pause_button: Dynamic modules
+- :x: Better compiler error messages
 
 ### App
 
@@ -158,8 +161,8 @@ $ omvm run ./examples/fib.omc
 Clone the repo:
 
 ```bash
-git clone https://github.com/DELOLCAT/omni_script
-cd omni_script
+git clone https://github.com/DELOLCAT/OmniScript.git
+cd OmniScript
 ```
 
 Run `build.py` with `uv`:
