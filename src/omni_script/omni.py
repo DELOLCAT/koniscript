@@ -122,7 +122,7 @@ def compile(
 
 
 @app.command()
-def run(filepath: Path, debug: bool = False, features=[]):
+def run(filepath: Path):
     gen = comp(filepath)
     f = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.omc')
     try:
@@ -140,7 +140,7 @@ def run(filepath: Path, debug: bool = False, features=[]):
         # We need to close the file so that the subprocess can open it.
         f.close()
         vm_path = shutil.which('omvm')
-        if (Path(__file__) / 'omvm').is_file():
+        if (Path(__file__).parent / exec_name('omvm')).is_file():
             vm_path = Path(__file__).parent / exec_name('omvm')
         elif vm_path is not None:
             pass

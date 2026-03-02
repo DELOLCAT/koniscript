@@ -31,6 +31,8 @@ OmniScript is a dynamic programming language that focuses on these main features
 - Basic builtins (print, input, to_(type))
 - Arrays (methods indev)
 - The requirements syntax
+- Stack traces
+- Optional function arguments
 
 ## Usage
 
@@ -141,7 +143,7 @@ $ omvm run ./examples/fib.omc
     - :pause_button: Array methods
     - :pause_button: String methods
 - :pause_button: Dynamic modules
-- :hourglass: Optional arguments for functions
+- :x: Better compiler error messages
 
 ### App
 

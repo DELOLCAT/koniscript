@@ -8,6 +8,7 @@ from omni_script.runtime import (
     Program,
     BuiltinModule,
     BuiltinModulePointer,
+    Builtin
 )
 import os
 
@@ -312,6 +313,48 @@ class Tokenizer:
 
         raise SyntaxError(f'Unexpected token "{current_char}"')
 
+@dataclass
+class OmniType:
+    display: str | None = None
+
+    @classmethod
+    def try_from(cls, s: str):
+        # Iterate over all subclasses of OmniType
+        for subclass in cls.__subclasses__():
+            instance = subclass()  # create an instance
+            if instance.display == s:
+                return instance
+        raise ValueError(f"No OmniType subclass with display='{s}' found")
+
+@dataclass
+class OmniStr(OmniType):
+    def __init__(self):
+        self.display = 'str'
+@dataclass
+class OmniFloat(OmniType):
+    def __init__(self):
+        self.display = 'float'
+@dataclass
+class OmniInt(OmniType):
+    def __init__(self):
+        self.display = 'int'
+@dataclass
+class OmniFunc(OmniType):
+    def __init__(self):
+        self.display = 'func'
+@dataclass
+class OmniModule(OmniType):
+    def __init__(self):
+        self.display = 'mod'
+@dataclass
+class OmniArray(OmniType):
+    def __init__(self):
+        self.display = 'array'
+        
+@dataclass
+class OmniNull(OmniType):
+    def __init__(self):
+        self.display = 'null'
 
 class Parser:
     def __init__(self, tokens: list[Token], base_env: list[tuple]):
@@ -590,15 +633,27 @@ class Parser:
         self.eat(IDENTIFIER)
 
         self.eat(LPAREN)
-        params = []
-
+        params: list[FunctionParameter] = []
+        optional = False
         if self.current_token.type == IDENTIFIER:
-            params.append(self.current_token.value)
+            params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
             self.eat(IDENTIFIER)
+            if self.current_token.type == ASSIGN:
+                optional = True
+                self.eat(ASSIGN)
+                params[-1].option = self.primary()
+            elif optional:
+                raise RuntimeError("Cannot have a non-optional argument after an optional argument")
             while self.current_token.type == COMMA:
                 self.eat(COMMA)
-                params.append(self.current_token.value)
+                params.append(FunctionParameter(self.current_token.line, self.current_token.value, None))
                 self.eat(IDENTIFIER)
+                if self.current_token.type == ASSIGN:
+                    optional = True
+                    self.eat(ASSIGN)
+                    params[-1].option = self.primary()
+                elif optional:
+                    raise RuntimeError("Cannot have a non-optional argument after an optional argument")
         self.eat(RPAREN)
 
         body = self.block()
@@ -678,7 +733,7 @@ class Bool(ASTNode):
 class Call(ASTNode):
     line: int
     func: ASTNode
-    args: list
+    args: list[ASTNode]
 @dataclass
 class Attribute(ASTNode):
     line: int
@@ -701,7 +756,11 @@ class BinOp(ASTNode):
 class Variable(ASTNode):
     line: int
     name: str
-
+@dataclass
+class FunctionParameter(ASTNode):
+    line:int
+    name: str
+    option: None | ASTNode
 @dataclass
 class Assign(ASTNode):
     line: int
@@ -719,7 +778,7 @@ class Return(ASTNode):
 @dataclass
 class Function(ASTNode):
     line: int
-    params: list[ASTNode]
+    params: list[FunctionParameter]
     body: Block
     def __init__(self, line: int, params, body):
         self.params = params
@@ -789,20 +848,8 @@ OPCODE_MAP = {
 BUILTIN = 'BUILTIN'
 NULL = 'NULL'
 
-
-class Scope:
-    def __init__(self, var_map={}, args={}):
-        self.var_map: dict = var_map
-
-        self.next_local = len(var_map)
-        self.args = args
-
-    def __repr__(self):
-        return f'Scope({self.var_map}, {self.next_local})'
-
-
 class Compiler:
-    def __init__(self, env: list, ASTenv):
+    def __init__(self, env: list[str], ASTenv: list[tuple[str, Builtin]]):
         self.constants = []
         self.vars = []
         self.reqs: list[str] = []
@@ -810,13 +857,29 @@ class Compiler:
         self.const_map = {}
         self.code = []
         self.passed_env = env
-        self.scopes: list[Scope] = []
+        self.scopes: list[Compiler.Scope] = []
         self.var_count = 0
         self.ASTenv = ASTenv
         self.lines = []
         self.modules = []
         self.exports = []
         self.enter_scope()
+    @dataclass
+    class ScopeItem:    
+        idx: int
+        value: ASTNode
+    @dataclass
+    class BuiltinScopeItem:
+        value: Builtin
+    class Scope:
+        def __init__(self, var_map={}, args={}):
+            self.var_map: dict[str, Compiler.ScopeItem] = var_map
+            
+            self.next_local = len(var_map)
+            self.args = args
+
+        def __repr__(self):
+            return f'Scope({self.var_map}, {self.next_local})'
 
     @dataclass
     class Warn:
@@ -828,7 +891,7 @@ class Compiler:
         value: str
 
     def enter_scope(self, var_map={}, args={}):
-        self.scopes.append(Scope(var_map, args))
+        self.scopes.append(Compiler.Scope(var_map, args))
 
     def exit_scope(self):
         self.scopes.pop()
@@ -842,23 +905,33 @@ class Compiler:
         self.const_map[value_tuple] = index
         return index
 
-    def declare_local(self, name):
+    def declare_local(self, name: str, value: ASTNode):
         scope = self.scopes[-1]
         if name in scope.var_map:
-            return scope.var_map[name]
+            return scope.var_map[name].idx
+        
         index = scope.next_local
-        scope.var_map[name] = index
+        scope.var_map[name] = Compiler.ScopeItem(index, value)
         scope.next_local += 1
         self.var_count += 1
+
         return index
 
-    def get_var(self, name):
+    def get_var(self, name) -> tuple[int, Literal['user', 'builtin'], int | None] | None:
         for depth, scope in enumerate(reversed(self.scopes)):
             if name in scope.var_map:
-                return scope.var_map[name], 'user', depth
+                return scope.var_map[name].idx, 'user', depth
         for i, item in enumerate(self.passed_env):
             if item == name:
                 return i, 'builtin', None
+        return None
+    def get_var_obj(self, name: str) -> tuple[ScopeItem, int | None] | tuple[BuiltinScopeItem, None] |None:
+        for depth, scope in enumerate(reversed(self.scopes)):
+            if name in scope.var_map:
+                return scope.var_map[name], depth
+        for i, item in enumerate(self.ASTenv):
+            if item[0] == name:
+                return Compiler.BuiltinScopeItem(item[1]), None
         return None
 
     def emit(self, line: int, opcode, *operands):
@@ -928,7 +1001,7 @@ class Compiler:
         elif isinstance(node, Assign) and isinstance(node.value, Function):
             res = self.get_var(node.name)
             if res is None:
-                idx = self.declare_local(node.name)
+                idx = self.declare_local(node.name, node.value)
                 yield from self.compile_ins(node.value, node.name)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, 'DUP')
@@ -938,7 +1011,7 @@ class Compiler:
                 idx, cat, depth = res
                 yield from self.compile_ins(node.value, node.name)
                 
-                idx = self.declare_local(node.name)
+                idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, depth)
@@ -952,14 +1025,14 @@ class Compiler:
             res = self.get_var(node.name)
             if res is None:
                 yield from self.compile_ins(node.value)
-                idx = self.declare_local(node.name)
+                idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
-                idx, cat, depth = res
+                idx, _, depth = res
                 yield from self.compile_ins(node.value)
-                idx = self.declare_local(node.name)
+                idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, depth)
@@ -972,7 +1045,7 @@ class Compiler:
             if node.name in self.modules:
                 raise RuntimeError(f'Module {node.name} already imported.')
             self.modules.append(node.name)
-            self.scopes.append(Scope())
+            self.scopes.append(Compiler.Scope())
             for statement in node.body.statements:
                 yield from self.compile_ins(statement)
             self.scopes.pop()
@@ -992,9 +1065,44 @@ class Compiler:
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             yield from self.compile_ins(node.func)
+            if isinstance(node.func, Variable):
+                itm = self.get_var_obj(node.func.name)[0] # pyright: ignore[reportOptionalSubscript]
+                if isinstance(itm, self.ScopeItem):
+                    if isinstance(itm.value, Function):
+                        params = itm.value.params
+                        req: list[FunctionParameter] = []
+                        for item in params:
+                            if item.option is None:
+                                req.append(item)
+                        if not (len(req) <= len(node.args) <= len(params)):
+                            if not len(req) == len(params):
+                                raise RuntimeError(f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}")
+                            else:
+                                raise RuntimeError(f"Expected exactly {len(req)} arguments, got {len(node.args)}")
+
             for arg in node.args:
                 yield from self.compile_ins(arg)
-            self.emit(node.line, OP_CALL, len(node.args))
+            if isinstance(node.func, Variable):
+                itm = self.get_var_obj(node.func.name)[0] # pyright: ignore[reportOptionalSubscript]
+                if isinstance(itm, self.ScopeItem):
+                    if isinstance(itm.value, Function):
+                        params = itm.value.params
+                        req: list[FunctionParameter] = []
+                        for item in params:
+                            if item.option is not None:
+                                req.append(item)
+                        if len(req) >= len(node.args):
+                            for item in params[len(req):]:
+                                yield from self.compile_ins(item.option) # pyright: ignore[reportArgumentType]
+                        self.emit(node.line, OP_CALL, len(params))
+                    else:
+                        raise # This would never happen due to the if cases before
+                elif isinstance(itm, self.BuiltinScopeItem):
+                    self.emit(node.line, OP_CALL, len(node.args))
+                else:
+                    raise
+            else:
+                raise NotImplementedError # TODO: make it so you can call functions that aren't in variables
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -1023,9 +1131,8 @@ class Compiler:
             jmp = self.emit(node.line, 'JMP', None)
             fn_entry = len(self.code)
             self.enter_scope({})
-
             for param in node.params:
-                self.declare_local(param)
+                self.declare_local(param.name, param)
             yield from self.compile_ins(node.body)
 
             self.emit(
@@ -1059,7 +1166,6 @@ class Compiler:
             self.emit(node.line, 'RET')
         elif isinstance(node, Export):
             yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
-            input(self.code)
             idx = self.add_constant((2, node.name))
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
