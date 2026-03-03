@@ -918,13 +918,13 @@ fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmE
     }
     if args.len() > max {
         return Err(VmError {
-            msg: msg,
+            msg,
             errcode: ErrCode::InvalidArgCount,
         });
     }
     if args.len() < min {
         return Err(VmError {
-            msg: msg,
+            msg,
             errcode: ErrCode::InvalidArgCount,
         });
     }
