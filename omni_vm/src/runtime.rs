@@ -763,6 +763,28 @@ fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
         Ok(())
     }
 }
+fn arr_pop(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    expect_args(args, 0)?;
+    match item.as_ref() {
+        Value::Array(ar) => {
+            match ar.borrow_mut().pop() {
+                Some(v) => Ok(v),
+                None => Err(
+                    VmError {
+                        msg: "Cannot `pop()` from an empty array".to_string(),
+                        errcode: ErrCode::InvalidOperation
+                    }
+                )
+            }
+        },
+        _ => Err(
+            VmError {
+                msg: format!("Expected an array, got a {}", item.display()),
+                errcode: ErrCode::TypeError
+            }
+        )
+    }
+}
 fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     expect_args(args, 1)?;
 
@@ -796,6 +818,7 @@ pub static ATTRMAP: Lazy<
 
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
+    array_methods.insert("pop".to_string(), arr_pop);
     attramp.insert(ValueTag::Array, array_methods);
 
     str_methods.insert("upper".to_string(), str_upper);
