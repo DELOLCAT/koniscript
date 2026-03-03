@@ -34,11 +34,12 @@ pub struct VmError {
     pub msg: String,
     pub errcode: ErrCode,
 }
-impl VmError { // TODO: refactor old TypeErrors into this new one
+impl VmError {
+    // TODO: refactor old TypeErrors into this new one
     pub fn make_type_error(expected: &str, received: &Value) -> Self {
         Self {
             msg: format!("Expected `{}`, got `{}`", expected, received.display()),
-            errcode: ErrCode::TypeError
+            errcode: ErrCode::TypeError,
         }
     }
 }
@@ -240,7 +241,7 @@ pub enum ErrCode {
     AttributeError = 17,
     ExitSignal(i32) = 18,
     InvalidOperation = 19,
-    IndexError = 20
+    IndexError = 20,
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -864,6 +865,7 @@ pub static ATTRMAP: Lazy<
     array_methods.insert("contains".to_string(), arr_contains);
     array_methods.insert("is_empty".to_string(), arr_str_is_empty);
     array_methods.insert("insert".to_string(), arr_insert);
+    array_methods.insert("empty".to_string(), arr_empty);
     attramp.insert(ValueTag::Array, array_methods);
 
     str_methods.insert("upper".to_string(), str_upper);
@@ -874,6 +876,17 @@ pub static ATTRMAP: Lazy<
 
     attramp
 });
+
+fn arr_empty(item: ValueRef, args: MethodArgs) -> MethodReturn {
+    check_method_args(args, 0, 0)?;
+    match item.as_ref() {
+        Value::Array(arr) => {
+            arr.borrow_mut().clear();
+            Ok(item.clone())
+        }
+        _ => Err(VmError::make_type_error("array", &item)),
+    }
+}
 
 fn arr_insert(item: ValueRef, args: MethodArgs) -> MethodReturn {
     check_method_args(args, 2, 2)?;
@@ -890,8 +903,8 @@ fn arr_insert(item: ValueRef, args: MethodArgs) -> MethodReturn {
         Value::Array(v) => {
             v.borrow_mut().insert(*idx as usize, args[1].clone());
             Ok(args[1].clone())
-        },
-        _ => Err(VmError::make_type_error("array", &item))
+        }
+        _ => Err(VmError::make_type_error("array", &item)),
     }
 }
 fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmError> {
