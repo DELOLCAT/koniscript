@@ -59,23 +59,7 @@ EXPORT = 'EXPORT'
 LBRACKET = 'LBRACKET'
 RBRACKET = 'RBRACKET'
 AT_RATE = 'AT_RATE'
-VALUES = [INT, STRING, IDENTIFIER]
-
-OPERATORS = {
-    ADD: lambda a, b: a + b,
-    SUB: lambda a, b: a - b,
-    MUL: lambda a, b: a * b,
-    DIV: lambda a, b: a / b,
-    POW: lambda a, b: a**b,
-    LT: lambda a, b: a < b,
-    GT: lambda a, b: a > b,
-    GTE: lambda a, b: a >= b,
-    LTE: lambda a, b: a <= b,
-    EQUAL_TO: lambda a, b: a == b,
-    NOT_EQUAL_TO: lambda a, b: a != b,
-    OR: lambda a, b: a or b,
-    AND: lambda a, b: a and b,
-}
+NOT = 'NOT'
 
 KEYWORDS = {
     'func': FUNC,
@@ -88,6 +72,7 @@ KEYWORDS = {
     'import': IMPORT,
     'export': EXPORT,
     '@': AT_RATE,
+    'not': NOT
 }
 
 
@@ -406,9 +391,13 @@ class Parser:
             node = BinOp(self.current_token.line, node, op, self.logical_and())
 
         return node
-
+    def logical_not(self):
+        if self.current_token.type == NOT:
+            self.eat(NOT)
+            return UnaryOp(self.current_token.line, NOT, self.logical_not())
+        return self.equality()
     def logical_and(self):
-        node = self.equality()
+        node = self.logical_not()
         while self.current_token.type == AND:
             op = self.current_token.type
             self.eat(op)
@@ -906,6 +895,7 @@ OP_AND = AND
 OP_CALL = 'CALL'
 NEG = 'NEG'
 OP_NEG = NEG
+OP_NOT = NOT
 OPCODE_MAP = {
     ADD: OP_ADD,
     SUB: OP_SUB,
@@ -921,6 +911,7 @@ OPCODE_MAP = {
     OR: OP_OR,
     AND: OP_AND,
     NEG: OP_NEG,
+    NOT: OP_NOT
 }
 BUILTIN = 'BUILTIN'
 NULL = 'NULL'
