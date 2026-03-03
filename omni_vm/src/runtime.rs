@@ -240,6 +240,7 @@ pub enum ErrCode {
     AttributeError = 17,
     ExitSignal(i32) = 18,
     InvalidOperation = 19,
+    IndexError = 20
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

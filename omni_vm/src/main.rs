@@ -298,6 +298,15 @@ impl VM {
     fn push_to_stack(&mut self, item: ValueRef) {
         self.frames.last_mut().unwrap().stack.push(item);
     }
+    fn pop_from_stack(&mut self) -> Result<ValueRef, VmError> {
+        match self.frames.last_mut().unwrap().stack.pop() {
+            Some(v) => Ok(v),
+            None => Err(VmError {
+                msg: "Stack underflow".to_string(),
+                errcode: ErrCode::StackUnderflow,
+            }),
+        }
+    }
 
     fn run(&mut self) -> Result<i32, VmError> {
         while self.get_i() < self.ins.len() {
@@ -491,6 +500,42 @@ impl VM {
                         }
                     };
                     self.frames.last_mut().unwrap().stack.push(out);
+                }
+                "GET_ITEM" => {
+                    let item = self.pop_from_stack()?;
+                    let rhs = self.pop_from_stack()?;
+
+                    match item.as_ref() {
+                        Value::Array(arr) => {
+                            let idx = match rhs.as_ref() {
+                                Value::Integer(v) => v,
+                                _ => {
+                                    return Err(VmError {
+                                        msg: format!(
+                                            "Cannot index an array with type `{}`",
+                                            rhs.display()
+                                        ),
+                                        errcode: ErrCode::TypeError,
+                                    });
+                                }
+                            };
+                            match arr.borrow().get::<usize>((*idx).try_into().unwrap()) {
+                                Some(v) => self.push_to_stack(v.clone()),
+                                None => {
+                                    return Err(VmError {
+                                        msg: format!("Index {} out of range", idx),
+                                        errcode: ErrCode::IndexError,
+                                    });
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(VmError {
+                                msg: format!("Cannot get an index from a {}", item.display()),
+                                errcode: ErrCode::TypeError,
+                            });
+                        }
+                    };
                 }
                 "STORE" => {
                     let idx: usize = operators[1].parse().expect("Invalid bytecode");

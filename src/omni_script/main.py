@@ -483,6 +483,13 @@ class Parser:
                 raise IncompleteInput
             self.eat(RPAREN)
             node = Call(call_line, node, args)
+        
+        while self.current_token.type == LBRACKET:
+            ln = self.current_token.line
+            self.eat(LBRACKET)
+            idx = self.expr()
+            self.eat(RBRACKET)
+            node = GetIndex(ln, node, idx)
         return node
 
     def skip_newline(self):
@@ -586,10 +593,10 @@ class Parser:
             for i, item in enumerate(self.base_env):
                 if isinstance(item[1], BuiltinModule) and item[1].name == name:
                     return Assign(-1, name, BuiltinModulePointer(ln, i))
-            if f'{name}.ray' in os.listdir('packages'):
-                modpath = os.path.join(base_path, 'packages', f'{name}.ray')
-            elif f'{name}.ray' in os.listdir():
-                modpath = os.path.join(base_path, f'{name}.ray')
+            if f'{name}.om' in os.listdir('packages'): # TODO: do this in a more dynamic way
+                modpath = os.path.join(base_path, 'packages', f'{name}.om')
+            elif f'{name}.om' in os.listdir():
+                modpath = os.path.join(base_path, f'{name}.om')
             else:
                 raise RuntimeError(f"Can't find module {name}")
             with open(modpath) as f:
@@ -749,7 +756,11 @@ class Array(ASTNode):
     line: int
     items: list[ASTNode]
 
-
+@dataclass 
+class GetIndex(ASTNode):
+    line: int
+    item: ASTNode
+    idx: ASTNode
 @dataclass
 class Block(ASTNode):
     line: int
@@ -1313,5 +1324,9 @@ class Compiler:
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((2, node.rhs))
             self.emit(node.line, 'GETATTR', idx)
+        elif isinstance(node, GetIndex):
+            yield from self.compile_ins(node.idx)
+            yield from self.compile_ins(node.item)
+            self.emit(node.line, "GET_ITEM")
         else:
-            raise NotImplementedError(f'Did not implement {node} yet :<')
+                raise NotImplementedError(f'Did not implement {node} yet :<')
