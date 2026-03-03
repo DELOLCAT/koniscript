@@ -27,6 +27,7 @@ app = typer.Typer()
 
 console = Console()
 
+tracebacks = os.environ.get('OMNI_TRACEBACKS')
 
 def exec_name(name: str) -> str:
     if sys.platform == "win32":
@@ -154,6 +155,8 @@ def compile(
                 instructions = e.value.instructions
                 break
             elif isinstance(e.value, Failed):
+                if tracebacks: # To show Python tracebacks for development
+                    raise
                 show_err_or_warn(e.value, filepath, file_content)
                 return
             else:
@@ -217,8 +220,10 @@ def run(
                 instructions = e.value.instructions
                 break
             elif isinstance(e.value, Failed):
-                # abort without running
+                if tracebacks:
+                    raise
                 show_err_or_warn(e.value, filepath, file_content)
+                # abort without running
                 return
             else:
                 raise
