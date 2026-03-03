@@ -9,7 +9,7 @@ dependencies = [
     "pytest>=9.0.2",
     "questionary>=2.1.1",
     "rich>=14.3.3",
-    "typer>=0.24.0",
+    "typer>=0.24.1",
 ]
 [project.optional-dependencies]
 nuitka = ["nuitka>=4.0.1"]
