@@ -61,7 +61,7 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
         output.push(c);
     }
     if !broken {
-        return Err(VmPanic::InvalidBytecode)
+        return Err(VmPanic::InvalidBytecode);
     }
 
     match tag.parse::<i8>() {
@@ -760,6 +760,23 @@ impl VM {
                     // remove value if present, ignore underflow
                     let _ = self.frames.last_mut().unwrap().stack.pop();
                 }
+                "NOT" => {
+                    let v = match self.frames.last_mut().unwrap().stack.pop() {
+                        Some(v) => v,
+                        None => {
+                            return Err(VmError {
+                                msg: "Stack underflow".to_string(),
+                                errcode: ErrCode::StackUnderflow,
+                            });
+                        }
+                    };
+                    let out = match runtime::vm_to_bool(&[v.as_ref().clone()])? {
+                        Value::Bool(b) => Rc::new(Value::Bool(!b)),
+                        _ => panic!("Extreme VM edge case on NOT"),
+                    };
+                    self.push_to_stack(out);
+                }
+
                 "MAKE_MODULE" => {
                     let new_mod = Module {
                         exports: self.frames.last().unwrap().env.borrow().exports.clone(),
