@@ -6,23 +6,11 @@ For contributing, see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 OmniScript is a dynamic programming language that focuses on these main features:
 
-- A simple VM (OmniVM) that you could implement almost anywhere - even in Scratch mods
+- A ridiculously simple stack based VM (OmniVM) that you could implement almost anywhere - even in Scratch mods (currently only 19 instructions)
 - Readability of code
 - Ease of packaging (code compiles down to a single .omc bytecode file)
-- Compatibility: Supports @require flags (ex. @require fs, gui) so OmniScript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future.
+- Compatibility: Supports @require flags (ex. @require fs, gui) so OmniScript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future. This also means that runtimes can be even smaller, and also on embedded systems.
 
-## Table of contents
-
-- [Currently Implemented Features](#currently-implemented-features)
-- [Usage](#usage)
-  - [Writing a program](#writing-a-program)
-  - [CLI](#cli)
-- [Roadmap](#roadmap)
-  - [Language](#language)
-  - [App](#app)
-- [Build](#build)
-  - [Prerequisites](#prerequisites)
-  - [Steps](#steps)
 
 ## Currently implemented features
 
@@ -119,30 +107,28 @@ $ omvm run ./examples/fib.omc
 
 ## Roadmap
 
-| Icon                | Meaning                       |
-|---------------------|-------------------------------|
-| :hourglass:         | Developing                    |
-| :x:                 | Not started                   |
-| :pause_button:      | Started but currently stopped |
+View GithubMilestones (currently [v0.1.0](https://github.com/DELOLCAT/OmniScript/milestone/1)) to see progress
 
 (completed features will be moved to [Currently Implemented Features](#currently-implemented-features))
 
-### Language
+v0.1.0
 
-- :x: A Better requirements system
-- :x: Dictionaries
-- :x: More advanced imports
-- :x: Classes (via prototypes)
-- :x: Async support (through a @require flag)
-- :x: A standard library (though certain imports, like fs, would need an @require flag)
-- :x: For loops
-- :x: A REPL
-- :pause_button: Dynamic modules
-- :x: Better compiler error messages
+- A Better requirements system
+- Better compiler error messages
+- More advanced imports
+- For loops
 
-### App
+v0.2.0
 
-- :x: Tests
+- Dynamic modules
+- Dictionaries
+- A better standard library (though certain imports, like fs, would need an @require flag)
+
+v0.3.0
+
+- Classes (via prototypes)
+- A REPL
+- Async support (through an @require flag)
 
 ## Build
 
