@@ -16,7 +16,13 @@ pub struct Env {
     pub parent: Option<Rc<RefCell<Env>>>,
     pub exports: HashMap<String, ValueRef>,
 }
-#[derive(Debug, Clone)]
+
+impl PartialEq for Env {
+    fn eq(&self, other: &Self) -> bool {
+        self.values == other.values && self.parent == other.parent && self.exports == other.exports
+    }
+}
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     pub exports: HashMap<String, ValueRef>,
     pub name: Option<String>,
@@ -75,6 +81,21 @@ pub enum Value {
     Module(Module),
     Array(Rc<RefCell<Vec<ValueRef>>>),
     Null,
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Integer(a), Value::Integer(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Null, Value::Null) => true,
+            (Value::Module(a), Value::Module(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => a.borrow().clone() == b.borrow().clone(),
+            _ => false,
+        }
+    }
 }
 
 impl Value {
@@ -775,6 +796,19 @@ fn arr_pop(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
         }),
     }
 }
+fn arr_contains(item: ValueRef, args: &[ValueRef]) -> Result<ValueRef, VmError> {
+    expect_args(args, 1)?;
+    let cont = &args[0];
+    match item.as_ref() {
+        Value::Array(arr) => {
+            Ok(Rc::new(Value::Bool(arr.borrow().contains(cont))))
+        }
+        _ => Err(VmError {
+            msg: format!("Expected an array, got a {}", item.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
 fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     expect_args(args, 1)?;
 
@@ -810,6 +844,7 @@ pub static ATTRMAP: Lazy<
     array_methods.insert("push".to_string(), arr_push);
     array_methods.insert("pop".to_string(), arr_pop);
     array_methods.insert("get".to_string(), arr_get);
+    array_methods.insert("contains".to_string(), arr_contains);
     attramp.insert(ValueTag::Array, array_methods);
 
     str_methods.insert("upper".to_string(), str_upper);
@@ -827,7 +862,7 @@ fn arr_get(val: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
             msg: format!("Expected 1 to 2 args, got {}", args.len()),
             errcode: ErrCode::InvalidArgCount,
         });
-    } else if args.len() < 1 {
+    } else if args.is_empty() {
         return Err(VmError {
             msg: format!("Expected 1 to 2 args, got {}", args.len()),
             errcode: ErrCode::InvalidArgCount,
@@ -852,10 +887,10 @@ fn arr_get(val: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
             None => Ok(def),
         },
         _ => {
-            return Err(VmError {
+            Err(VmError {
                 msg: format!("Expected an array, not a {}", val.display()),
                 errcode: ErrCode::TypeError,
-            });
+            })
         }
     }
 }
