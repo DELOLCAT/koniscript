@@ -61,6 +61,38 @@ RBRACKET = 'RBRACKET'
 AT_RATE = 'AT_RATE'
 NOT = 'NOT'
 
+
+class CompilationException(Exception):
+    code: int
+    msg: str
+    line: int | None
+    col: int | None
+
+
+@dataclass
+class ParserError(CompilationException):
+    code: int  # TODO: Formalize these
+    msg: str
+    line: int | None
+    col: int | None  # TODO: Actually use columns (also in Tokens)
+
+
+@dataclass
+class CompilerError(CompilationException):
+    code: int
+    msg: str
+    line: int | None
+    col: int | None
+
+
+@dataclass
+class TokenizerError(CompilationException):
+    code: int
+    msg: str
+    line: int | None
+    col: int | None
+
+
 KEYWORDS = {
     'func': FUNC,
     'return': RETURN,
@@ -258,7 +290,9 @@ class Tokenizer:
                     value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             if self.get_current_char() != '"':
-                raise SyntaxError('Unterminated string literal')
+                raise TokenizerError(
+                    1, 'Unterminated string literal', self.line, self.col
+                )
             self.advance()
             return Token(STRING, value, start_line, start_col)
         elif current_char == "'":
@@ -280,7 +314,9 @@ class Tokenizer:
                     value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             if self.get_current_char() != "'":
-                raise SyntaxError('Unterminated string literal')
+                raise TokenizerError(
+                    1, 'Unterminated string literal', self.line, self.col
+                )
             self.advance()
             return Token(STRING, value, start_line, start_col)
 
@@ -297,7 +333,9 @@ class Tokenizer:
             tok_type = KEYWORDS.get(to_return, IDENTIFIER)
             return Token(tok_type, to_return, start_line, start_col)
 
-        raise SyntaxError(f'Unexpected token "{current_char}"')
+        raise TokenizerError(
+            2, f'Unexpected character "{current_char}"', self.line, self.col
+        )
 
 
 @dataclass
@@ -365,7 +403,12 @@ class Parser:
 
     def eat(self, token_type):
         if self.current_token.type != token_type:
-            raise SyntaxError(f'Expected {token_type}, got {self.current_token.type}')
+            raise ParserError(
+                3,
+                f'Expected {token_type}, got {self.current_token.type}',
+                self.current_token.line,
+                self.current_token.col,
+            )
         self.advance()
 
     def advance(self):
@@ -455,7 +498,12 @@ class Parser:
             dot_line = self.current_token.line
             self.eat(DOT)
             if self.current_token.type != IDENTIFIER:
-                raise SyntaxError("Expected identifier after '.'")
+                raise ParserError(
+                    4,
+                    "Expected identifier after '.'",
+                    self.current_token.line,
+                    self.current_token.col,
+                )
             name = self.current_token.value
             self.eat(IDENTIFIER)
             node = Attribute(dot_line, node, name)
@@ -530,16 +578,25 @@ class Parser:
             node = self.expr()
             if self.current_token.type == EOF:
                 raise IncompleteInput
+            self.skip_newline()
             self.eat(RPAREN)
             return node
-        raise SyntaxError(f'Unexpected token {token}')
+        raise ParserError(
+            3,
+            f'Unexpected token {token}',
+            self.current_token.line,
+            self.current_token.col,
+        )
 
     def export(self):
         self.eat(EXPORT)
         out = self.statement()
         if not isinstance(out, Assign):
-            raise RuntimeError(
-                'Cannot export anything other than an assignment or function'
+            raise ParserError(
+                5,
+                'Cannot export anything other than an assignment or function',
+                getattr(out, 'line', None),
+                getattr(out, 'col', None),
             )
         name = out.name
         ln = out.line
@@ -561,6 +618,7 @@ class Parser:
                 while self.current_token.type == COMMA:
                     if self.current_token.type == EOF:
                         raise IncompleteInput
+                    self.skip_newline()
                     self.eat(COMMA)
                     reqs.append(self.current_token.value)
                     self.eat(IDENTIFIER)
@@ -591,7 +649,12 @@ class Parser:
             elif f'{name}.om' in os.listdir():
                 modpath = os.path.join(base_path, f'{name}.om')
             else:
-                raise RuntimeError(f"Can't find module {name}")
+                raise ParserError(
+                    6,
+                    f"Can't find module {name}",
+                    self.current_token.line,
+                    self.current_token.col,
+                )
             with open(modpath) as f:
                 content = f.read()
 
@@ -624,11 +687,10 @@ class Parser:
 
     def if_decl(self):
         self.eat(IF)
-        if self.current_token.type == EOF:
-            raise IncompleteInput
         expr = self.expr()
         if self.current_token.type == EOF:
             raise IncompleteInput
+        self.skip_newline()
         body = self.block()
         if self.current_token.type == ELSE and self.peek().type == IF:
             self.eat(ELSE)
@@ -642,11 +704,10 @@ class Parser:
 
     def while_decl(self):
         self.eat(WHILE)
-        if self.current_token.type == EOF:
-            raise IncompleteInput
         expr = self.expr()
         if self.current_token.type == EOF:
             raise IncompleteInput
+        self.skip_newline()
         body = self.block()
         return While(self.current_token.line, expr, body)
 
@@ -671,8 +732,11 @@ class Parser:
                 self.eat(ASSIGN)
                 params[-1].option = self.primary()
             elif optional:
-                raise RuntimeError(
-                    'Cannot have a non-optional argument after an optional argument'
+                raise ParserError(
+                    7,
+                    'Cannot have a non-optional argument after an optional argument',
+                    self.current_token.line,
+                    self.current_token.col,
                 )
             while self.current_token.type == COMMA:
                 self.eat(COMMA)
@@ -687,8 +751,11 @@ class Parser:
                     self.eat(ASSIGN)
                     params[-1].option = self.primary()
                 elif optional:
-                    raise RuntimeError(
-                        'Cannot have a non-optional argument after an optional argument'
+                    raise ParserError(
+                        7,
+                        'Cannot have a non-optional argument after an optional argument',
+                        self.current_token.line,
+                        self.current_token.col,
                     )
         self.eat(RPAREN)
 
@@ -708,8 +775,11 @@ class Parser:
     def parse(self):
         node = self.statement()
         if self.current_token.type != EOF:
-            raise SyntaxError(
-                f'Unexpected token of type {self.current_token.type}: {self.current_token.value}'
+            raise ParserError(
+                3,
+                f'Unexpected token of type {self.current_token.type}: {self.current_token.value}',
+                self.current_token.line,
+                self.current_token.col,
             )
         return node
 
@@ -970,6 +1040,7 @@ class Compiler:
     class Warn:
         message: str
         line: int | None
+        col: int | None
 
     @dataclass
     class Result:
@@ -1037,8 +1108,11 @@ class Compiler:
         input_source: str | None = None,
     ) -> Generator[Warn, None, list[str]]:
         if input_source is None and 'source' in features:
-            raise RuntimeError(
-                'Compiler needs input source to compile with source info.'
+            raise CompilerError(
+                8,
+                'Compiler needs input source to compile with source info.',
+                None,
+                None,
             )
         for node in program.statements:
             # empty statements (e.g. stray braces) may be None
@@ -1091,7 +1165,12 @@ class Compiler:
             # if node.name in self.scopes[-1].var_map:
             idx = self.get_var(node.name)
             if idx is None:
-                raise RuntimeError(f'Variable {node.name} not declared')
+                raise CompilerError(
+                    9,
+                    f'Variable {node.name} not declared',
+                    node.line,
+                    getattr(node, 'col', None),
+                )
             if idx[1] == 'user':
                 self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
@@ -1115,8 +1194,9 @@ class Compiler:
                 self.emit(node.line, OP_SET_VAR, idx, depth)
 
                 yield self.Warn(
-                    f'Reassignment to a function attempted for {node.name} on {node.line}. This is usually not recommended.',
+                    f'Reassignment to a function attempted for {node.name}. This is usually not recommended',
                     node.line,
+                    getattr(node, 'col', None),
                 )
                 return idx, 0
         elif isinstance(node, Assign):
@@ -1137,11 +1217,21 @@ class Compiler:
         elif isinstance(node, BuiltinModulePointer):
             ref = self.ASTenv[node.idx]
             if ref[0] in self.modules:
-                raise RuntimeError(f'Module {ref[0]} already imported.')
+                raise CompilerError(
+                    10,
+                    f'Module {ref[0]} already imported.',
+                    node.line,
+                    getattr(node, 'col', None),
+                )
             self.emit(-1, 'PUSH_BUILTIN', node.idx)
         elif isinstance(node, Module):
             if node.name in self.modules:
-                raise RuntimeError(f'Module {node.name} already imported.')
+                raise CompilerError(
+                    10,
+                    f'Module {node.name} already imported.',
+                    node.line,
+                    getattr(node, 'col', None),
+                )
             self.modules.append(node.name)
             self.scopes.append(Compiler.Scope())
             for statement in node.body.statements:
@@ -1177,52 +1267,77 @@ class Compiler:
                                 req.append(item)
                         if not (len(req) <= len(node.args) <= len(params)):
                             if not len(req) == len(params):
-                                raise RuntimeError(
-                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}'
+                                raise CompilerError(
+                                    11,
+                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
                                 )
                             else:
-                                raise RuntimeError(
-                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}'
+                                raise CompilerError(
+                                    11,
+                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
                                 )
                 elif isinstance(itm, self.BuiltinScopeItem) and isinstance(
                     itm.value, BuiltinFunction
                 ):
                     if itm.value.max_args is None:
                         if not (itm.value.req_args <= len(node.args)):
-                            raise RuntimeError(
-                                f'Expected at least {itm.value.req_args} args, got {len(node.args)}'
+                            raise CompilerError(
+                                11,
+                                f'Expected at least {itm.value.req_args} args, got {len(node.args)}',
+                                node.line,
+                                getattr(node, 'col', None),
                             )
                     else:
                         if not (
                             itm.value.req_args <= len(node.args) <= itm.value.max_args
                         ):
                             if itm.value.req_args == itm.value.max_args:
-                                raise RuntimeError(
-                                    f'Expected exactly {itm.value.req_args} args, got {len(node.args)}'
+                                raise CompilerError(
+                                    11,
+                                    f'Expected exactly {itm.value.req_args} args, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
                                 )
                             else:
-                                raise RuntimeError(
-                                    f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}'
+                                raise CompilerError(
+                                    11,
+                                    f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
                                 )
             elif isinstance(node.func, Attribute):
-                broken = False
+                atr_itm: tuple[str, int, int] | None = None
                 for item in self.attrs:
                     if item[0] == node.func.rhs:
-                        atr_itm: tuple[str, int, int] = item
-                        broken = True
+                        atr_itm = item
                         break
-                if not broken:
-                    raise RuntimeError(f'No attribute `{node.func.rhs}` found')
+                if atr_itm is None:
+                    raise CompilerError(
+                        12,
+                        f'No attribute `{node.func.rhs}` found',
+                        node.line,
+                        getattr(node, 'col', None),
+                    )
                 min_args = atr_itm[1]
                 max_args = atr_itm[2]
                 if not (min_args <= len(node.args) <= max_args):
                     if min_args == max_args:
-                        raise RuntimeError(
-                            f'Expected exactly {min_args} args, got {len(node.args)}'
+                        raise CompilerError(
+                            11,
+                            f'Expected exactly {min_args} args, got {len(node.args)}',
+                            node.line,
+                            getattr(node, 'col', None),
                         )
                     else:
-                        raise RuntimeError(
-                            f'Expected {min_args} to {max_args} args, got {len(node.args)}'
+                        raise CompilerError(
+                            11,
+                            f'Expected {min_args} to {max_args} args, got {len(node.args)}',
+                            node.line,
+                            getattr(node, 'col', None),
                         )
 
             # compile argument expressions once
@@ -1253,7 +1368,6 @@ class Compiler:
                 # object + method are on the stack already, just call
                 self.emit(node.line, OP_CALL, len(node.args))
             else:
-                input(node.func)
                 raise NotImplementedError  # falling back for future call types
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
@@ -1306,8 +1420,11 @@ class Compiler:
                     idx,
                 )
             else:
-                raise RuntimeError(
-                    '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.'
+                raise CompilerError(
+                    13,
+                    '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.',
+                    None,
+                    None,
                 )
         elif isinstance(node, Return):
             if node.value is None:
@@ -1327,7 +1444,12 @@ class Compiler:
                     broken = True
                     break
             if not broken:
-                raise RuntimeError(f'Could not find attribute {node.rhs}')
+                raise CompilerError(
+                    12,
+                    f'Could not find attribute {node.rhs}',
+                    node.line,
+                    getattr(node, 'col', None),
+                )
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((2, node.rhs))
             self.emit(node.line, 'GETATTR', idx)
@@ -1336,4 +1458,4 @@ class Compiler:
             yield from self.compile_ins(node.item)
             self.emit(node.line, 'GET_ITEM')
         else:
-            raise NotImplementedError(f'Did not implement {node} yet :<')
+            raise CompilerError(13, f'Did not implement {node} yet :<', None, None)
