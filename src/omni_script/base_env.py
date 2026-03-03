@@ -16,6 +16,7 @@ ASTenv: list[tuple[str, Builtin]] = [
     ('to_bool', BuiltinFunction('to_bool', 1, 1)),
     ('to_float', BuiltinFunction('to_float', 1, 1)),
     ('exit', BuiltinFunction('exit', 0, 1)),
+    ('len', BuiltinFunction('len', 1, 1)),
     ('math', BuiltinModule([BuiltinFunction('hi', 0, 0)], 'math')),
 ]
 

@@ -489,6 +489,10 @@ pub fn vmenv() -> Vec<Value> {
             name: "exit".to_string(),
             func: vm_exit,
         }),
+        Value::Func(OmniFunc::Builtin {
+            name: "len".to_string(),
+            func: vm_len,
+        }),
         Value::Module(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
@@ -526,6 +530,20 @@ fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
         msg: "".to_string(),
         errcode: ErrCode::ExitSignal(*code as i32),
     })
+}
+
+fn vm_len(args: &[Value]) -> Result<Value, VmError> {
+    expect_args(args, 1)?;
+    match &args[0] {
+        Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
+        Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
+        _ => Err(
+            VmError {
+                msg: format!("Cannot find the `len()` of a {}", args[0].display()),
+                errcode: ErrCode::TypeError
+            }
+        )
+    }
 }
 fn add(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
