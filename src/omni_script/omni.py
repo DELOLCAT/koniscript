@@ -190,7 +190,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, filepath, file_content: str):
         f'at {filepath}{"[green]:" + str(ln + 1) if ln else " [red]No line data available"}{":" + str(col) if col is not None else ""}',
         file=sys.stderr,
     )
-    if ln:
+    if ln is not None:
         splitted = file_content.splitlines()
         from_lines = max(0, min(ln - 3, len(splitted)))
         to_lines = max(0, min(ln + 4, len(splitted)))
