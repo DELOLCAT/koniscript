@@ -137,11 +137,6 @@ $ omvm run ./examples/fib.omc
 - :x: A standard library (though certain imports, like fs, would need an @require flag)
 - :x: For loops
 - :x: A REPL
-- :pause_button: More builtins
-  - :x: Builtin Functions
-  - :pause_button: Builtin Methods
-    - :pause_button: Array methods
-    - :pause_button: String methods
 - :pause_button: Dynamic modules
 - :x: Better compiler error messages
 
