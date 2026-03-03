@@ -21,8 +21,8 @@ ASTenv: list[tuple[str, Builtin]] = [
 ]
 
 attrs: list[tuple[str, int, int]] = [  # TODO: perhaps make this type specific somehow
-    ('push', 1, 1), # Format: name, min, max args
-    ('upper', 0, 0), # Properties would just be strings
+    ('push', 1, 1),  # Format: name, min, max args
+    ('upper', 0, 0),  # Properties would just be strings
     ('lower', 0, 0),
     ('strip', 0, 0),
     ('pop', 0, 0),
@@ -30,7 +30,7 @@ attrs: list[tuple[str, int, int]] = [  # TODO: perhaps make this type specific s
     ('contains', 1, 1),
     ('is_empty', 0, 0),
     ('insert', 2, 2),
-    ('empty', 0, 0)
+    ('empty', 0, 0),
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]

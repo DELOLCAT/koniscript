@@ -72,7 +72,7 @@ KEYWORDS = {
     'import': IMPORT,
     'export': EXPORT,
     '@': AT_RATE,
-    'not': NOT
+    'not': NOT,
 }
 
 
@@ -391,11 +391,13 @@ class Parser:
             node = BinOp(self.current_token.line, node, op, self.logical_and())
 
         return node
+
     def logical_not(self):
         if self.current_token.type == NOT:
             self.eat(NOT)
             return UnaryOp(self.current_token.line, NOT, self.logical_not())
         return self.equality()
+
     def logical_and(self):
         node = self.logical_not()
         while self.current_token.type == AND:
@@ -472,7 +474,7 @@ class Parser:
                 raise IncompleteInput
             self.eat(RPAREN)
             node = Call(call_line, node, args)
-        
+
         while self.current_token.type == LBRACKET:
             ln = self.current_token.line
             self.eat(LBRACKET)
@@ -484,7 +486,7 @@ class Parser:
     def skip_newline(self):
         while self.current_token.type == NEWLINE:
             self.eat(NEWLINE)
-    
+
     def primary(self):
         token = self.current_token
         if token.type == INT:
@@ -582,7 +584,9 @@ class Parser:
             for i, item in enumerate(self.base_env):
                 if isinstance(item[1], BuiltinModule) and item[1].name == name:
                     return Assign(-1, name, BuiltinModulePointer(ln, i))
-            if f'{name}.om' in os.listdir('packages'): # TODO: do this in a more dynamic way
+            if f'{name}.om' in os.listdir(
+                'packages'
+            ):  # TODO: do this in a more dynamic way
                 modpath = os.path.join(base_path, 'packages', f'{name}.om')
             elif f'{name}.om' in os.listdir():
                 modpath = os.path.join(base_path, f'{name}.om')
@@ -745,11 +749,14 @@ class Array(ASTNode):
     line: int
     items: list[ASTNode]
 
-@dataclass 
+
+@dataclass
 class GetIndex(ASTNode):
     line: int
     item: ASTNode
     idx: ASTNode
+
+
 @dataclass
 class Block(ASTNode):
     line: int
@@ -911,7 +918,7 @@ OPCODE_MAP = {
     OR: OP_OR,
     AND: OP_AND,
     NEG: OP_NEG,
-    NOT: OP_NOT
+    NOT: OP_NOT,
 }
 BUILTIN = 'BUILTIN'
 NULL = 'NULL'
@@ -919,7 +926,10 @@ NULL = 'NULL'
 
 class Compiler:
     def __init__(
-        self, env: list[str], ASTenv: list[tuple[str, Builtin]], attrs: list[tuple[str, int, int]]
+        self,
+        env: list[str],
+        ASTenv: list[tuple[str, Builtin]],
+        attrs: list[tuple[str, int, int]],
     ):
         self.constants = []
         self.vars = []
@@ -1050,7 +1060,9 @@ class Compiler:
 
         output.append('.const')
         for const in self.constants:
-            output.append(f'{const[0]};{str(const[1]).replace('\n', '\\n').replace(';', '\\;')};')
+            output.append(
+                f'{const[0]};{str(const[1]).replace("\n", "\\n").replace(";", "\\;")};'
+            )
         output.append('.code')
         for instr in self.code:
             output.append(' '.join(map(str, instr)))
@@ -1200,14 +1212,18 @@ class Compiler:
                         broken = True
                         break
                 if not broken:
-                    raise RuntimeError(f"No attribute `{node.func.rhs}` found")
+                    raise RuntimeError(f'No attribute `{node.func.rhs}` found')
                 min_args = atr_itm[1]
                 max_args = atr_itm[2]
                 if not (min_args <= len(node.args) <= max_args):
                     if min_args == max_args:
-                        raise RuntimeError(f'Expected exactly {min_args} args, got {len(node.args)}')
+                        raise RuntimeError(
+                            f'Expected exactly {min_args} args, got {len(node.args)}'
+                        )
                     else:
-                        raise RuntimeError(f'Expected {min_args} to {max_args} args, got {len(node.args)}')
+                        raise RuntimeError(
+                            f'Expected {min_args} to {max_args} args, got {len(node.args)}'
+                        )
 
             # compile argument expressions once
             for arg in node.args:
@@ -1224,7 +1240,7 @@ class Compiler:
                             if item.option is not None:
                                 req.append(item)
                         if len(req) >= len(node.args):
-                            for item in params[len(req):]:
+                            for item in params[len(req) :]:
                                 yield from self.compile_ins(item.option)  # pyright: ignore[reportArgumentType]
                         self.emit(node.line, OP_CALL, len(params))
                     else:
@@ -1318,6 +1334,6 @@ class Compiler:
         elif isinstance(node, GetIndex):
             yield from self.compile_ins(node.idx)
             yield from self.compile_ins(node.item)
-            self.emit(node.line, "GET_ITEM")
+            self.emit(node.line, 'GET_ITEM')
         else:
-                raise NotImplementedError(f'Did not implement {node} yet :<')
+            raise NotImplementedError(f'Did not implement {node} yet :<')

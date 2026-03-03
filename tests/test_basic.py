@@ -24,7 +24,4 @@ def test_funcs():
 def test_string_methods():
     # make sure calling an attribute method works both as a standalone
     # expression and as a value passed into print
-    assert (
-        omni.run(Path(__file__).parent / 'test_string_methods.om').stdout
-        == b'HI\n'
-    )
+    assert omni.run(Path(__file__).parent / 'test_string_methods.om').stdout == b'HI\n'
