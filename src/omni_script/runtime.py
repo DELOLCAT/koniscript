@@ -127,6 +127,7 @@ T_FLOAT = 7
 
 
 class ASTNode:
+    line: int
     pass
 
 
