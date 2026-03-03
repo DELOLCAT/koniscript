@@ -80,7 +80,7 @@ def comp(
         program: Program = psr.program()
     except CompilationException as e:
         return Failed(None, e)
-    
+
     compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
     try:
         cmp = compiler.compile(program, features, file_content)
@@ -148,42 +148,51 @@ def compile(
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
-                print(f"[yellow b]{value.message}")
+                show_err_or_warn(value, filepath, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
                 break
             elif isinstance(e.value, Failed):
-                print(f"[red b]E{e.value.exception.code:02}: {e.value.exception.msg}:")
-                ln = e.value.exception.line
-                col = e.value.exception.col
-                print(
-                    f'at {filepath}{'[green]:' + str(ln+1) if ln else " [red]No line data available"}{':' + str(col) if col is not None else ''}'
-                )  # since there would always be column data if there is line data, just use a `:` for column
-                if ln:
-                    splitted = file_content.splitlines()
-                    from_lines = max(
-                        0, min(ln - 3, len(splitted))
-                    )  # for a 3 line window
-                    to_lines = max(0, min(ln + 4, len(splitted)))
-                    for i, cln in enumerate(
-                        splitted[from_lines:to_lines], from_lines + 1
-                    ):
-                        arr = "[red b]->    [/]" if ln == i - 1 else "      "
-                        print(
-                            f"{arr}[blue dim]{i} | [/]{escape(cln)}"
-                        )  # escape() is to escape any possible rich tags in the source
+                show_err_or_warn(e.value, filepath, file_content)
                 return
             else:
                 raise
     fp = f'{str(filepath).removesuffix(".om")}.omc'
-    print(f'Compiled in {round(perf_counter() - start_time, 3)} seconds')
+    print(f"Compiled in {round(perf_counter() - start_time, 3)} seconds")
     status = console.status(f"Writing to {fp}")
     status.start()
     with open(fp, "w") as file:
         file.write("\n".join([str(x) for x in instructions]))
     status.stop()
     print(f"Wrote to {fp}")
+
+
+def show_err_or_warn(e: Failed | Compiler.Warn, filepath, file_content: str):
+    if isinstance(e, Failed):
+        color = "[red b]"
+        tag = f"[red b]E{e.exception.code:02}"
+        ln = e.exception.line
+        col = e.exception.col
+        msg = e.exception.msg
+    else:
+        color = "[yellow b]"
+        tag = "[yellow b]Warning"
+        col = e.col
+        ln = e.line
+        msg = e.message
+    print(f"{tag}: {msg}:", file=sys.stderr)
+    print(
+        f'at {filepath}{'[green]:' + str(ln+1) if ln else " [red]No line data available"}{':' + str(col) if col is not None else ''}',
+        file=sys.stderr,
+    )
+    if ln:
+        splitted = file_content.splitlines()
+        from_lines = max(0, min(ln - 3, len(splitted)))
+        to_lines = max(0, min(ln + 4, len(splitted)))
+        for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
+            arr = f"{color}->    [/]" if ln == i - 1 else "      "
+            print(f"{arr}[blue dim]{i} | [/]{escape(cln)}", file=sys.stderr)
 
 
 @app.command()
@@ -202,29 +211,14 @@ def run(
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
-                print(f"[yellow b]{value.message}", file=sys.stdout)
+                show_err_or_warn(value, filepath, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
                 break
             elif isinstance(e.value, Failed):
-                # mimic compile() error reporting
-                print(f"[red b]E{e.value.exception.code:02}: {e.value.exception.msg}:")
-                ln = e.value.exception.line
-                col = e.value.exception.col
-                print(
-                    f'at {filepath}{'[green]:' + str(ln+1) if ln else " [red]No line data available"}{':' + str(col) if col is not None else ''}'
-                )
-                if ln:
-                    splitted = file_content.splitlines()
-                    from_lines = max(0, min(ln - 3, len(splitted)))
-                    to_lines = max(0, min(ln + 4, len(splitted)))
-                    for i, cln in enumerate(
-                        splitted[from_lines:to_lines], from_lines + 1
-                    ):
-                        arr = "[red b]->    [/]" if ln == i - 1 else "      "
-                        print(f"{arr}[blue dim]{i} | [/]{escape(cln)}")
                 # abort without running
+                show_err_or_warn(e.value, filepath, file_content)
                 return
             else:
                 raise
@@ -245,7 +239,7 @@ def run(
             )
             sys.exit(127)
         # run the VM and capture its output for tests, but also echo to user
-        out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
+        out = subprocess.run([str(vm_path), "run", f.name], capture_output=True)
     finally:
         os.unlink(f.name)
 

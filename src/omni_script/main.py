@@ -994,6 +994,7 @@ class Compiler:
     class Warn:
         message: str
         line: int | None
+        col: int | None
 
     @dataclass
     class Result:
@@ -1139,8 +1140,9 @@ class Compiler:
                 self.emit(node.line, OP_SET_VAR, idx, depth)
 
                 yield self.Warn(
-                    f'Reassignment to a function attempted for {node.name} on {node.line}. This is usually not recommended.',
+                    f'Reassignment to a function attempted for {node.name}. This is usually not recommended',
                     node.line,
+                    getattr(node, 'col', None)
                 )
                 return idx, 0
         elif isinstance(node, Assign):
