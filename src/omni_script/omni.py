@@ -21,6 +21,7 @@ import subprocess
 from rich import print
 from rich.markup import escape
 from rich.console import Console
+from time import perf_counter
 
 app = typer.Typer()
 
@@ -79,8 +80,9 @@ def comp(
         program: Program = psr.program()
     except CompilationException as e:
         return Failed(None, e)
+    
+    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
     try:
-        compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
         cmp = compiler.compile(program, features, file_content)
     except CompilationException as e:
         return Failed(compiler, e)
@@ -138,6 +140,7 @@ def compile(
         f'Compiling with [b green]{out}[/]{" [d](source+line info)[/]" if out == "debug" else ""}. [blue]See `omni compile --help` for more info'
     )
     file_content = Path(filepath).read_text()
+    start_time = perf_counter()
     it = iter(comp(file_content, comp_features))
 
     instructions = None
@@ -174,6 +177,7 @@ def compile(
             else:
                 raise
     fp = f'{str(filepath).removesuffix(".om")}.omc'
+    print(f'Compiled in {round(perf_counter() - start_time, 3)} seconds')
     status = console.status(f"Writing to {fp}")
     status.start()
     with open(fp, "w") as file:

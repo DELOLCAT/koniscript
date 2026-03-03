@@ -70,7 +70,7 @@ class CompilationException(Exception):
 class ParserError(CompilationException):
     code: int # TODO: Formalize these
     msg: str
-    line: int
+    line: int | None
     col: int | None # TODO: Actually use columns (also in Tokens)
 
 @dataclass 
@@ -84,7 +84,7 @@ class CompilerError(CompilationException):
 class TokenizerError(CompilationException):
     code: int
     msg: str
-    line: int
+    line: int | None
     col: int | None
 
 KEYWORDS = {
@@ -1229,13 +1229,12 @@ class Compiler:
                                     f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}', node.line, getattr(node, 'col', None)
                                 )
             elif isinstance(node.func, Attribute):
-                broken = False
+                atr_itm: tuple[str, int, int] | None = None
                 for item in self.attrs:
                     if item[0] == node.func.rhs:
-                        atr_itm: tuple[str, int, int] = item
-                        broken = True
+                        atr_itm = item
                         break
-                if not broken:
+                if atr_itm is None:
                     raise CompilerError(12, f'No attribute `{node.func.rhs}` found', node.line, getattr(node, 'col', None))
                 min_args = atr_itm[1]
                 max_args = atr_itm[2]
