@@ -1,14 +1,25 @@
+from dataclasses import dataclass
 import shutil
+from typing import Generator
 import typer
 import os
 import sys
 from pathlib import Path
-from omni_script.main import Tokenizer, Parser, EOF, Token, Program, Compiler
+from omni_script.main import (
+    Tokenizer,
+    Parser,
+    EOF,
+    Token,
+    Program,
+    Compiler,
+    CompilationException,
+)
 from omni_script import base_env
 import copy
 import tempfile
 import subprocess
 from rich import print
+from rich.markup import escape
 from rich.console import Console
 
 app = typer.Typer()
@@ -17,15 +28,15 @@ console = Console()
 
 
 def exec_name(name: str) -> str:
-    if sys.platform == 'win32':
-        return name + '.exe'
+    if sys.platform == "win32":
+        return name + ".exe"
     return name
 
 
 def bundled_exe(name: str) -> Path:
-    base = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
-    if sys.platform == 'win32':
-        name += '.exe'
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    if sys.platform == "win32":
+        name += ".exe"
     return base / name
 
 
@@ -34,27 +45,52 @@ class FileNotReadable(Exception):
         self.path = path
 
 
-def comp(filepath: Path, features=None):
-    if features is None:
-        features = []
-    current_env = copy.copy(base_env.compiler_env)  # noqa: F841
-    file_content = Path(filepath).read_text()
-    tknr = Tokenizer(file_content)
-    tkns: list[Token] = []
-    while True:
-        tkn = tknr.get_next_token()
-        tkns.append(tkn)
-        if tkn.type == EOF:
-            break
-    psr: Parser = Parser(tkns, base_env.ASTenv)
-    program: Program = psr.program()
-    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
-    cmp = compiler.compile(program, features, file_content)
+@dataclass
+class CompilationResult:
+    pass
+
+
+@dataclass
+class Failed(CompilationResult):
+    compiler: None | Compiler
+    exception: CompilationException
+
+
+@dataclass
+class Success(CompilationResult):
+    instructions: list[str]
+
+
+def comp(
+    file_content: str, features=None
+) -> Generator[Compiler.Warn, None, CompilationResult]:
+    try:
+        if features is None:
+            features = []
+        current_env = copy.copy(base_env.compiler_env)  # noqa: F841
+        tknr = Tokenizer(file_content)
+        tkns: list[Token] = []
+        while True:
+            tkn = tknr.get_next_token()
+            tkns.append(tkn)
+            if tkn.type == EOF:
+                break
+        psr: Parser = Parser(tkns, base_env.ASTenv)
+        program: Program = psr.program()
+    except CompilationException as e:
+        return Failed(None, e)
+    try:
+        compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
+        cmp = compiler.compile(program, features, file_content)
+    except CompilationException as e:
+        return Failed(compiler, e)
     while True:
         try:
             yield next(cmp)
         except StopIteration as e:
-            return e.value
+            return Success(e.value)
+        except CompilationException as e:
+            return Failed(compiler, e)
 
 
 @app.command()
@@ -62,98 +98,164 @@ def compile(
     filepath: Path,
     release: bool = typer.Option(
         False,
-        '--release',
-        '-r',
+        "--release",
+        "-r",
         is_flag=True,
-        help='For turning off all debug features. Use when building the final output of your app',
+        help="For turning off all debug features. Use when building the final output of your app",
     ),
     line: bool | None = typer.Option(
         None,
-        '--line',
-        '-l',
+        "--line",
+        "-l",
         is_flag=True,
-        help='For adding line info into your app for stack traces. Default: TRUE',
+        help="For adding line info into your app for stack traces. Default: TRUE",
     ),
     source: bool | None = typer.Option(
         None,
-        '--source',
-        '-s',
+        "--source",
+        "-s",
         is_flag=True,
-        help='For adding a copy of the source into your app for stack traces. Default: TRUE',
+        help="For adding a copy of the source into your app for stack traces. Default: TRUE",
     ),
 ):
     if release:
         comp_features = []
     elif not source and not line:
-        comp_features = ['source', 'line']
+        comp_features = ["source", "line"]
     else:
         comp_features = []
         if source:
-            comp_features.append('source')
+            comp_features.append("source")
         if line:
-            comp_features.append('line')
+            comp_features.append("line")
     if len(comp_features) == 2:
-        out = 'debug'
+        out = "debug"
     elif len(comp_features) == 0:
-        out = 'release'
+        out = "release"
     else:
-        out = '+ '.join(comp_features) + ' info'
+        out = "+ ".join(comp_features) + " info"
     print(
         f'Compiling with [b green]{out}[/]{" [d](source+line info)[/]" if out == "debug" else ""}. [blue]See `omni compile --help` for more info'
     )
-    it = iter(comp(filepath, comp_features))
+    file_content = Path(filepath).read_text()
+    it = iter(comp(file_content, comp_features))
 
     instructions = None
     while True:
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
-                print(f'[yellow b]{value.message}')
+                print(f"[yellow b]{value.message}")
         except StopIteration as e:
-            instructions = e.value
-            break
+            if isinstance(e.value, Success):
+                instructions = e.value.instructions
+                break
+            elif isinstance(e.value, Failed):
+                print(f"[red b]E{e.value.exception.code:02}: {e.value.exception.msg}:")
+                ln = e.value.exception.line
+                col = e.value.exception.col
+                print(
+                    f'at {filepath}{'[green]:' + str(ln+1) if ln else " [red]No line data available"}{':' + str(col) if col is not None else ''}'
+                )  # since there would always be column data if there is line data, just use a `:` for column
+                if ln:
+                    splitted = file_content.splitlines()
+                    from_lines = max(
+                        0, min(ln - 3, len(splitted))
+                    )  # for a 3 line window
+                    to_lines = max(0, min(ln + 4, len(splitted)))
+                    for i, cln in enumerate(
+                        splitted[from_lines:to_lines], from_lines + 1
+                    ):
+                        arr = "[red b]->    [/]" if ln == i - 1 else "      "
+                        print(
+                            f"{arr}[blue dim]{i} | [/]{escape(cln)}"
+                        )  # escape() is to escape any possible rich tags in the source
+                return
+            else:
+                raise
     fp = f'{str(filepath).removesuffix(".om")}.omc'
-    status = console.status(f'Writing to {fp}')
+    status = console.status(f"Writing to {fp}")
     status.start()
-    with open(fp, 'w') as file:
-        file.write('\n'.join([str(x) for x in instructions]))
+    with open(fp, "w") as file:
+        file.write("\n".join([str(x) for x in instructions]))
     status.stop()
-    print(f'Wrote to {fp}')
+    print(f"Wrote to {fp}")
 
 
 @app.command()
-def run(filepath: Path):
-    gen = comp(filepath)
-    f = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.omc')
-    try:
-        # Consume the generator and capture its return value
-        instructions = None
-        try:
-            while True:
-                v = next(gen)
-                if isinstance(v, Compiler.Warn):
-                    print(f'[yellow b]{v.message}', file=sys.stdout)
-        except StopIteration as e:
-            instructions = e.value
+def run(
+    filepath: Path,
+):
+    # run() should always compile with debug info enabled
+    # ignore release/line/source choices and force both 'source' and 'line'
+    comp_features: list[str] = ["source", "line"]
 
-        f.write('\n'.join([str(x) for x in instructions]))
+    file_content = Path(filepath).read_text()
+    it = iter(comp(file_content, comp_features))
+
+    instructions = None
+    while True:
+        try:
+            value = next(it)
+            if isinstance(value, Compiler.Warn):
+                print(f"[yellow b]{value.message}", file=sys.stdout)
+        except StopIteration as e:
+            if isinstance(e.value, Success):
+                instructions = e.value.instructions
+                break
+            elif isinstance(e.value, Failed):
+                # mimic compile() error reporting
+                print(f"[red b]E{e.value.exception.code:02}: {e.value.exception.msg}:")
+                ln = e.value.exception.line
+                col = e.value.exception.col
+                print(
+                    f'at {filepath}{'[green]:' + str(ln+1) if ln else " [red]No line data available"}{':' + str(col) if col is not None else ''}'
+                )
+                if ln:
+                    splitted = file_content.splitlines()
+                    from_lines = max(0, min(ln - 3, len(splitted)))
+                    to_lines = max(0, min(ln + 4, len(splitted)))
+                    for i, cln in enumerate(
+                        splitted[from_lines:to_lines], from_lines + 1
+                    ):
+                        arr = "[red b]->    [/]" if ln == i - 1 else "      "
+                        print(f"{arr}[blue dim]{i} | [/]{escape(cln)}")
+                # abort without running
+                return
+            else:
+                raise
+
+    f = tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".omc")
+    try:
+        f.write("\n".join([str(x) for x in instructions]))
         # We need to close the file so that the subprocess can open it.
         f.close()
-        vm_path = shutil.which('omvm')
-        if (Path(__file__).parent / exec_name('omvm')).is_file():
-            vm_path = Path(__file__).parent / exec_name('omvm')
+        vm_path = shutil.which("omvm")
+        if (Path(__file__).parent / exec_name("omvm")).is_file():
+            vm_path = Path(__file__).parent / exec_name("omvm")
         elif vm_path is not None:
             pass
         else:
             print(
-                '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
+                "[red b]Could not find `omvm` (OmniVM), which is required to run programs"
             )
             sys.exit(127)
+        # run the VM and capture its output for tests, but also echo to user
         out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
     finally:
         os.unlink(f.name)
+
+    # print VM output when invoked as a CLI command
+    if out.stdout:
+        sys.stdout.buffer.write(out.stdout)
+    if out.stderr:
+        sys.stderr.buffer.write(out.stderr)
+    # propagate exit code
+    if out.returncode != 0:
+        sys.exit(out.returncode)
+
     return out  # For tests
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app()
