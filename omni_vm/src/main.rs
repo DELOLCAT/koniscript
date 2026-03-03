@@ -772,7 +772,7 @@ impl VM {
                     };
                     let out = match runtime::vm_to_bool(&[v.as_ref().clone()])? {
                         Value::Bool(b) => Rc::new(Value::Bool(!b)),
-                        _ => panic!("Extreme VM edge case on NOT")
+                        _ => panic!("Extreme VM edge case on NOT"),
                     };
                     self.push_to_stack(out);
                 }

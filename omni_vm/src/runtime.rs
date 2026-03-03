@@ -47,7 +47,7 @@ impl VmError {
 pub enum VmPanic {
     TagConversionFailed,
     UnexpectedValue,
-    InvalidBytecode
+    InvalidBytecode,
 }
 #[repr(i8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
