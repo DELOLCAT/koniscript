@@ -27,7 +27,8 @@ attrs: list[tuple[str, int, int]] = [  # TODO: perhaps make this type specific s
     ('strip', 0, 0),
     ('pop', 0, 0),
     ('get', 1, 2),
-    ('contains', 1, 1)
+    ('contains', 1, 1),
+    ('is_empty', 0, 0)
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]

@@ -7,6 +7,8 @@ use std::rc::Rc;
 use std::thread::sleep;
 
 pub type ValueRef = Rc<Value>;
+pub type MethodArgs<'a> = &'a [Rc<Value>];
+pub type MethodReturn = Result<ValueRef, VmError>;
 
 pub static SUPPORTED_FEATURES: Lazy<Vec<String>> =
     Lazy::new(|| vec!["fs".to_string(), "string_methods".to_string()]);
@@ -537,12 +539,10 @@ fn vm_len(args: &[Value]) -> Result<Value, VmError> {
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
         Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
-        _ => Err(
-            VmError {
-                msg: format!("Cannot find the `len()` of a {}", args[0].display()),
-                errcode: ErrCode::TypeError
-            }
-        )
+        _ => Err(VmError {
+            msg: format!("Cannot find the `len()` of a {}", args[0].display()),
+            errcode: ErrCode::TypeError,
+        }),
     }
 }
 fn add(a: Value, b: Value) -> Result<Value, VmError> {
@@ -818,9 +818,7 @@ fn arr_contains(item: ValueRef, args: &[ValueRef]) -> Result<ValueRef, VmError> 
     expect_args(args, 1)?;
     let cont = &args[0];
     match item.as_ref() {
-        Value::Array(arr) => {
-            Ok(Rc::new(Value::Bool(arr.borrow().contains(cont))))
-        }
+        Value::Array(arr) => Ok(Rc::new(Value::Bool(arr.borrow().contains(cont)))),
         _ => Err(VmError {
             msg: format!("Expected an array, got a {}", item.display()),
             errcode: ErrCode::TypeError,
@@ -863,17 +861,54 @@ pub static ATTRMAP: Lazy<
     array_methods.insert("pop".to_string(), arr_pop);
     array_methods.insert("get".to_string(), arr_get);
     array_methods.insert("contains".to_string(), arr_contains);
+    array_methods.insert("is_empty".to_string(), arr_str_is_empty);
     attramp.insert(ValueTag::Array, array_methods);
 
     str_methods.insert("upper".to_string(), str_upper);
     str_methods.insert("lower".to_string(), str_lower);
     str_methods.insert("strip".to_string(), str_strip);
+    str_methods.insert("is_empty".to_string(), arr_str_is_empty);
     attramp.insert(ValueTag::String, str_methods);
 
     attramp
 });
 
-fn arr_get(val: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmError> {
+    let exact = min == max;
+    let msg: String;
+    if exact {
+        msg = format!("Expected exactly {} args, got {}", min, args.len());
+    } else {
+        msg = format!("Expected {} to {} args, got {}", min, max, args.len());
+    }
+    if args.len() > max {
+        return Err(VmError {
+            msg: msg,
+            errcode: ErrCode::InvalidArgCount,
+        });
+    }
+    if args.len() < min {
+        return Err(VmError {
+            msg: msg,
+            errcode: ErrCode::InvalidArgCount,
+        });
+    }
+    Ok(())
+}
+
+fn arr_str_is_empty(val: ValueRef, args: MethodArgs) -> MethodReturn {
+    check_method_args(args, 0, 0)?;
+    match val.as_ref() {
+        Value::String(v) => Ok(Rc::new(Value::Bool(v.is_empty()))),
+        Value::Array(v) => Ok(Rc::new(Value::Bool(v.borrow().is_empty()))),
+        _ => Err(VmError {
+            msg: format!("Expected a string or array, got a {}", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
+
+fn arr_get(val: Rc<Value>, args: MethodArgs) -> MethodReturn {
     if args.len() > 2 {
         // TODO: make a function that makes arg checking better
         return Err(VmError {
@@ -897,19 +932,17 @@ fn arr_get(val: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     };
     let def = match args.get(1) {
         Some(v) => v.clone(),
-        None => Rc::new(Value::Null)
+        None => Rc::new(Value::Null),
     };
     match val.as_ref() {
         Value::Array(v) => match v.borrow().get(*idx as usize) {
             Some(v) => Ok(v.clone()),
             None => Ok(def),
         },
-        _ => {
-            Err(VmError {
-                msg: format!("Expected an array, not a {}", val.display()),
-                errcode: ErrCode::TypeError,
-            })
-        }
+        _ => Err(VmError {
+            msg: format!("Expected an array, not a {}", val.display()),
+            errcode: ErrCode::TypeError,
+        }),
     }
 }
 
