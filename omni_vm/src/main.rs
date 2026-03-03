@@ -691,6 +691,10 @@ impl VM {
                     self.push_to_stack(out);
                 }
                 "NOP" => {}
+                "POP" => {
+                    // remove value if present, ignore underflow
+                    let _ = self.frames.last_mut().unwrap().stack.pop();
+                }
                 "MAKE_MODULE" => {
                     let new_mod = Module {
                         exports: self.frames.last().unwrap().env.borrow().exports.clone(),

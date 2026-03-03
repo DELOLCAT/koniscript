@@ -917,7 +917,7 @@ NULL = 'NULL'
 
 class Compiler:
     def __init__(
-        self, env: list[str], ASTenv: list[tuple[str, Builtin]], attrs: list[str]
+        self, env: list[str], ASTenv: list[tuple[str, Builtin]], attrs: list[tuple[str, int, int]]
     ):
         self.constants = []
         self.vars = []
@@ -932,7 +932,7 @@ class Compiler:
         self.lines = []
         self.modules = []
         self.exports = []
-        self.attrs: list[str] = attrs
+        self.attrs: list[tuple[str, int, int]] = attrs
         self.enter_scope()
 
     @dataclass
@@ -1029,7 +1029,13 @@ class Compiler:
                 'Compiler needs input source to compile with source info.'
             )
         for node in program.statements:
+            # empty statements (e.g. stray braces) may be None
+            if node is None:
+                continue
             yield from self.compile_ins(node)
+            # drop any value produced by the statement so that subsequent
+            # instructions start with a clean stack
+            self.emit(node.line, 'POP')
         self.emit(0, 'NOP')
         output = []
         output.append('.version')
@@ -1142,7 +1148,10 @@ class Compiler:
             idx = self.add_constant([TYPES[BOOL], 'true' if node.value else 'false'])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
+            # compile the expression that identifies the callable (variable, attribute, etc.)
             yield from self.compile_ins(node.func)
+
+            # validate argument count depending on what kind of call this is
             if isinstance(node.func, Variable):
                 itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
                 if isinstance(itm, self.ScopeItem):
@@ -1181,9 +1190,28 @@ class Compiler:
                                 raise RuntimeError(
                                     f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}'
                                 )
+            elif isinstance(node.func, Attribute):
+                broken = False
+                for item in self.attrs:
+                    if item[0] == node.func.rhs:
+                        atr_itm: tuple[str, int, int] = item
+                        broken = True
+                        break
+                if not broken:
+                    raise RuntimeError(f"No attribute `{node.func.rhs}` found")
+                min_args = atr_itm[1]
+                max_args = atr_itm[2]
+                if not (min_args <= len(node.args) <= max_args):
+                    if min_args == max_args:
+                        raise RuntimeError(f'Expected exactly {min_args} args, got {len(node.args)}')
+                    else:
+                        raise RuntimeError(f'Expected {min_args} to {max_args} args, got {len(node.args)}')
 
+            # compile argument expressions once
             for arg in node.args:
                 yield from self.compile_ins(arg)
+
+            # emit the call instruction appropriate for the kind of callable
             if isinstance(node.func, Variable):
                 itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
                 if isinstance(itm, self.ScopeItem):
@@ -1194,17 +1222,21 @@ class Compiler:
                             if item.option is not None:
                                 req.append(item)
                         if len(req) >= len(node.args):
-                            for item in params[len(req) :]:
+                            for item in params[len(req):]:
                                 yield from self.compile_ins(item.option)  # pyright: ignore[reportArgumentType]
                         self.emit(node.line, OP_CALL, len(params))
                     else:
-                        raise  # This would never happen due to the if cases before
+                        raise  # should not happen
                 elif isinstance(itm, self.BuiltinScopeItem):
                     self.emit(node.line, OP_CALL, len(node.args))
                 else:
                     raise
+            elif isinstance(node.func, Attribute):
+                # object + method are on the stack already, just call
+                self.emit(node.line, OP_CALL, len(node.args))
             else:
-                raise NotImplementedError  # TODO: make it so you can call functions that aren't in variables
+                input(node.func)
+                raise NotImplementedError  # falling back for future call types
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -1271,7 +1303,12 @@ class Compiler:
             idx = self.add_constant((2, node.name))
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
-            if node.rhs not in self.attrs:
+            broken = False
+            for item in self.attrs:
+                if item[0] == node.rhs:
+                    broken = True
+                    break
+            if not broken:
                 raise RuntimeError(f'Could not find attribute {node.rhs}')
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((2, node.rhs))

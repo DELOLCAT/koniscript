@@ -19,11 +19,11 @@ ASTenv: list[tuple[str, Builtin]] = [
     ('math', BuiltinModule([BuiltinFunction('hi', 0, 0)], 'math')),
 ]
 
-attrs = [  # TODO: perhaps make this type specific somehow
-    'push',
-    'upper',
-    'lower',
-    'strip',
+attrs: list[tuple[str, int, int]] = [  # TODO: perhaps make this type specific somehow
+    ('push', 1, 1), # Format: name, min, max args
+    ('upper', 0, 0), # Variables would just be strings
+    ('lower', 0, 0),
+    ('strip', 0, 0),
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]
