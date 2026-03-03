@@ -24,7 +24,8 @@ attrs: list[tuple[str, int, int]] = [  # TODO: perhaps make this type specific s
     ('upper', 0, 0), # Variables would just be strings
     ('lower', 0, 0),
     ('strip', 0, 0),
-    ('pop', 0, 0)
+    ('pop', 0, 0),
+    ('get', 1, 2)
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]

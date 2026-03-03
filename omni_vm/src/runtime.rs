@@ -77,8 +77,6 @@ pub enum Value {
     Null,
 }
 
-
-
 impl Value {
     pub fn new(tag: i8, payload: &str) -> Result<Self, VmError> {
         match ValueTag::try_from(tag)? {
@@ -141,7 +139,7 @@ impl Value {
         match self {
             Value::String(v) => format!("'{v}'"),
             Value::Integer(v) => v.to_string(),
-            Value::Bool(v) => if *v {"true"} else {"false"}.to_string(),
+            Value::Bool(v) => if *v { "true" } else { "false" }.to_string(),
             Value::Float(v) => v.to_string(),
             Value::Func(v) => match v {
                 OmniFunc::Builtin { name, .. } => format!("<builtin fn {}>", name),
@@ -251,9 +249,7 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         },
         Value::String(val) => Result::Ok(Value::String(val.to_string())),
         Value::Null => Result::Ok(Value::String("null".to_string())),
-        Value::Array(_) => {
-            Ok(Value::String(item.repr()))
-        }
+        Value::Array(_) => Ok(Value::String(item.repr())),
         Value::Module(v) => {
             if v.name.is_some() {
                 Ok(Value::String(format!(
@@ -766,23 +762,17 @@ fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
 fn arr_pop(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     expect_args(args, 0)?;
     match item.as_ref() {
-        Value::Array(ar) => {
-            match ar.borrow_mut().pop() {
-                Some(v) => Ok(v),
-                None => Err(
-                    VmError {
-                        msg: "Cannot `pop()` from an empty array".to_string(),
-                        errcode: ErrCode::InvalidOperation
-                    }
-                )
-            }
+        Value::Array(ar) => match ar.borrow_mut().pop() {
+            Some(v) => Ok(v),
+            None => Err(VmError {
+                msg: "Cannot `pop()` from an empty array".to_string(),
+                errcode: ErrCode::InvalidOperation,
+            }),
         },
-        _ => Err(
-            VmError {
-                msg: format!("Expected an array, got a {}", item.display()),
-                errcode: ErrCode::TypeError
-            }
-        )
+        _ => Err(VmError {
+            msg: format!("Expected an array, got a {}", item.display()),
+            errcode: ErrCode::TypeError,
+        }),
     }
 }
 fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
@@ -819,6 +809,7 @@ pub static ATTRMAP: Lazy<
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
     array_methods.insert("pop".to_string(), arr_pop);
+    array_methods.insert("get".to_string(), arr_get);
     attramp.insert(ValueTag::Array, array_methods);
 
     str_methods.insert("upper".to_string(), str_upper);
@@ -828,6 +819,46 @@ pub static ATTRMAP: Lazy<
 
     attramp
 });
+
+fn arr_get(val: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+    if args.len() > 2 {
+        // TODO: make a function that makes arg checking better
+        return Err(VmError {
+            msg: format!("Expected 1 to 2 args, got {}", args.len()),
+            errcode: ErrCode::InvalidArgCount,
+        });
+    } else if args.len() < 1 {
+        return Err(VmError {
+            msg: format!("Expected 1 to 2 args, got {}", args.len()),
+            errcode: ErrCode::InvalidArgCount,
+        });
+    }
+    let idx = match args[0].as_ref() {
+        Value::Integer(v) => v,
+        _ => {
+            return Err(VmError {
+                msg: format!("Expected an integer, not a {}", args[0].display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    };
+    let def = match args.get(1) {
+        Some(v) => v.clone(),
+        None => Rc::new(Value::Null)
+    };
+    match val.as_ref() {
+        Value::Array(v) => match v.borrow().get(*idx as usize) {
+            Some(v) => Ok(v.clone()),
+            None => Ok(def),
+        },
+        _ => {
+            return Err(VmError {
+                msg: format!("Expected an array, not a {}", val.display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    }
+}
 
 fn str_strip(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     match val.as_ref() {
