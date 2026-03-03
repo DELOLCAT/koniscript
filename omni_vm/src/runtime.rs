@@ -34,6 +34,14 @@ pub struct VmError {
     pub msg: String,
     pub errcode: ErrCode,
 }
+impl VmError { // TODO: refactor old TypeErrors into this new one
+    pub fn make_type_error(expected: &str, received: &Value) -> Self {
+        Self {
+            msg: format!("Expected `{}`, got `{}`", expected, received.display()),
+            errcode: ErrCode::TypeError
+        }
+    }
+}
 #[derive(Debug)]
 pub enum VmPanic {
     TagConversionFailed,
@@ -522,10 +530,7 @@ fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
     let code = match item {
         Value::Integer(v) => v,
         _ => {
-            return Err(VmError {
-                msg: format!("Expected an integer, got a {}", args[0].display()),
-                errcode: ErrCode::TypeError,
-            });
+            return Err(VmError::make_type_error("integer", item));
         }
     };
     Err(VmError {
@@ -846,15 +851,10 @@ pub static ATTRMAP: Lazy<
     let mut attramp = HashMap::new(); // Initialize properly
 
     // 1. Create the inner map
-    let mut array_methods: HashMap<
-        String,
-        fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
-    > = HashMap::new();
+    let mut array_methods: HashMap<String, fn(ValueRef, MethodArgs) -> MethodReturn> =
+        HashMap::new();
 
-    let mut str_methods: HashMap<
-        String,
-        fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
-    > = HashMap::new();
+    let mut str_methods: HashMap<String, fn(ValueRef, MethodArgs) -> MethodReturn> = HashMap::new();
 
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
@@ -862,6 +862,7 @@ pub static ATTRMAP: Lazy<
     array_methods.insert("get".to_string(), arr_get);
     array_methods.insert("contains".to_string(), arr_contains);
     array_methods.insert("is_empty".to_string(), arr_str_is_empty);
+    array_methods.insert("insert".to_string(), arr_insert);
     attramp.insert(ValueTag::Array, array_methods);
 
     str_methods.insert("upper".to_string(), str_upper);
@@ -873,6 +874,25 @@ pub static ATTRMAP: Lazy<
     attramp
 });
 
+fn arr_insert(item: ValueRef, args: MethodArgs) -> MethodReturn {
+    check_method_args(args, 2, 2)?;
+    let idx = match args[0].as_ref() {
+        Value::Integer(v) => v,
+        _ => {
+            return Err(VmError {
+                msg: format!("Expected an integer index, got a {}", args[0].display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    };
+    match item.as_ref() {
+        Value::Array(v) => {
+            v.borrow_mut().insert(*idx as usize, args[1].clone());
+            Ok(args[1].clone())
+        },
+        _ => Err(VmError::make_type_error("array", &item))
+    }
+}
 fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmError> {
     let exact = min == max;
     let msg: String;
