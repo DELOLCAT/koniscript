@@ -751,7 +751,7 @@ class Parser:
                     self.eat(ASSIGN)
                     params[-1].option = self.primary()
                 elif optional:
-                    raise RuntimeError(
+                    raise ParserError(
                         7,
                         'Cannot have a non-optional argument after an optional argument',
                         self.current_token.line,
@@ -1303,7 +1303,7 @@ class Compiler:
                                     getattr(node, 'col', None),
                                 )
                             else:
-                                raise RuntimeError(
+                                raise CompilerError(
                                     11,
                                     f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
                                     node.line,
