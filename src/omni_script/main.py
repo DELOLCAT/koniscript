@@ -1059,7 +1059,7 @@ class Compiler:
 
         output.append('.const')
         for const in self.constants:
-            output.append(f'{const[0]};{str(const[1])}')
+            output.append(f'{const[0]};{str(const[1]).replace('\n', '\\n').replace(';', '\\;')};')
         output.append('.code')
         for instr in self.code:
             output.append(' '.join(map(str, instr)))

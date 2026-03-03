@@ -38,12 +38,32 @@ fn eval_string(input: &str) -> Result<Value, VmPanic> {
     }
 
     let mut output = String::new();
-
+    let mut peek = false;
+    let mut broken = false;
     for c in iter {
-        match c {
-            other => output.push(other),
+        if peek {
+            if c == 'n' {
+                output.push('\n');
+            } else {
+                output.push(c)
+            }
+            peek = false;
+            continue;
         }
+        if c == '\\' {
+            peek = true;
+            continue;
+        }
+        if c == ';' {
+            broken = true;
+            break;
+        }
+        output.push(c);
     }
+    if !broken {
+        return Err(VmPanic::InvalidBytecode)
+    }
+
     match tag.parse::<i8>() {
         Ok(v) => match Value::new(v, output.as_str()) {
             Ok(v) => Ok(v),
