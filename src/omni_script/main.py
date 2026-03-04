@@ -521,8 +521,7 @@ class Parser:
                     self.current_token.line,
                     self.current_token.col,
                 )
-            name = self.current_token.value
-            self.eat(IDENTIFIER)
+            name = self.eat(IDENTIFIER).value
             node = Attribute(dot_line, node, name)
 
         # Then handle function calls
@@ -633,13 +632,13 @@ class Parser:
                 reqs = []
                 req = ""
 
-                req += self.current_token.value
-                self.eat(IDENTIFIER)
+                req += self.eat(IDENTIFIER).value
+                
                 while self.current_token.type == DOT:
                     req += "."
                     self.eat(DOT)
-                    req += self.current_token.value
-                    self.eat(IDENTIFIER)
+                    req += self.eat(IDENTIFIER).value
+                    
                 reqs.append(req)
                 req = ""
                 while self.current_token.type == COMMA:
@@ -647,13 +646,11 @@ class Parser:
                         raise IncompleteInput
                     self.skip_newline()
                     self.eat(COMMA)
-                    req += self.current_token.value
-                    self.eat(IDENTIFIER)
+                    req += self.eat(IDENTIFIER).value
                     while self.current_token.type == DOT:
                         req += "."
                         self.eat(DOT)
-                        req += self.current_token.value
-                        self.eat(IDENTIFIER)
+                        req += self.eat(IDENTIFIER).value
                     reqs.append(req)
                     req = ""
                 if self.current_token.type == LBRACE:
@@ -678,8 +675,7 @@ class Parser:
         elif self.current_token.type == IMPORT:
             ln = self.current_token.line
             self.eat(IMPORT)
-            name = self.current_token.value
-            self.eat(IDENTIFIER)
+            name = self.eat(IDENTIFIER).value
             base_path = os.curdir
             for i, item in enumerate(self.base_env):
                 if isinstance(item[1], BuiltinModule) and item[1].name == name:
@@ -720,8 +716,7 @@ class Parser:
         elif self.current_token.type == IDENTIFIER:
             next_tok = self.peek()
             if next_tok and next_tok.type == ASSIGN:
-                name = self.current_token.value
-                self.eat(IDENTIFIER)
+                name = self.eat(IDENTIFIER).value
                 self.eat(ASSIGN)
                 value = self.expr()
                 return Assign(self.current_token.line, name, value)
@@ -754,10 +749,10 @@ class Parser:
         return While(self.current_token.line, expr, body)
 
     def function_decl(self):
+        ln = self.current_token.line
         self.eat(FUNC)
 
-        name = self.current_token.value
-        self.eat(IDENTIFIER)
+        name = self.eat(IDENTIFIER).value
 
         self.eat(LPAREN)
         params: list[FunctionParameter] = []
@@ -765,10 +760,10 @@ class Parser:
         if self.current_token.type == IDENTIFIER:
             params.append(
                 FunctionParameter(
-                    self.current_token.line, self.current_token.value, None
+                    self.current_token.line, self.eat(IDENTIFIER).value, None
                 )
             )
-            self.eat(IDENTIFIER)
+            
             if self.current_token.type == ASSIGN:
                 optional = True
                 self.eat(ASSIGN)
@@ -784,10 +779,9 @@ class Parser:
                 self.eat(COMMA)
                 params.append(
                     FunctionParameter(
-                        self.current_token.line, self.current_token.value, None
+                        self.current_token.line, self.eat(IDENTIFIER).value, None
                     )
                 )
-                self.eat(IDENTIFIER)
                 if self.current_token.type == ASSIGN:
                     optional = True
                     self.eat(ASSIGN)
@@ -803,9 +797,9 @@ class Parser:
 
         body = self.block()
         return Assign(
-            self.current_token.line,
+            ln,
             name,
-            Function(self.current_token.line, params, body),
+            Function(ln, params, body),
         )
 
     def peek(self):
