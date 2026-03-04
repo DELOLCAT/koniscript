@@ -410,12 +410,16 @@ class OmniNull(OmniType):
 
 
 class Parser:
-    def __init__(self, tokens: list[Token], base_env: list[tuple]):
+    def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool=False):
         self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
+        self.repl = repl
         self.current_token = self.tokens[0] if self.tokens else Token(EOF, None, 0, 0)
-
+        
+    def incomplete_input(self):
+        if self.repl:
+            raise IncompleteInput
     def eat(self, token_type):
         out = self.current_token
         if self.current_token.type != token_type:
@@ -535,7 +539,7 @@ class Parser:
                     self.eat(COMMA)
                     args.append(self.expr())
             if self.current_token.type == EOF:
-                raise IncompleteInput
+                self.incomplete_input()
             self.eat(RPAREN)
             node = Call(call_line, node, args)
 
@@ -559,19 +563,19 @@ class Parser:
         elif token.type == LBRACKET:
             self.eat(LBRACKET)
             if self.current_token.type == EOF:
-                raise IncompleteInput
+                self.incomplete_input()
             if self.current_token.type == NEWLINE:
                 self.eat(NEWLINE)
             items = []
             if self.current_token.type != RBRACKET:
                 if self.current_token.type == EOF:
-                    raise IncompleteInput
+                    self.incomplete_input()
                 self.skip_newline()
                 items.append(self.expr())
                 while self.current_token.type == COMMA:
                     self.eat(COMMA)
                     if self.current_token.type == EOF:
-                        raise IncompleteInput
+                        self.incomplete_input()
                     self.skip_newline()
                     items.append(self.expr())
                 self.skip_newline()
@@ -593,13 +597,13 @@ class Parser:
             self.eat(LPAREN)
             node = self.expr()
             if self.current_token.type == EOF:
-                raise IncompleteInput
+                self.incomplete_input()
             self.skip_newline()
             self.eat(RPAREN)
             return node
         raise ParserError(
             3,
-            f"Unexpected token {token}",
+            f"Unexpected token {token.type}{f' `{token.value}`' if token.value is not None else ''}",
             self.current_token.line,
             self.current_token.col,
         )
@@ -643,7 +647,7 @@ class Parser:
                 req = ""
                 while self.current_token.type == COMMA:
                     if self.current_token.type == EOF:
-                        raise IncompleteInput
+                        self.incomplete_input()
                     self.skip_newline()
                     self.eat(COMMA)
                     req += self.eat(IDENTIFIER).value
@@ -726,7 +730,7 @@ class Parser:
         self.eat(IF)
         expr = self.expr()
         if self.current_token.type == EOF:
-            raise IncompleteInput
+            self.incomplete_input()
         self.skip_newline()
         body = self.block()
         if self.current_token.type == ELSE and self.peek().type == IF:
@@ -743,7 +747,7 @@ class Parser:
         self.eat(WHILE)
         expr = self.expr()
         if self.current_token.type == EOF:
-            raise IncompleteInput
+            self.incomplete_input()
         self.skip_newline()
         body = self.block()
         return While(self.current_token.line, expr, body)
@@ -834,12 +838,12 @@ class Parser:
 
         while self.current_token.type != RBRACE:
             if self.current_token.type == EOF:
-                raise IncompleteInput
+                self.incomplete_input()
             stmt = self.statement()
             if stmt is not None:
                 statements.append(stmt)
         if self.current_token.type == EOF:
-            raise IncompleteInput
+            self.incomplete_input()
         self.eat(RBRACE)
         return Block(self.current_token.line, statements)
 
