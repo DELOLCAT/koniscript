@@ -11,3 +11,4 @@
 11, invalid arg count
 12, no attribute
 13, internal
+TODO: put this into docs
