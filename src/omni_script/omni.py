@@ -159,7 +159,7 @@ def compile(
                 break
             elif isinstance(e.value, Failed):
                 if tracebacks:  # To show Python tracebacks for development
-                    raise
+                    raise e.value.exception
                 show_err_or_warn(e.value, filepath, file_content)
                 if warns > 0:
                     print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')

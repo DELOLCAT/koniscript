@@ -616,18 +616,35 @@ class Parser:
         elif self.current_token.type == AT_RATE:
             self.eat(AT_RATE)
             if self.current_token.value == 'require':
-                self.eat(IDENTIFIER)
                 ln = self.current_token.line
-                reqs = []
-                reqs.append(self.current_token.value)
                 self.eat(IDENTIFIER)
+                reqs = []
+                req = ''
+                
+                req += self.current_token.value
+                self.eat(IDENTIFIER)
+                while self.current_token.type == DOT:
+                    req += '.'
+                    self.eat(DOT)
+                    req += self.current_token.value
+                    self.eat(IDENTIFIER)
+                reqs.append(req)
+                req = ''
                 while self.current_token.type == COMMA:
                     if self.current_token.type == EOF:
                         raise IncompleteInput
                     self.skip_newline()
                     self.eat(COMMA)
-                    reqs.append(self.current_token.value)
+                    req += self.current_token.value
                     self.eat(IDENTIFIER)
+                    while self.current_token.type == DOT:
+                        req += '.'
+                        self.eat(DOT)
+                        req += self.current_token.value
+                        self.eat(IDENTIFIER)
+                    reqs.append(req)
+                    req = ''
+                print(reqs)
                 if self.current_token.type == LBRACE:
                     blk = self.block()
                     else_block: Block | None = None
