@@ -417,6 +417,7 @@ class Parser:
         self.current_token = self.tokens[0] if self.tokens else Token(EOF, None, 0, 0)
 
     def eat(self, token_type):
+        out = self.current_token
         if self.current_token.type != token_type:
             raise ParserError(
                 3,
@@ -425,6 +426,7 @@ class Parser:
                 self.current_token.col,
             )
         self.advance()
+        return out
 
     def advance(self):
         self.pos += 1
