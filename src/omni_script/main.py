@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from operator import truediv
 from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
 from omni_script.runtime import (
@@ -1032,6 +1033,8 @@ class Compiler:
         self.lines = []
         self.modules = []
         self.exports = []
+        self.req_stack: list[Compiler.RequirementGroup] = []  # LIFO stack for nested @require statements
+        self.req_stack_not_allowed: list[Compiler.RequirementGroup] = [] # for errors when using a feature where it isn't allowed, like the else branch of an @require statement
         self.attrs: list[tuple[str, int, int]] = attrs
         self.enter_scope()
 
@@ -1039,6 +1042,10 @@ class Compiler:
     class ScopeItem:
         idx: int
         value: ASTNode
+        
+    @dataclass
+    class RequirementGroup: # I'm addicted to classes
+        reqs: list[str]
 
     @dataclass
     class BuiltinScopeItem:
@@ -1166,7 +1173,25 @@ class Compiler:
             output.append('.source')
             output += input_source.splitlines()  # pyright: ignore[reportOptionalMemberAccess]
         return output
-
+    def raise_for_req(self, req: str, name: str, node: ASTNode | None):
+        if req in self.reqs:
+            return
+        broken = False
+        for item in self.req_stack:
+            if req in item.reqs:
+                broken = True
+                break
+        if not broken:
+            illegal = False
+            for item in self.req_stack_not_allowed:
+                if req in item.reqs:
+                    illegal = True
+            ln = getattr(node, 'line', None)
+            col = getattr(node, 'col', None)
+            if illegal:
+                raise CompilerError(14, f'Attempted using a(n) {name} when it requires `{req}` in an illegal area', ln, col)
+            else:
+                yield self.Warn(f'{name}s need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?', ln, col)
     def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
@@ -1180,15 +1205,19 @@ class Compiler:
         elif isinstance(node, BareRequire):
             self.reqs += node.reqs
         elif isinstance(node, RequireStatement):
-            consts = []
+            consts: list[int] = []
             for item in node.reqs:
                 consts.append(self.add_constant((2, item)))
             idx = self.emit(node.line, 'REQUIRE', *consts, None)
+            self.req_stack.append(self.RequirementGroup(node.reqs)) # create a new stack so later on warnings wont happen
             yield from self.compile_ins(node.statement)
+            self.req_stack.pop() # remove the stack after the statement
             if node.else_block is not None:
+                self.req_stack_not_allowed.append(self.RequirementGroup(node.reqs))
                 jmp = self.emit(node.line, 'JMP', None)
                 self.code[idx] = ('REQUIRE', *consts, len(self.code))
                 yield from self.compile_ins(node.else_block)
+                self.req_stack_not_allowed.pop()
                 self.code[jmp] = ('JMP', len(self.code))
             else:
                 self.code[idx] = ('REQUIRE', *consts, len(self.code))
@@ -1341,6 +1370,7 @@ class Compiler:
                                     getattr(node, 'col', None),
                                 )
             elif isinstance(node.func, Attribute):
+                yield from self.raise_for_req('attr', 'Attribute', node)
                 atr_itm: tuple[str, int, int] | None = None
                 for item in self.attrs:
                     if item[0] == node.func.rhs:

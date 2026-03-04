@@ -146,10 +146,12 @@ def compile(
     it = iter(comp(file_content, comp_features))
 
     instructions = None
+    warns = 0
     while True:
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
+                warns+=1
                 show_err_or_warn(value, filepath, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
@@ -159,11 +161,18 @@ def compile(
                 if tracebacks:  # To show Python tracebacks for development
                     raise
                 show_err_or_warn(e.value, filepath, file_content)
+                if warns > 0:
+                    print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')
+                else:
+                    print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds')
                 return
             else:
                 raise
     fp = f'{str(filepath).removesuffix(".om")}.omc'
-    print(f'Compiled in {round(perf_counter() - start_time, 3)} seconds')
+    if warns > 0:
+        print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')
+    else:
+        print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds')
     status = console.status(f'Writing to {fp}')
     status.start()
     with open(fp, 'w') as file:
@@ -185,9 +194,10 @@ def show_err_or_warn(e: Failed | Compiler.Warn, filepath, file_content: str):
         col = e.col
         ln = e.line
         msg = e.message
+    print()
     print(f'{tag}: {msg}:', file=sys.stderr)
     print(
-        f'at {filepath}{"[green]:" + str(ln + 1) if ln else " [red]No line data available"}{":" + str(col) if col is not None else ""}',
+        f'at {filepath}{"[green]:" + str(ln + 1) if ln is not None else " [red]No line data available"}{":" + str(col) if col is not None else ""}',
         file=sys.stderr,
     )
     if ln is not None:
@@ -209,7 +219,6 @@ def run(
 
     file_content = Path(filepath).read_text()
     it = iter(comp(file_content, comp_features))
-
     instructions = None
     while True:
         try:
@@ -220,14 +229,13 @@ def run(
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
                 break
-            elif isinstance(e.value, Failed):
+            elif isinstance(e.value, Failed): # `elif` for IDE type recognition
                 if tracebacks:
                     raise
                 show_err_or_warn(e.value, filepath, file_content)
-                # abort without running
-                return
+                exit(1) # Abort
             else:
-                raise
+                raise # Impossible
 
     f = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.omc')
     try:
