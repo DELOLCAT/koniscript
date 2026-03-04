@@ -625,7 +625,11 @@ class Parser:
                     self.eat(IDENTIFIER)
                 if self.current_token.type == LBRACE:
                     blk = self.block()
-                    return RequireStatement(ln, reqs, blk)
+                    else_block: Block | None = None
+                    if self.current_token.type == ELSE:
+                        self.eat(ELSE)
+                        else_block = self.block()
+                    return RequireStatement(ln, reqs, blk, else_block)
                 else:
                     return BareRequire(ln, reqs)
         elif self.current_token.type == LBRACE:
@@ -841,6 +845,7 @@ class RequireStatement(ASTNode):
     line: int
     reqs: list[str]
     statement: Block
+    else_block: Block | None
 
 @dataclass
 class Number(ASTNode):
@@ -1176,7 +1181,13 @@ class Compiler:
                 consts.append(self.add_constant((2, item)))
             idx = self.emit(node.line, 'REQUIRE', *consts, None)
             yield from self.compile_ins(node.statement)
-            self.code[idx] = ('REQUIRE', *consts, len(self.code))
+            if node.else_block is not None:
+                jmp = self.emit(node.line, 'JMP', None)
+                self.code[idx] = ('REQUIRE', *consts, len(self.code))
+                yield from self.compile_ins(node.else_block)
+                self.code[jmp] = ('JMP', len(self.code))
+            else:
+                self.code[idx] = ('REQUIRE', *consts, len(self.code))
         elif isinstance(node, Variable):
             # if node.name in self.scopes[-1].var_map:
             idx = self.get_var(node.name)
