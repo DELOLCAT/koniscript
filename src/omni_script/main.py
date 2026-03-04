@@ -2,7 +2,11 @@ from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
 from omni_script.runtime import (
-    TYPES,
+    T_BOOL,
+    T_FLOAT,
+    T_INT,
+    T_NULL,
+    T_STRING,
     BuiltinFunction,
     Module,
     ASTNode,
@@ -612,6 +616,7 @@ class Parser:
             self.eat(AT_RATE)
             if self.current_token.value == 'require':
                 self.eat(IDENTIFIER)
+                ln = self.current_token.line
                 reqs = []
                 reqs.append(self.current_token.value)
                 self.eat(IDENTIFIER)
@@ -622,7 +627,15 @@ class Parser:
                     self.eat(COMMA)
                     reqs.append(self.current_token.value)
                     self.eat(IDENTIFIER)
-                return Require(self.current_token.line, reqs)
+                if self.current_token.type == LBRACE:
+                    blk = self.block()
+                    else_block: Block | None = None
+                    if self.current_token.type == ELSE:
+                        self.eat(ELSE)
+                        else_block = self.block()
+                    return RequireStatement(ln, reqs, blk, else_block)
+                else:
+                    return BareRequire(ln, reqs)
         elif self.current_token.type == LBRACE:
             return self.block()
         elif self.current_token.type == FUNC:
@@ -809,10 +822,9 @@ class Parser:
 
 
 @dataclass
-class Require(ASTNode):
+class BareRequire(ASTNode):
     line: int
     reqs: list[str]
-
 
 @dataclass
 class Array(ASTNode):
@@ -832,6 +844,12 @@ class Block(ASTNode):
     line: int
     statements: list[ASTNode]
 
+@dataclass
+class RequireStatement(ASTNode):
+    line: int
+    reqs: list[str]
+    statement: Block
+    else_block: Block | None
 
 @dataclass
 class Number(ASTNode):
@@ -1052,7 +1070,7 @@ class Compiler:
     def exit_scope(self):
         self.scopes.pop()
 
-    def add_constant(self, value: tuple | list) -> int:
+    def add_constant(self, value: tuple[int, Any] | list) -> int:
         value_tuple = tuple(value)
         if value_tuple in self.const_map:
             return self.const_map[value_tuple]
@@ -1151,16 +1169,29 @@ class Compiler:
 
     def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
         if isinstance(node, String):
-            idx = self.add_constant([TYPES[STRING], node.value])
+            idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
-            idx = self.add_constant([TYPES[INT], node.value])
+            idx = self.add_constant([T_INT, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Float):
-            idx = self.add_constant([TYPES[FLOAT], node.value])
+            idx = self.add_constant([T_FLOAT, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
-        elif isinstance(node, Require):
+        elif isinstance(node, BareRequire):
             self.reqs += node.reqs
+        elif isinstance(node, RequireStatement):
+            consts = []
+            for item in node.reqs:
+                consts.append(self.add_constant((2, item)))
+            idx = self.emit(node.line, 'REQUIRE', *consts, None)
+            yield from self.compile_ins(node.statement)
+            if node.else_block is not None:
+                jmp = self.emit(node.line, 'JMP', None)
+                self.code[idx] = ('REQUIRE', *consts, len(self.code))
+                yield from self.compile_ins(node.else_block)
+                self.code[jmp] = ('JMP', len(self.code))
+            else:
+                self.code[idx] = ('REQUIRE', *consts, len(self.code))
         elif isinstance(node, Variable):
             # if node.name in self.scopes[-1].var_map:
             idx = self.get_var(node.name)
@@ -1249,7 +1280,7 @@ class Compiler:
             for statement in node.statements:
                 yield from self.compile_ins(statement)
         elif isinstance(node, Bool):
-            idx = self.add_constant([TYPES[BOOL], 'true' if node.value else 'false'])
+            idx = self.add_constant([T_BOOL, 'true' if node.value else 'false'])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             # compile the expression that identifies the callable (variable, attribute, etc.)
@@ -1410,7 +1441,7 @@ class Compiler:
             self.exit_scope()
             self.code[jmp] = ('JMP', len(self.code))
             if len(other) >= 1:
-                idx = self.add_constant([2, other[0]])
+                idx = self.add_constant([T_STRING, other[0]])
                 self.emit(
                     node.line,
                     'MAKE_FUNCTION',
@@ -1428,14 +1459,14 @@ class Compiler:
                 )
         elif isinstance(node, Return):
             if node.value is None:
-                idx = self.add_constant((6, ''))
+                idx = self.add_constant((T_NULL, ''))
                 self.emit(node.line, OP_PUSH_CONST, idx)
                 return
             yield from self.compile_ins(node.value)
             self.emit(node.line, 'RET')
         elif isinstance(node, Export):
             yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
-            idx = self.add_constant((2, node.name))
+            idx = self.add_constant((T_STRING, node.name))
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
             broken = False
@@ -1451,7 +1482,7 @@ class Compiler:
                     getattr(node, 'col', None),
                 )
             yield from self.compile_ins(node.lhs)
-            idx = self.add_constant((2, node.rhs))
+            idx = self.add_constant((T_STRING, node.rhs))
             self.emit(node.line, 'GETATTR', idx)
         elif isinstance(node, GetIndex):
             yield from self.compile_ins(node.idx)

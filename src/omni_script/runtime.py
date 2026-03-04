@@ -116,7 +116,6 @@ KEYWORDS = {
     'or': OR,
     'and': AND,
 }
-TYPES = {INT: 1, STRING: 2, BOOL: 3, FUNC: 4, BUILTIN: 5, NULL: 6, FLOAT: 7}
 T_INT = 1
 T_STRING = 2
 T_BOOL = 3
