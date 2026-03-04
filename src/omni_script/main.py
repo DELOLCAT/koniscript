@@ -1246,8 +1246,9 @@ class Compiler:
                         col,
                     )
                 else:
+                    self.reqs.append(req)
                     yield self.Warn(
-                        f"{second_name} need(s) the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?",
+                        f"{second_name} implicitly adds the `{req}` requirement. Perhaps add `@require {req}` to the top of your program to make it explicit?",
                         ln,
                         col,
                     )
@@ -1432,7 +1433,6 @@ class Compiler:
                                     getattr(node, "col", None),
                                 )
             elif isinstance(node.func, Attribute):
-                yield from self.raise_for_req("attributes", "Attribute", 'Attributes', node)
                 atr_itm: tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None = None
                 for item in self.attrs:
                     if item[0] == node.func.rhs:
