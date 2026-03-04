@@ -11,7 +11,6 @@ OmniScript is a dynamic programming language that focuses on these main features
 - Ease of packaging (code compiles down to a single .omc bytecode file)
 - Compatibility: Supports @require flags (ex. @require fs, gui) so OmniScript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future. This also means that runtimes can be even smaller, and also on embedded systems.
 
-
 ## Currently implemented features
 
 - Variables
@@ -123,6 +122,7 @@ v0.2.0
 - Dynamic modules
 - Dictionaries
 - A better standard library (though certain imports, like fs, would need an @require flag)
+- An (optional for max compatibility) binary bytecode format
 
 v0.3.0
 
