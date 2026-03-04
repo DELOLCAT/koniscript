@@ -1047,7 +1047,7 @@ class Compiler:
         self,
         env: list[str],
         ASTenv: list[tuple[str, Builtin]],
-        attrs: list[tuple[str, int, int]],
+        attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]],
     ):
         self.constants = []
         self.vars = []
@@ -1068,7 +1068,7 @@ class Compiler:
         self.req_stack_not_allowed: list[Compiler.RequirementGroup] = (
             []
         )  # for errors when using a feature where it isn't allowed, like the else branch of an @require statement
-        self.attrs: list[tuple[str, int, int]] = attrs
+        self.attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]] = attrs
         self.enter_scope()
 
     @dataclass
@@ -1208,7 +1208,7 @@ class Compiler:
         return output
 
     def raise_for_req(
-        self, req: str, name: str, second_name: str, node: ASTNode | None
+        self, req: str, name: str, second_name: str, node: ASTNode | None, unsure: bool=False
     ):
         if req in self.reqs:
             return
@@ -1225,18 +1225,32 @@ class Compiler:
             ln = getattr(node, "line", None)
             col = getattr(node, "col", None)
             if illegal:
-                raise CompilerError(
-                    14,
-                    f"Attempted using a(n) {name} when it requires `{req}` in an illegal area",
-                    ln,
-                    col,
-                )
+                if unsure:
+                    yield self.Warn(
+                        f"CRITICAL: This may need the `{req}` requirement, and is in an illegal zone. Perhaps add `@require {req}` to the top of your program?", #TODO: warning priorities
+                        ln,
+                        col,
+                    )
+                else:
+                    raise CompilerError(
+                        14,
+                        f"Attempted using a(n) {name} when it requires `{req}` in an illegal area",
+                        ln,
+                        col,
+                    )
             else:
-                yield self.Warn(
-                    f"{second_name} need(s) the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?",
-                    ln,
-                    col,
-                )
+                if unsure:
+                    yield self.Warn(
+                        f"This may need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?",
+                        ln,
+                        col,
+                    )
+                else:
+                    yield self.Warn(
+                        f"{second_name} need(s) the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?",
+                        ln,
+                        col,
+                    )
 
     def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
         if isinstance(node, String):
@@ -1419,7 +1433,7 @@ class Compiler:
                                 )
             elif isinstance(node.func, Attribute):
                 yield from self.raise_for_req("attributes", "Attribute", 'Attributes', node)
-                atr_itm: tuple[str, int, int] | None = None
+                atr_itm: tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None = None
                 for item in self.attrs:
                     if item[0] == node.func.rhs:
                         atr_itm = item
@@ -1431,6 +1445,12 @@ class Compiler:
                         node.line,
                         getattr(node, "col", None),
                     )
+                if atr_itm[3] is not None:
+                    for item in atr_itm[3]:
+                        if len(atr_itm[3]) > 1:
+                            yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
+                        else:
+                            yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
                 min_args = atr_itm[1]
                 max_args = atr_itm[2]
                 if not (min_args <= len(node.args) <= max_args):
