@@ -612,6 +612,7 @@ class Parser:
             self.eat(AT_RATE)
             if self.current_token.value == 'require':
                 self.eat(IDENTIFIER)
+                ln = self.current_token.line
                 reqs = []
                 reqs.append(self.current_token.value)
                 self.eat(IDENTIFIER)
@@ -622,7 +623,11 @@ class Parser:
                     self.eat(COMMA)
                     reqs.append(self.current_token.value)
                     self.eat(IDENTIFIER)
-                return Require(self.current_token.line, reqs)
+                if self.current_token.type == LBRACE:
+                    blk = self.block()
+                    return RequireStatement(ln, reqs, blk)
+                else:
+                    return BareRequire(ln, reqs)
         elif self.current_token.type == LBRACE:
             return self.block()
         elif self.current_token.type == FUNC:
@@ -809,10 +814,9 @@ class Parser:
 
 
 @dataclass
-class Require(ASTNode):
+class BareRequire(ASTNode):
     line: int
     reqs: list[str]
-
 
 @dataclass
 class Array(ASTNode):
@@ -832,6 +836,11 @@ class Block(ASTNode):
     line: int
     statements: list[ASTNode]
 
+@dataclass
+class RequireStatement(ASTNode):
+    line: int
+    reqs: list[str]
+    statement: Block
 
 @dataclass
 class Number(ASTNode):
@@ -1052,7 +1061,7 @@ class Compiler:
     def exit_scope(self):
         self.scopes.pop()
 
-    def add_constant(self, value: tuple | list) -> int:
+    def add_constant(self, value: tuple[int, Any] | list) -> int:
         value_tuple = tuple(value)
         if value_tuple in self.const_map:
             return self.const_map[value_tuple]
@@ -1159,8 +1168,15 @@ class Compiler:
         elif isinstance(node, Float):
             idx = self.add_constant([TYPES[FLOAT], node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
-        elif isinstance(node, Require):
+        elif isinstance(node, BareRequire):
             self.reqs += node.reqs
+        elif isinstance(node, RequireStatement):
+            consts = []
+            for item in node.reqs:
+                consts.append(self.add_constant((2, item)))
+            idx = self.emit(node.line, 'REQUIRE', *consts, None)
+            yield from self.compile_ins(node.statement)
+            self.code[idx] = ('REQUIRE', *consts, len(self.code))
         elif isinstance(node, Variable):
             # if node.name in self.scopes[-1].var_map:
             idx = self.get_var(node.name)

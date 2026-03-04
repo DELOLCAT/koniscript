@@ -327,6 +327,25 @@ impl VM {
             }),
         }
     }
+    // fn into_int(&self, val: &String) -> Result<i64, VmError> { // TODO: Use this for more readable code
+    //     match val.parse::<i64>() {
+    //         Ok(v) => Ok(v),
+    //         Err(_) => Err(VmError {
+    //             msg: "Invalid bytecode".to_string(),
+    //             errcode: ErrCode::InvalidBytecode,
+    //         }),
+    //     }
+    // }
+
+    fn into_usize(&self, val: &String) -> Result<usize, VmError> {
+        match val.parse::<usize>() {
+            Ok(v) => Ok(v),
+            Err(_) => Err(VmError {
+                msg: "Invalid bytecode".to_string(),
+                errcode: ErrCode::InvalidBytecode,
+            }),
+        }
+    }
 
     fn run(&mut self) -> Result<i32, VmError> {
         while self.get_i() < self.ins.len() {
@@ -861,6 +880,44 @@ impl VM {
                         name: name.to_string(),
                     }));
                     self.push_to_stack(item);
+                }
+                "REQUIRE" => {
+                    let mut broken = false;
+                    for item in 1..operators.len() - 1 {
+                        match self.const_pool.get(self.into_usize(&operators[item])?) {
+                            Some(v) => match v {
+                                Value::String(val) => {
+                                    if !runtime::SUPPORTED_FEATURES.contains(val) {
+                                        broken = true;
+                                        break;
+                                    }
+                                }
+                                _ => {
+                                    return Err(VmError {
+                                        msg: format!(
+                                            "Expected `REQUIRE` to reference to a string, not a {}.",
+                                            v.display()
+                                        ),
+                                        errcode: ErrCode::TypeError,
+                                    });
+                                }
+                            },
+                            None => {
+                                return Err(VmError {
+                                    msg: format!(
+                                        "`REQUIRE` referenced to a constant index that is out of range: {}",
+                                        item
+                                    ),
+                                    errcode: ErrCode::InvalidBytecode,
+                                });
+                            }
+                        }
+                    }
+                    if broken {
+                        let jmp_idx = self.into_usize(operators.last().unwrap())?; // Impossible for `.unwrap()` to panic in this area
+                        self.frames.last_mut().unwrap().i = jmp_idx;
+                        continue;
+                    }
                 }
                 "DUP" => {
                     let to_dup: ValueRef;
