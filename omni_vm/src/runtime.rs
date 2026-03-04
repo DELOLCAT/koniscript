@@ -11,7 +11,7 @@ pub type MethodArgs<'a> = &'a [Rc<Value>];
 pub type MethodReturn = Result<ValueRef, VmError>;
 
 pub static SUPPORTED_FEATURES: Lazy<Vec<String>> =
-    Lazy::new(|| vec!["fs".to_string(), "string.methods".to_string(), "types.arrays".to_string(), "attributes".to_string(), "indexes".to_string()]);
+    Lazy::new(|| vec!["fs".to_string(), "strings.methods".to_string(), "types.arrays".to_string(), "attributes".to_string(), "indexes".to_string()]);
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<ValueRef>>,
