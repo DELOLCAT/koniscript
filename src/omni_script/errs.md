@@ -11,4 +11,5 @@
 11, invalid arg count
 12, no attribute
 13, internal
+14, req not allowed
 TODO: put this into docs

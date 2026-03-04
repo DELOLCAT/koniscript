@@ -19,18 +19,18 @@ ASTenv: list[tuple[str, Builtin]] = [
     ('len', BuiltinFunction('len', 1, 1)),
     ('math', BuiltinModule([BuiltinFunction('hi', 0, 0)], 'math')),
 ]
-
-attrs: list[tuple[str, int, int]] = [  # TODO: perhaps make this type specific somehow
-    ('push', 1, 1),  # Format: name, min, max args
-    ('upper', 0, 0),  # Properties would just be strings
-    ('lower', 0, 0),
-    ('strip', 0, 0),
-    ('pop', 0, 0),
-    ('get', 1, 2),
-    ('contains', 1, 1),
-    ('is_empty', 0, 0),
-    ('insert', 2, 2),
-    ('empty', 0, 0),
+Requirement = tuple[str, str, str] #TODO: make this more readable
+attrs: list[tuple[str, int, int, tuple[Requirement, ...] | None]] = [  # TODO: perhaps make this type specific somehow
+    ('push', 1, 1, (('types.arrays', 'Array', 'Arrays'),)),  # Format: name, min args, max args, possible requirement
+    ('upper', 0, 0, (('strings.methods', 'String method', 'String methods'),)),  # Properties would just be strings
+    ('lower', 0, 0, (('strings.methods', 'String method', 'String methods'),)),
+    ('strip', 0, 0, (('strings.methods', 'String method', 'String methods'),)),
+    ('pop', 0, 0, (('types.arrays', 'Array', 'Arrays'),)),
+    ('get', 1, 2, (('types.arrays', 'Array', 'Arrays'),)),
+    ('contains', 1, 1, (('types.arrays', 'Array', 'Arrays'),)),
+    ('is_empty', 0, 0, (('types.arrays', 'Array', 'Arrays'),('strings.methods', 'String method', 'String methods'),)),
+    ('insert', 2, 2, (('types.arrays', 'Array', 'Arrays'),)),
+    ('empty', 0, 0, (('types.arrays', 'Array', 'Arrays'),)),
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]
