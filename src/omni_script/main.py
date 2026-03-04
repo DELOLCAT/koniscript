@@ -2,7 +2,11 @@ from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
 from omni_script.runtime import (
-    TYPES,
+    T_BOOL,
+    T_FLOAT,
+    T_INT,
+    T_NULL,
+    T_STRING,
     BuiltinFunction,
     Module,
     ASTNode,
@@ -1165,13 +1169,13 @@ class Compiler:
 
     def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
         if isinstance(node, String):
-            idx = self.add_constant([TYPES[STRING], node.value])
+            idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
-            idx = self.add_constant([TYPES[INT], node.value])
+            idx = self.add_constant([T_INT, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Float):
-            idx = self.add_constant([TYPES[FLOAT], node.value])
+            idx = self.add_constant([T_FLOAT, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, BareRequire):
             self.reqs += node.reqs
@@ -1276,7 +1280,7 @@ class Compiler:
             for statement in node.statements:
                 yield from self.compile_ins(statement)
         elif isinstance(node, Bool):
-            idx = self.add_constant([TYPES[BOOL], 'true' if node.value else 'false'])
+            idx = self.add_constant([T_BOOL, 'true' if node.value else 'false'])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             # compile the expression that identifies the callable (variable, attribute, etc.)
@@ -1437,7 +1441,7 @@ class Compiler:
             self.exit_scope()
             self.code[jmp] = ('JMP', len(self.code))
             if len(other) >= 1:
-                idx = self.add_constant([2, other[0]])
+                idx = self.add_constant([T_STRING, other[0]])
                 self.emit(
                     node.line,
                     'MAKE_FUNCTION',
@@ -1455,14 +1459,14 @@ class Compiler:
                 )
         elif isinstance(node, Return):
             if node.value is None:
-                idx = self.add_constant((6, ''))
+                idx = self.add_constant((T_NULL, ''))
                 self.emit(node.line, OP_PUSH_CONST, idx)
                 return
             yield from self.compile_ins(node.value)
             self.emit(node.line, 'RET')
         elif isinstance(node, Export):
             yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
-            idx = self.add_constant((2, node.name))
+            idx = self.add_constant((T_STRING, node.name))
             self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
             broken = False
@@ -1478,7 +1482,7 @@ class Compiler:
                     getattr(node, 'col', None),
                 )
             yield from self.compile_ins(node.lhs)
-            idx = self.add_constant((2, node.rhs))
+            idx = self.add_constant((T_STRING, node.rhs))
             self.emit(node.line, 'GETATTR', idx)
         elif isinstance(node, GetIndex):
             yield from self.compile_ins(node.idx)
