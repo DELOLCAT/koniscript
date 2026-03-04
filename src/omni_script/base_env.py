@@ -19,8 +19,8 @@ ASTenv: list[tuple[str, Builtin]] = [
     ('len', BuiltinFunction('len', 1, 1)),
     ('math', BuiltinModule([BuiltinFunction('hi', 0, 0)], 'math')),
 ]
-
-attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]] = [  # TODO: perhaps make this type specific somehow
+Requirement = tuple[str, str, str] #TODO: make this more readable
+attrs: list[tuple[str, int, int, tuple[Requirement, ...] | None]] = [  # TODO: perhaps make this type specific somehow
     ('push', 1, 1, (('types.arrays', 'Array', 'Arrays'),)),  # Format: name, min args, max args, possible requirement
     ('upper', 0, 0, (('strings.methods', 'String method', 'String methods'),)),  # Properties would just be strings
     ('lower', 0, 0, (('strings.methods', 'String method', 'String methods'),)),
