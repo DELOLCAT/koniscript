@@ -136,7 +136,7 @@ class Program(ASTNode):
 
 
 @dataclass
-class Module(ASTNode):
+class DEPRECATEDModule(ASTNode):
     line: int
     body: Program
     name: str

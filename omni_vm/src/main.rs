@@ -92,6 +92,13 @@ fn val(file: String) {
         None => println!("Validation successful"),
     };
 }
+
+#[derive(Clone, Debug)]
+struct Source {
+    fp: String,
+    content: Vec<String>,
+}
+
 #[derive(Clone)]
 struct VM {
     ins: Vec<Vec<String>>,
@@ -99,7 +106,8 @@ struct VM {
     const_pool: Vec<Value>,
     lines: Option<Vec<i64>>,
     frames: Vec<Frame>,
-    source: Option<Vec<String>>,
+    sources: Vec<Source>,
+    source_select: Vec<usize>,
 }
 #[derive(Debug, Clone)]
 struct Frame {
@@ -220,11 +228,13 @@ impl VM {
         let mut i = 0;
         let mut sup_lines: Option<usize> = None;
         let mut lines: Vec<i64> = vec![];
-        let mut source: Option<Vec<String>> = None;
         let mut mode = "discover";
+        let mut sources: Vec<Source> = Vec::new();
+        let mut source_select: Vec<usize> = vec![];
         while i < instructions.len() {
-            let line = instructions[i].trim();
-            if line == ".line" {
+            let line = instructions[i].trim().split(" ").collect::<Vec<&str>>();
+
+            if line.get(0).is_some() && line[0] == ".line" {
                 mode = "line";
                 sup_lines = match i.try_into() {
                     Ok(v) => v,
@@ -237,14 +247,64 @@ impl VM {
                 };
                 i += 1;
                 continue;
-            } else if line == ".source" {
-                mode = "source";
-                source = Some(Vec::new());
+            } else if line.get(0).is_some() && line[0] == ".source" {
+                let end = match line.get(1) {
+                    Some(v) => v,
+                    None => {
+                        return Err(VmError {
+                            msg: "Expected `.source` to be followed by an integer".to_string(),
+                            errcode: ErrCode::InvalidBytecode,
+                        });
+                    }
+                }
+                .parse::<usize>();
+                let end = match end {
+                    Ok(v) => v,
+                    Err(_) => {
+                        return Err(VmError {
+                            msg: "Expected `.source` to be followed by an integer".to_string(),
+                            errcode: ErrCode::InvalidBytecode,
+                        });
+                    }
+                };
+                let fp = match line.get(2..) {
+                    Some(v) => v,
+                    None => {
+                        return Err(VmError {
+                            msg: "Expected `.source` to contain a string".to_string(),
+                            errcode: ErrCode::InvalidBytecode,
+                        });
+                    }
+                }
+                .join(" ");
+                let mut source: Vec<String> = Vec::new();
                 i += 1;
+                while i < end && i < instructions.len() {
+                    source.push(instructions[i].clone());
+                    i += 1
+                }
+                sources.push(Source {
+                    fp,
+                    content: source,
+                });
+                continue;
+            } else if line.get(0).is_some() && line[0] == ".source_select" {
+                mode = "";
+                i += 1;
+                while i < instructions.len() {
+                    let parsed = match instructions[i].parse::<usize>() {
+                        Ok(v) => v,
+                        Err(_) => {
+                            break;
+                        }
+                    };
+                    source_select.push(parsed);
+                    i += 1;
+                }
                 continue;
             }
             if mode == "line" {
-                match line.parse::<i64>() {
+                match line[0].parse::<i64>() {
                     Ok(n) => lines.push(n),
                     Err(_) => {
                         return Err(VmError {
@@ -253,8 +313,6 @@ impl VM {
                         });
                     }
                 }
-            } else if mode == "source" {
-                source.as_mut().unwrap().push(instructions[i].clone());
             }
             i += 1;
         }
@@ -289,7 +347,8 @@ impl VM {
                 None
             },
             frames: vec![frame],
-            source,
+            sources,
+            source_select,
         })
     }
     //fn global_env(mut self, env: &[Value]) -> Self {
@@ -1004,9 +1063,8 @@ fn run(file: String) {
             // Single, clear error line at the top.
             println!("{}: {}\n", e.errcode.to_string().red().bold(), e.msg.red());
             println!("{}", "Traceback (most recent call last):".bold());
-
             let lines_opt = vm.lines.as_ref();
-            let source_opt = vm.source.as_ref();
+            let source_opt = vm.sources;
 
             for (frame_idx, frame) in vm.frames.iter().rev().enumerate() {
                 if frame_idx > 0 {
@@ -1014,39 +1072,44 @@ fn run(file: String) {
                 } // Add space between frames
 
                 // Frame location info
+                let source_num = vm.source_select.get(frame.i);
+                println!("{:?}", source_num);
                 let ip_str_val = format!("ins 0x{:04X} ({})", frame.i, frame.i);
                 let ip_str = ip_str_val.dimmed();
 
                 if let Some(lines) = lines_opt {
                     if let Some(&line_nr_64) = lines.get(frame.i) {
                         let line_nr = line_nr_64 as usize;
-                        println!(
-                            "  at {} ({} {})",
-                            frame.name.cyan(),
-                            "line".green(),
-                            (line_nr + 1).to_string().green()
-                        );
-                        println!("  {}", ip_str);
 
                         // Code snippet
-                        if let Some(source) = source_opt {
-                            let radius = 4;
-                            let start = line_nr.saturating_sub(radius);
-                            let end = std::cmp::min(line_nr + radius + 1, source.len());
+                        if let Some(select) = source_num {
+                            if let Some(source) = source_opt.get(*select) {
+                                println!(
+                                    "  at {} ({}:{})",
+                                    frame.name.cyan(),
+                                    source.fp,
+                                    (line_nr + 1).to_string().green()
+                                );
+                                println!("  {}", ip_str);
 
-                            println!(); // Spacer before code
-                            for i in start..end {
-                                let line_prefix_val = format!("{:>4} |", i + 1);
-                                let line_prefix = line_prefix_val.blue();
-                                if i == line_nr {
-                                    println!(
-                                        "{} {} {}",
-                                        "->".red().bold(),
-                                        line_prefix,
-                                        source[i].bold().underline()
-                                    );
-                                } else {
-                                    println!("   {} {}", line_prefix, &source[i]);
+                                let radius = 4;
+                                let start = line_nr.saturating_sub(radius);
+                                let end = std::cmp::min(line_nr + radius + 1, source.content.len());
+
+                                println!(); // Spacer before code
+                                for i in start..end {
+                                    let line_prefix_val = format!("{:>4} |", i + 1);
+                                    let line_prefix = line_prefix_val.blue();
+                                    if i == line_nr {
+                                        println!(
+                                            "{} {} {}",
+                                            "->".red().bold(),
+                                            line_prefix,
+                                            source.content[i].bold().underline()
+                                        );
+                                    } else {
+                                        println!("   {} {}", line_prefix, &source.content[i]);
+                                    }
                                 }
                             }
                         }

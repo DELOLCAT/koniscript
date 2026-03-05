@@ -5,7 +5,9 @@ import typer
 import os
 import sys
 from pathlib import Path
+
 from omni_script.main import (
+    CompilerError,
     Tokenizer,
     Parser,
     EOF,
@@ -31,9 +33,7 @@ tracebacks = os.environ.get('OMNI_TRACEBACKS')
 
 
 def exec_name(name: str) -> str:
-    if sys.platform == 'win32':
-        return name + '.exe'
-    return name
+    return f'{name}.exe' if sys.platform == 'win32' else name
 
 
 def bundled_exe(name: str) -> Path:
@@ -55,7 +55,7 @@ class CompilationResult:
 
 @dataclass
 class Failed(CompilationResult):
-    compiler: None | Compiler
+    compiler: Compiler | None
     exception: CompilationException
 
 
@@ -64,13 +64,9 @@ class Success(CompilationResult):
     instructions: list[str]
 
 
-def comp(
-    file_content: str, features=None
-) -> Generator[Compiler.Warn, None, CompilationResult]:
+def get_program(file_content):
     try:
-        if features is None:
-            features = []
-        current_env = copy.copy(base_env.compiler_env)  # noqa: F841
+        current_env = copy.copy(base_env.compiler_env)
         tknr = Tokenizer(file_content)
         tkns: list[Token] = []
         while True:
@@ -80,17 +76,59 @@ def comp(
                 break
         psr: Parser = Parser(tkns, base_env.ASTenv)
         program: Program = psr.program()
+        return program, current_env
     except CompilationException as e:
         return Failed(None, e)
 
-    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
+
+def comp(
+    file_content: str, filepath, features=None
+) -> Generator[Compiler.Warn | Compiler.ModuleRequest, Program, CompilationResult]:
+
+    if features is None:
+        features = []
+
+    tmp = get_program(file_content)
+
+    if isinstance(tmp, Failed):
+        return tmp
+
+    program, current_env = tmp
+
+    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs, str(filepath))
+
     try:
         cmp = compiler.compile(program, features, file_content)
     except CompilationException as e:
         return Failed(compiler, e)
+    result = None
     while True:
         try:
-            yield next(cmp)
+            a = cmp.send(result)
+            if isinstance(a, Compiler.ModuleRequest):
+                if (Path(filepath).parent / (f'{a.name}.om')).is_file():
+                    fp = Path(filepath).parent / (f'{a.name}.om')
+                elif (Path(filepath).parent / 'packages' / (f'{a.name}.om')).is_file():
+                    fp = Path(filepath).parent / 'packages' / ('{a.name}.om')
+                else:
+                    raise CompilerError(
+                        6,
+                        f'Could not resolve module `{a.name}`',
+                        a.line,
+                        None,
+                        compiler.mod_stack[-1].fp,
+                    )  # TODO: columns
+
+                content = fp.read_text()
+                tmp = get_program(content)
+                if isinstance(tmp, Failed):
+                    return tmp
+                import_program, import_env = tmp
+                result = Compiler.ModuleReceived(import_program, str(fp), content)
+
+            else:
+                result = None
+                yield a
         except StopIteration as e:
             return Success(e.value)
         except CompilationException as e:
@@ -143,7 +181,7 @@ def compile(
     )
     file_content = Path(filepath).read_text()
     start_time = perf_counter()
-    it = iter(comp(file_content, comp_features))
+    it = iter(comp(file_content, filepath, comp_features))
 
     instructions = None
     warns = 0
@@ -151,7 +189,7 @@ def compile(
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
-                warns+=1
+                warns += 1
                 show_err_or_warn(value, filepath, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
@@ -162,15 +200,21 @@ def compile(
                     raise e.value.exception
                 show_err_or_warn(e.value, filepath, file_content)
                 if warns > 0:
-                    print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')
+                    print(
+                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+                    )
                 else:
-                    print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds')
+                    print(
+                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds'
+                    )
                 return
             else:
                 raise
     fp = f'{str(filepath).removesuffix(".om")}.omc'
     if warns > 0:
-        print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')
+        print(
+            f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+        )
     else:
         print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds')
     status = console.status(f'Writing to {fp}')
@@ -181,23 +225,35 @@ def compile(
     print(f'Wrote to {fp}')
 
 
-def show_err_or_warn(e: Failed | Compiler.Warn, filepath, file_content: str):
+def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     if isinstance(e, Failed):
         color = '[red b]'
         tag = f'[red b]E{e.exception.code:02}'
         ln = e.exception.line
         col = e.exception.col
         msg = e.exception.msg
+        if isinstance(e.exception, CompilerError):
+            filepath = e.exception.fp
+            if e.compiler is None:
+                ln = None
+            else:
+                file_content = e.compiler.sources[e.exception.fp]
+        else:
+            filepath = fp
+
     else:
         color = '[yellow b]'
         tag = '[yellow b]Warning'
         col = e.col
         ln = e.line
         msg = e.message
+        filepath = e.fp
+        file_content = e.compiler.sources[e.fp]
+
     print()
     print(f'{tag}: {msg}:', file=sys.stderr)
     print(
-        f'at {filepath}{"[green]:" + str(ln + 1) if ln is not None else " [red]No line data available"}{":" + str(col) if col is not None else ""}',
+        f'at {filepath}{f"[green]:{str(ln + 1)}" if ln is not None else " [red]No line data available"}{f":{str(col)}" if col is not None else ""}',
         file=sys.stderr,
     )
     if ln is not None:
@@ -218,7 +274,7 @@ def run(
     comp_features: list[str] = ['source', 'line']
 
     file_content = Path(filepath).read_text()
-    it = iter(comp(file_content, comp_features))
+    it = iter(comp(file_content, filepath, comp_features))
     instructions = None
     while True:
         try:
@@ -229,13 +285,13 @@ def run(
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
                 break
-            elif isinstance(e.value, Failed): # `elif` for IDE type recognition
+            elif isinstance(e.value, Failed):  # `elif` for IDE type recognition
                 if tracebacks:
                     raise
                 show_err_or_warn(e.value, filepath, file_content)
-                exit(1) # Abort
+                exit(1)  # Abort
             else:
-                raise # Impossible
+                raise  # Impossible
 
     f = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.omc')
     try:
@@ -245,15 +301,15 @@ def run(
         vm_path = shutil.which('omvm')
         if (Path(__file__).parent / exec_name('omvm')).is_file():
             vm_path = Path(__file__).parent / exec_name('omvm')
-        elif vm_path is not None:
-            pass
-        else:
+        elif vm_path is None:
             print(
                 '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
             )
             sys.exit(127)
         # run the VM and capture its output for tests, but also echo to user
-        out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
+        out = subprocess.run(
+            [str(vm_path), 'run', f.name], capture_output=True
+        )  # sourcery skip: python.lang.security.audit.dangerous-subprocess-use-audit
     finally:
         os.unlink(f.name)
 

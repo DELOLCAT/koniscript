@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
 from omni_script import base_env
@@ -8,73 +9,63 @@ from omni_script.runtime import (
     T_NULL,
     T_STRING,
     BuiltinFunction,
-    Module,
     ASTNode,
     Program,
-    BuiltinModule,
     BuiltinModulePointer,
     Builtin,
 )
-import os
 
-ADD = "ADD"
-INTEGER = "INT"
+ADD = 'ADD'
+INTEGER = 'INT'
 INT = INTEGER
-IDENTIFIER = "IDENTIFIER"
-ASSIGN = "ASSIGN"
-NEWLINE = "NEWLINE"
-EOF = "EOF"
-DIVIDE = "DIVIDE"
+IDENTIFIER = 'IDENTIFIER'
+ASSIGN = 'ASSIGN'
+NEWLINE = 'NEWLINE'
+EOF = 'EOF'
+DIVIDE = 'DIVIDE'
 DIV = DIVIDE
-MULTIPLY = "MULTIPLY"
+MULTIPLY = 'MULTIPLY'
 MUL = MULTIPLY
-POWER = "POWER"
+POWER = 'POWER'
 POW = POWER
-SUBTRACT = "SUBTRACT"
+SUBTRACT = 'SUBTRACT'
 SUB = SUBTRACT
-RPAREN = "RPAREN"
-LPAREN = "LPAREN"
-STRING = "STRING"
-COMMA = "COMMA"
+RPAREN = 'RPAREN'
+LPAREN = 'LPAREN'
+STRING = 'STRING'
+COMMA = 'COMMA'
 PRECEDENCE = {ADD: 1, SUB: 1, MUL: 2, DIV: 2, POW: 3}
-LBRACE = "LBRACE"
-RBRACE = "RBRACE"
-FUNC = "FUNC"
-RETURN = "RETURN"
-BOOLEAN = "BOOLEAN"
+LBRACE = 'LBRACE'
+RBRACE = 'RBRACE'
+FUNC = 'FUNC'
+RETURN = 'RETURN'
+BOOLEAN = 'BOOLEAN'
 BOOL = BOOLEAN
-GREATER_THAN = "GREATER_THAN"
+GREATER_THAN = 'GREATER_THAN'
 GT = GREATER_THAN
-LESS_THAN = "LESS_THAN"
+LESS_THAN = 'LESS_THAN'
 LT = LESS_THAN
-LTE = "LESS_THAN_OR_EQ"
-GTE = "LESS_THAN_OR_EQ"
-EQUAL_TO = "EQUAL_TO"
-NOT_EQUAL_TO = "NOT_EQUAL_TO"
-IF = "IF"
-ELSE = "ELSE"
-OR = "OR"
-AND = "AND"
-FLOAT = "FLOAT"
-WHILE = "WHILE"
-DOT = "DOT"
-IMPORT = "IMPORT"
-EXPORT = "EXPORT"
-LBRACKET = "LBRACKET"
-RBRACKET = "RBRACKET"
-AT_RATE = "AT_RATE"
-NOT = "NOT"
-
-
-class CompilationException(Exception):
-    code: int
-    msg: str
-    line: int | None
-    col: int | None
+LTE = 'LESS_THAN_OR_EQ'
+GTE = 'LESS_THAN_OR_EQ'
+EQUAL_TO = 'EQUAL_TO'
+NOT_EQUAL_TO = 'NOT_EQUAL_TO'
+IF = 'IF'
+ELSE = 'ELSE'
+OR = 'OR'
+AND = 'AND'
+FLOAT = 'FLOAT'
+WHILE = 'WHILE'
+DOT = 'DOT'
+IMPORT = 'IMPORT'
+EXPORT = 'EXPORT'
+LBRACKET = 'LBRACKET'
+RBRACKET = 'RBRACKET'
+AT_RATE = 'AT_RATE'
+NOT = 'NOT'
 
 
 @dataclass
-class ParserError(CompilationException):
+class CompilationException(Exception):
     code: int  # TODO: Formalize these
     msg: str
     line: int | None
@@ -82,33 +73,32 @@ class ParserError(CompilationException):
 
 
 @dataclass
+class ParserError(CompilationException):
+    pass
+
+
+@dataclass
 class CompilerError(CompilationException):
-    code: int
-    msg: str
-    line: int | None
-    col: int | None
+    fp: str
 
 
 @dataclass
 class TokenizerError(CompilationException):
-    code: int
-    msg: str
-    line: int | None
-    col: int | None
+    pass
 
 
 KEYWORDS = {
-    "func": FUNC,
-    "return": RETURN,
-    "if": IF,
-    "else": ELSE,
-    "or": OR,
-    "and": AND,
-    "while": WHILE,
-    "import": IMPORT,
-    "export": EXPORT,
-    "@": AT_RATE,
-    "not": NOT,
+    'func': FUNC,
+    'return': RETURN,
+    'if': IF,
+    'else': ELSE,
+    'or': OR,
+    'and': AND,
+    'while': WHILE,
+    'import': IMPORT,
+    'export': EXPORT,
+    '@': AT_RATE,
+    'not': NOT,
 }
 
 
@@ -143,7 +133,7 @@ class Tokenizer:
             if ch is None:
                 return None
             self.current_idx += 1
-            if ch == "\n":
+            if ch == '\n':
                 self.line += 1
                 self.col = 1
             else:
@@ -158,7 +148,7 @@ class Tokenizer:
     def skip_whitespace(self):
         while True:
             ch = self.get_current_char()
-            if ch is not None and ch.isspace() and ch != "\n":
+            if ch is not None and ch.isspace() and ch != '\n':
                 self.advance()
             else:
                 break
@@ -182,15 +172,14 @@ class Tokenizer:
             return Token(EOF, None, start_line, start_col)  # End of input
 
         if current_char.isdigit():
-            value = ""
+            value = ''
             fl = False
             while (
                 self.get_current_char() is not None
                 and self.get_current_char().isdigit()  # pyright: ignore[reportOptionalMemberAccess]
-                or self.get_current_char()
-                == "."  # pyright: ignore[reportOptionalMemberAccess]
+                or self.get_current_char() == '.'  # pyright: ignore[reportOptionalMemberAccess]
             ):
-                if self.get_current_char() == ".":
+                if self.get_current_char() == '.':
                     fl = True
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance(1)
@@ -198,152 +187,142 @@ class Tokenizer:
                 return Token(FLOAT, float(value), start_line, start_col)
             else:
                 return Token(INT, int(value), start_line, start_col)
-        elif current_char == "[":
+        elif current_char == '[':
             self.advance(1)
             return Token(LBRACKET, None, start_line, start_col)
-        elif current_char == "]":
+        elif current_char == ']':
             self.advance(1)
             return Token(RBRACKET, None, start_line, start_col)
-        elif current_char == "@":
+        elif current_char == '@':
             self.advance(1)
             return Token(AT_RATE, None, start_line, start_col)
-        elif current_char == "#":
+        elif current_char == '#':
             while (
-                self.get_current_char() is not None and self.get_current_char() != "\n"
+                self.get_current_char() is not None and self.get_current_char() != '\n'
             ):
                 self.advance()
             return self.get_next_token()
-        elif current_char == "+":
+        elif current_char == '+':
             self.advance(1)
             return Token(ADD, None, start_line, start_col)
-        elif current_char == ".":
+        elif current_char == '.':
             self.advance(1)
             return Token(DOT, None, start_line, start_col)
-        elif self.check("true"):
+        elif self.check('true'):
             self.advance(4)
             return Token(BOOL, True, start_line, start_col)
-        elif self.check("false"):
+        elif self.check('false'):
             self.advance(5)
             return Token(BOOL, False, start_line, start_col)
-        elif self.check("=="):
+        elif self.check('=='):
             self.advance(2)
             return Token(EQUAL_TO, None, start_line, start_col)
-        elif current_char == "=":
+        elif current_char == '=':
             self.advance(1)
             return Token(ASSIGN, None, start_line, start_col)
-        elif current_char == "-":
+        elif current_char == '-':
             self.advance(1)
             return Token(SUB, None, start_line, start_col)
-        elif self.check("**"):
+        elif self.check('**'):
             self.advance(2)
             return Token(POW, None, start_line, start_col)
-        elif current_char == "*":
+        elif current_char == '*':
             self.advance(1)
             return Token(MUL, None, start_line, start_col)
-        elif self.check("!="):
+        elif self.check('!='):
             self.advance(2)
             return Token(NOT_EQUAL_TO, None, start_line, start_col)
-        elif self.check("<="):
+        elif self.check('<='):
             self.advance(2)
             return Token(LTE, None, start_line, start_col)
-        elif self.check(">="):
+        elif self.check('>='):
             self.advance(2)
             return Token(GTE, None, start_line, start_col)
-        elif current_char == "\n":
+        elif current_char == '\n':
             self.advance(1)
             return Token(NEWLINE, None, start_line, start_col)
-        elif current_char == "(":
+        elif current_char == '(':
             self.advance(1)
             return Token(LPAREN, None, start_line, start_col)
-        elif current_char == ")":
+        elif current_char == ')':
             self.advance(1)
             return Token(RPAREN, None, start_line, start_col)
-        elif current_char == "{":
+        elif current_char == '{':
             self.advance(1)
             return Token(LBRACE, None, start_line, start_col)
-        elif current_char == "}":
+        elif current_char == '}':
             self.advance(1)
             return Token(RBRACE, None, start_line, start_col)
-        elif current_char == "/":
+        elif current_char == '/':
             self.advance(1)
             return Token(DIV, None, start_line, start_col)
-        elif current_char == ",":
+        elif current_char == ',':
             self.advance(1)
             return Token(COMMA, None, start_line, start_col)
-        elif current_char == "<":
+        elif current_char == '<':
             self.advance(1)
             return Token(LESS_THAN, None, start_line, start_col)
-        elif current_char == ">":
+        elif current_char == '>':
             self.advance(1)
             return Token(GREATER_THAN, None, start_line, start_col)
         elif current_char == '"':
             self.advance(1)
-            value = ""
+            value = ''
             while (
                 self.get_current_char() is not None and self.get_current_char() != '"'
             ):
-                if self.get_current_char() == "\\":
+                if self.get_current_char() == '\\':
                     self.advance()
                     match self.get_current_char():
-                        case "n":
-                            value += "\n"
-                        case "t":
-                            value += "\t"
+                        case 'n':
+                            value += '\n'
+                        case 't':
+                            value += '\t'
                         case _:
-                            value += (
-                                self.get_current_char()
-                            )  # pyright: ignore[reportOperatorIssue]
+                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 else:
-                    value += (
-                        self.get_current_char()
-                    )  # pyright: ignore[reportOperatorIssue]
+                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             if self.get_current_char() != '"':
                 raise TokenizerError(
-                    1, "Unterminated string literal", self.line, self.col
+                    1, 'Unterminated string literal', self.line, self.col
                 )
             self.advance()
             return Token(STRING, value, start_line, start_col)
         elif current_char == "'":
             self.advance(1)
-            value = ""
+            value = ''
             while (
                 self.get_current_char() is not None and self.get_current_char() != "'"
             ):
-                if self.get_current_char() == "\\":
+                if self.get_current_char() == '\\':
                     self.advance()
                     match self.get_current_char():
-                        case "n":
-                            value += "\n"
-                        case "t":
-                            value += "\t"
+                        case 'n':
+                            value += '\n'
+                        case 't':
+                            value += '\t'
                         case _:
-                            value += (
-                                self.get_current_char()
-                            )  # pyright: ignore[reportOperatorIssue]
+                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 else:
-                    value += (
-                        self.get_current_char()
-                    )  # pyright: ignore[reportOperatorIssue]
+                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             if self.get_current_char() != "'":
                 raise TokenizerError(
-                    1, "Unterminated string literal", self.line, self.col
+                    1, 'Unterminated string literal', self.line, self.col
                 )
             self.advance()
             return Token(STRING, value, start_line, start_col)
 
-        elif current_char.isalpha() or current_char == "_":
+        elif current_char.isalpha() or current_char == '_':
             to_return = current_char
             self.advance()
             while (
                 self.get_current_char() is not None
                 and self.get_current_char().isalnum()  # pyright: ignore[reportOptionalMemberAccess]
-                or self.get_current_char() == "_"
+                or self.get_current_char() == '_'
             ):  # pyright: ignore[reportOptionalMemberAccess]
-                to_return += (
-                    self.get_current_char()
-                )  # pyright: ignore[reportOperatorIssue]
+                to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             tok_type = KEYWORDS.get(to_return, IDENTIFIER)
             return Token(tok_type, to_return, start_line, start_col)
@@ -370,62 +349,63 @@ class OmniType:
 @dataclass
 class OmniStr(OmniType):
     def __init__(self):
-        self.display = "str"
+        self.display = 'str'
 
 
 @dataclass
 class OmniFloat(OmniType):
     def __init__(self):
-        self.display = "float"
+        self.display = 'float'
 
 
 @dataclass
 class OmniInt(OmniType):
     def __init__(self):
-        self.display = "int"
+        self.display = 'int'
 
 
 @dataclass
 class OmniFunc(OmniType):
     def __init__(self):
-        self.display = "func"
+        self.display = 'func'
 
 
 @dataclass
 class OmniModule(OmniType):
     def __init__(self):
-        self.display = "mod"
+        self.display = 'mod'
 
 
 @dataclass
 class OmniArray(OmniType):
     def __init__(self):
-        self.display = "array"
+        self.display = 'array'
 
 
 @dataclass
 class OmniNull(OmniType):
     def __init__(self):
-        self.display = "null"
+        self.display = 'null'
 
 
 class Parser:
-    def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool=False):
+    def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool = False):
         self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
         self.repl = repl
         self.current_token = self.tokens[0] if self.tokens else Token(EOF, None, 0, 0)
-        
+
     def incomplete_input(self):
         if self.repl:
             raise IncompleteInput
+
     def eat(self, token_type):
         out = self.current_token
         if self.current_token.type != token_type:
             raise ParserError(
                 3,
-                f"Expected {token_type}, got {self.current_token.type}",
+                f'Expected {token_type}, got {self.current_token.type}',
                 self.current_token.line,
                 self.current_token.col,
             )
@@ -603,7 +583,7 @@ class Parser:
             return node
         raise ParserError(
             3,
-            f"Unexpected token {token.type}{f' `{token.value}`' if token.value is not None else ''}",
+            f'Unexpected token {token.type}{f" `{token.value}`" if token.value is not None else ""}',
             self.current_token.line,
             self.current_token.col,
         )
@@ -614,9 +594,9 @@ class Parser:
         if not isinstance(out, Assign):
             raise ParserError(
                 5,
-                "Cannot export anything other than an assignment or function",
-                getattr(out, "line", None),
-                getattr(out, "col", None),
+                'Cannot export anything other than an assignment or function',
+                getattr(out, 'line', None),
+                getattr(out, 'col', None),
             )
         name = out.name
         ln = out.line
@@ -630,21 +610,21 @@ class Parser:
             return None
         elif self.current_token.type == AT_RATE:
             self.eat(AT_RATE)
-            if self.current_token.value == "require":
+            if self.current_token.value == 'require':
                 ln = self.current_token.line
                 self.eat(IDENTIFIER)
                 reqs = []
-                req = ""
+                req = ''
 
                 req += self.eat(IDENTIFIER).value
-                
+
                 while self.current_token.type == DOT:
-                    req += "."
+                    req += '.'
                     self.eat(DOT)
                     req += self.eat(IDENTIFIER).value
-                    
+
                 reqs.append(req)
-                req = ""
+                req = ''
                 while self.current_token.type == COMMA:
                     if self.current_token.type == EOF:
                         self.incomplete_input()
@@ -652,11 +632,11 @@ class Parser:
                     self.eat(COMMA)
                     req += self.eat(IDENTIFIER).value
                     while self.current_token.type == DOT:
-                        req += "."
+                        req += '.'
                         self.eat(DOT)
                         req += self.eat(IDENTIFIER).value
                     reqs.append(req)
-                    req = ""
+                    req = ''
                 if self.current_token.type == LBRACE:
                     blk = self.block()
                     else_block: Block | None = None
@@ -680,37 +660,7 @@ class Parser:
             ln = self.current_token.line
             self.eat(IMPORT)
             name = self.eat(IDENTIFIER).value
-            base_path = os.curdir
-            for i, item in enumerate(self.base_env):
-                if isinstance(item[1], BuiltinModule) and item[1].name == name:
-                    return Assign(-1, name, BuiltinModulePointer(ln, i))
-            if f"{name}.om" in os.listdir(
-                "packages"
-            ):  # TODO: do this in a more dynamic way
-                modpath = os.path.join(base_path, "packages", f"{name}.om")
-            elif f"{name}.om" in os.listdir():
-                modpath = os.path.join(base_path, f"{name}.om")
-            else:
-                raise ParserError(
-                    6,
-                    f"Can't find module {name}",
-                    self.current_token.line,
-                    self.current_token.col,
-                )
-            with open(modpath) as f:
-                content = f.read()
-
-            tknr = Tokenizer(content)
-            tkns = []
-            while True:
-                tkn = tknr.get_next_token()
-                tkns.append(tkn)
-                if tkn.type == EOF:
-                    break
-            psr = Parser(tkns, self.base_env)
-            program = psr.program()
-            mod = Module(self.current_token.line, program, name)
-            return Assign(self.current_token.line, name, mod)
+            return Import(ln, name)
         elif self.current_token.type == RETURN:
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
@@ -767,7 +717,7 @@ class Parser:
                     self.current_token.line, self.eat(IDENTIFIER).value, None
                 )
             )
-            
+
             if self.current_token.type == ASSIGN:
                 optional = True
                 self.eat(ASSIGN)
@@ -775,7 +725,7 @@ class Parser:
             elif optional:
                 raise ParserError(
                     7,
-                    "Cannot have a non-optional argument after an optional argument",
+                    'Cannot have a non-optional argument after an optional argument',
                     self.current_token.line,
                     self.current_token.col,
                 )
@@ -793,7 +743,7 @@ class Parser:
                 elif optional:
                     raise ParserError(
                         7,
-                        "Cannot have a non-optional argument after an optional argument",
+                        'Cannot have a non-optional argument after an optional argument',
                         self.current_token.line,
                         self.current_token.col,
                     )
@@ -817,7 +767,7 @@ class Parser:
         if self.current_token.type != EOF:
             raise ParserError(
                 3,
-                f"Unexpected token of type {self.current_token.type}: {self.current_token.value}",
+                f'Unexpected token of type {self.current_token.type}: {self.current_token.value}',
                 self.current_token.line,
                 self.current_token.col,
             )
@@ -852,6 +802,12 @@ class Parser:
 class BareRequire(ASTNode):
     line: int
     reqs: list[str]
+
+
+@dataclass
+class Import(ASTNode):
+    line: int
+    mod: str
 
 
 @dataclass
@@ -972,7 +928,7 @@ class Function(ASTNode):
         self.line = line
 
     def __repr__(self):
-        return f"Function({self.params}, {self.body})"
+        return f'Function({self.params}, {self.body})'
 
 
 @dataclass
@@ -1001,9 +957,9 @@ class NOP(ASTNode):
     pass
 
 
-OP_SET_VAR = "STORE"
-OP_GET_VAR = "RETRIEVE"
-OP_PUSH_CONST = "PUSH_CONST"
+OP_SET_VAR = 'STORE'
+OP_GET_VAR = 'RETRIEVE'
+OP_PUSH_CONST = 'PUSH_CONST'
 OP_ADD = ADD
 OP_SUB = SUB
 OP_MUL = MUL
@@ -1017,8 +973,8 @@ OP_EQUAL_TO = EQUAL_TO
 OP_NOT_EQUAL_TO = NOT_EQUAL_TO
 OP_OR = OR
 OP_AND = AND
-OP_CALL = "CALL"
-NEG = "NEG"
+OP_CALL = 'CALL'
+NEG = 'NEG'
 OP_NEG = NEG
 OP_NOT = NOT
 OPCODE_MAP = {
@@ -1038,8 +994,8 @@ OPCODE_MAP = {
     NEG: OP_NEG,
     NOT: OP_NOT,
 }
-BUILTIN = "BUILTIN"
-NULL = "NULL"
+BUILTIN = 'BUILTIN'
+NULL = 'NULL'
 
 
 class Compiler:
@@ -1048,6 +1004,7 @@ class Compiler:
         env: list[str],
         ASTenv: list[tuple[str, Builtin]],
         attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]],
+        filepath: str,
     ):
         self.constants = []
         self.vars = []
@@ -1055,26 +1012,42 @@ class Compiler:
         self.var_map = {}
         self.const_map = {}
         self.code = []
+        self.sources: dict[str, str] = {}
         self.passed_env = env
         self.scopes: list[Compiler.Scope] = []
         self.var_count = 0
         self.ASTenv = ASTenv
         self.lines = []
         self.modules = []
+        self.mod_stack: list[Compiler.Module] = [self.Module([], filepath)]
+        self.filepath = filepath
         self.exports = []
-        self.req_stack: list[Compiler.RequirementGroup] = (
-            []
-        )  # LIFO stack for nested @require statements
-        self.req_stack_not_allowed: list[Compiler.RequirementGroup] = (
-            []
-        )  # for errors when using a feature where it isn't allowed, like the else branch of an @require statement
-        self.attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]] = attrs
+        self.source_info: list[int] = []
+        self.req_stack: list[
+            Compiler.RequirementGroup
+        ] = []  # LIFO stack for nested @require statements
+        self.req_stack_not_allowed: list[
+            Compiler.RequirementGroup
+        ] = []  # for errors when using a feature where it isn't allowed, like the else branch of an @require statement
+        self.attrs: list[
+            tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]
+        ] = attrs
         self.enter_scope()
 
     @dataclass
     class ScopeItem:
         idx: int
         value: ASTNode
+
+    @dataclass
+    class Module(ASTNode):
+        exports: list[Compiler.ExportItem]
+        fp: str
+
+    @dataclass
+    class ExportItem:
+        name: str
+        item: ASTNode
 
     @dataclass
     class RequirementGroup:  # I'm addicted to classes
@@ -1084,6 +1057,17 @@ class Compiler:
     class BuiltinScopeItem:
         value: Builtin
 
+    @dataclass
+    class ModuleRequest:
+        name: str
+        line: int
+
+    @dataclass
+    class ModuleReceived:
+        program: Program
+        filepath: str
+        content: str
+
     class Scope:
         def __init__(self, var_map={}, args={}):
             self.var_map: dict[str, Compiler.ScopeItem] = var_map
@@ -1092,13 +1076,15 @@ class Compiler:
             self.args = args
 
         def __repr__(self):
-            return f"Scope({self.var_map}, {self.next_local})"
+            return f'Scope({self.var_map}, {self.next_local})'
 
     @dataclass
     class Warn:
         message: str
         line: int | None
         col: int | None
+        fp: str
+        compiler: Compiler
 
     @dataclass
     class Result:
@@ -1133,13 +1119,13 @@ class Compiler:
 
     def get_var(
         self, name
-    ) -> tuple[int, Literal["user", "builtin"], int | None] | None:
+    ) -> tuple[int, Literal['user', 'builtin'], int | None] | None:
         for depth, scope in enumerate(reversed(self.scopes)):
             if name in scope.var_map:
-                return scope.var_map[name].idx, "user", depth
+                return scope.var_map[name].idx, 'user', depth
         for i, item in enumerate(self.passed_env):
             if item == name:
-                return i, "builtin", None
+                return i, 'builtin', None
         return None
 
     def get_var_obj(
@@ -1157,20 +1143,29 @@ class Compiler:
         idx = len(self.code)
         self.code.append((opcode, *operands))
         self.lines.append(line)
+        fp = self.mod_stack[-1].fp
+        for i, item in enumerate(self.sources.keys()):  # TODO: make this O(1)
+            if item == fp:
+                self.source_info.append(i)
         return idx
 
     def compile(
         self,
         program: Program,
-        features: Collection[Literal["source"] | Literal["line"]] = [],
+        features: Collection[Literal['source'] | Literal['line']] = [],
         input_source: str | None = None,
-    ) -> Generator[Warn, None, list[str]]:
-        if input_source is None and "source" in features:
+    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, list[str]]:
+        if input_source is None and 'source' in features:
             raise CompilerError(
                 8,
-                "Compiler needs input source to compile with source info.",
+                'Compiler needs input source to compile with source info.',
                 None,
                 None,
+                self.mod_stack[-1].fp,
+            )
+        if 'source' in features:
+            self.sources[self.filepath] = (  # pyright: ignore[reportArgumentType]
+                input_source
             )
         for node in program.statements:
             # empty statements (e.g. stray braces) may be None
@@ -1179,36 +1174,47 @@ class Compiler:
             yield from self.compile_ins(node)
             # drop any value produced by the statement so that subsequent
             # instructions start with a clean stack
-            self.emit(node.line, "POP")
-        self.emit(0, "NOP")
+            self.emit(node.line, 'POP')
+        self.emit(0, 'NOP')
         output = []
-        output.append(".version")
-        output.append("ENV 1")
-        output.append("ISA 1")
+        output.append('.version')
+        output.append('ENV 1')
+        output.append('ISA 1')
         if len(self.reqs) > 0:
-            output.append(".reqs " + " ".join([str(x) for x in self.reqs]))
+            output.append('.reqs ' + ' '.join([str(x) for x in self.reqs]))
 
-        output.append(f".frame {self.scopes[-1].next_local}")
+        output.append(f'.frame {self.scopes[0].next_local}')
 
-        output.append(".const")
+        output.append('.const')
         for const in self.constants:
             output.append(
                 f'{const[0]};{str(const[1]).replace("\n", "\\n").replace(";", "\\;")};'
             )
-        output.append(".code")
+        output.append('.code')
         for instr in self.code:
-            output.append(" ".join(map(str, instr)))
-        if "line" in features:
-            output.append(".line")
+            output.append(' '.join(map(str, instr)))
+        if 'line' in features:
+            output.append('.line')
             for line in self.lines:
                 output.append(line)
-        if "source" in features:
-            output.append(".source")
-            output += (input_source.splitlines())  # pyright: ignore[reportOptionalMemberAccess]
+        if 'source' in features:
+            output.append('.source_select')
+            output += self.source_info
+            for fp, source_content in self.sources.items():
+                idx = len(output)
+                output.append('')
+                output += source_content.splitlines()
+                output[idx] = f'.source {len(output)} {fp}'
+        output.append('')  # to prevent errors if a source's end is the end of the file
         return output
 
     def raise_for_req(
-        self, req: str, name: str, second_name: str, node: ASTNode | None, unsure: bool=False
+        self,
+        req: str,
+        name: str,
+        second_name: str,
+        node: ASTNode | None,
+        unsure: bool = False,
     ):
         if req in self.reqs:
             return
@@ -1222,38 +1228,47 @@ class Compiler:
             for item in self.req_stack_not_allowed:
                 if req in item.reqs:
                     illegal = True
-            ln = getattr(node, "line", None)
-            col = getattr(node, "col", None)
+            ln = getattr(node, 'line', None)
+            col = getattr(node, 'col', None)
             if illegal:
                 if unsure:
                     yield self.Warn(
-                        f"CRITICAL: This may need the `{req}` requirement, and is in an illegal zone. Perhaps add `@require {req}` to the top of your program?", #TODO: warning priorities
+                        f'CRITICAL: This may need the `{req}` requirement, and is in an illegal zone. Perhaps add `@require {req}` to the top of your program?',  # TODO: warning priorities
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
+                        self,
                     )
                 else:
                     raise CompilerError(
                         14,
-                        f"Attempted using a(n) {name} when it requires `{req}` in an illegal area",
+                        f'Attempted using a(n) {name} when it requires `{req}` in an illegal area',
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
                     )
             else:
                 if unsure:
                     yield self.Warn(
-                        f"This may need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?",
+                        f'This may need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?',
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
+                        self,
                     )
                 else:
                     self.reqs.append(req)
                     yield self.Warn(
-                        f"{second_name} implicitly adds the `{req}` requirement. Perhaps add `@require {req}` to the top of your program to make it explicit?",
+                        f'{second_name} implicitly adds the `{req}` requirement. Perhaps add `@require {req}` to the top of your program to make it explicit?',
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
+                        self,
                     )
 
-    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
+    def compile_ins(
+        self, node: ASTNode, *other
+    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, Any]:
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -1269,7 +1284,7 @@ class Compiler:
             consts: list[int] = []
             for item in node.reqs:
                 consts.append(self.add_constant((2, item)))
-            idx = self.emit(node.line, "REQUIRE", *consts, None)
+            idx = self.emit(node.line, 'REQUIRE', *consts, None)
             self.req_stack.append(
                 self.RequirementGroup(node.reqs)
             )  # create a new stack so later on warnings wont happen
@@ -1277,34 +1292,35 @@ class Compiler:
             self.req_stack.pop()  # remove the stack after the statement
             if node.else_block is not None:
                 self.req_stack_not_allowed.append(self.RequirementGroup(node.reqs))
-                jmp = self.emit(node.line, "JMP", None)
-                self.code[idx] = ("REQUIRE", *consts, len(self.code))
+                jmp = self.emit(node.line, 'JMP', None)
+                self.code[idx] = ('REQUIRE', *consts, len(self.code))
                 yield from self.compile_ins(node.else_block)
                 self.req_stack_not_allowed.pop()
-                self.code[jmp] = ("JMP", len(self.code))
+                self.code[jmp] = ('JMP', len(self.code))
             else:
-                self.code[idx] = ("REQUIRE", *consts, len(self.code))
+                self.code[idx] = ('REQUIRE', *consts, len(self.code))
         elif isinstance(node, Variable):
             # if node.name in self.scopes[-1].var_map:
             idx = self.get_var(node.name)
             if idx is None:
                 raise CompilerError(
                     9,
-                    f"Variable {node.name} not declared",
+                    f'Variable {node.name} not declared',
                     node.line,
-                    getattr(node, "col", None),
+                    getattr(node, 'col', None),
+                    self.mod_stack[-1].fp,
                 )
-            if idx[1] == "user":
+            if idx[1] == 'user':
                 self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
-                self.emit(node.line, "PUSH_BUILTIN", idx[0])
+                self.emit(node.line, 'PUSH_BUILTIN', idx[0])
         elif isinstance(node, Assign) and isinstance(node.value, Function):
             res = self.get_var(node.name)
             if res is None:
                 idx = self.declare_local(node.name, node.value)
                 yield from self.compile_ins(node.value, node.name)
                 if len(other) > 0 and other[0]:
-                    self.emit(node.line, "DUP")
+                    self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, 0)
                 return idx, 0
             else:
@@ -1313,13 +1329,17 @@ class Compiler:
 
                 idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
-                    self.emit(node.line, "DUP")
+                    self.emit(node.line, 'DUP')
+                if depth is None:
+                    depth = 0
                 self.emit(node.line, OP_SET_VAR, idx, depth)
 
                 yield self.Warn(
-                    f"Reassignment to a function attempted for {node.name}. This is usually not recommended",
+                    f'Reassignment to a function attempted for {node.name}. This is usually not recommended',
                     node.line,
-                    getattr(node, "col", None),
+                    getattr(node, 'col', None),
+                    self.mod_stack[-1].fp,
+                    self,
                 )
                 return idx, 0
         elif isinstance(node, Assign):
@@ -1328,39 +1348,28 @@ class Compiler:
                 yield from self.compile_ins(node.value)
                 idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
-                    self.emit(node.line, "DUP")
+                    self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, 0)
             else:
                 idx, _, depth = res
                 yield from self.compile_ins(node.value)
                 idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
-                    self.emit(node.line, "DUP")
+                    self.emit(node.line, 'DUP')
+                if depth is None:
+                    depth = 0
                 self.emit(node.line, OP_SET_VAR, idx, depth)
         elif isinstance(node, BuiltinModulePointer):
             ref = self.ASTenv[node.idx]
             if ref[0] in self.modules:
                 raise CompilerError(
                     10,
-                    f"Module {ref[0]} already imported.",
+                    f'Module {ref[0]} already imported.',
                     node.line,
-                    getattr(node, "col", None),
+                    getattr(node, 'col', None),
+                    self.mod_stack[-1].fp,
                 )
-            self.emit(-1, "PUSH_BUILTIN", node.idx)
-        elif isinstance(node, Module):
-            if node.name in self.modules:
-                raise CompilerError(
-                    10,
-                    f"Module {node.name} already imported.",
-                    node.line,
-                    getattr(node, "col", None),
-                )
-            self.modules.append(node.name)
-            self.scopes.append(Compiler.Scope())
-            for statement in node.body.statements:
-                yield from self.compile_ins(statement)
-            self.scopes.pop()
-            self.emit(node.line, "MAKE_MODULE")
+            self.emit(-1, 'PUSH_BUILTIN', node.idx)
         elif isinstance(node, BinOp):
             yield from self.compile_ins(node.left)
             yield from self.compile_ins(node.right)
@@ -1372,15 +1381,17 @@ class Compiler:
             for statement in node.statements:
                 yield from self.compile_ins(statement)
         elif isinstance(node, Bool):
-            idx = self.add_constant([T_BOOL, "true" if node.value else "false"])
+            idx = self.add_constant([T_BOOL, 'true' if node.value else 'false'])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             # compile the expression that identifies the callable (variable, attribute, etc.)
             yield from self.compile_ins(node.func)
-
+            exported = None
             # validate argument count depending on what kind of call this is
             if isinstance(node.func, Variable):
-                itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
+                itm = self.get_var_obj(node.func.name)[  # pyright: ignore[reportOptionalSubscript]
+                    0
+                ]
                 if isinstance(itm, self.ScopeItem):
                     if isinstance(itm.value, Function):
                         params = itm.value.params
@@ -1392,16 +1403,18 @@ class Compiler:
                             if not len(req) == len(params):
                                 raise CompilerError(
                                     11,
-                                    f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}",
+                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
-                                    getattr(node, "col", None),
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
                                 )
                             else:
                                 raise CompilerError(
                                     11,
-                                    f"Expected exactly {len(req)} arguments, got {len(node.args)}",
+                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
-                                    getattr(node, "col", None),
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
                                 )
                 elif isinstance(itm, self.BuiltinScopeItem) and isinstance(
                     itm.value, BuiltinFunction
@@ -1410,9 +1423,10 @@ class Compiler:
                         if not (itm.value.req_args <= len(node.args)):
                             raise CompilerError(
                                 11,
-                                f"Expected at least {itm.value.req_args} args, got {len(node.args)}",
+                                f'Expected at least {itm.value.req_args} args, got {len(node.args)}',
                                 node.line,
-                                getattr(node, "col", None),
+                                getattr(node, 'col', None),
+                                self.mod_stack[-1].fp,
                             )
                     else:
                         if not (
@@ -1421,53 +1435,127 @@ class Compiler:
                             if itm.value.req_args == itm.value.max_args:
                                 raise CompilerError(
                                     11,
-                                    f"Expected exactly {itm.value.req_args} args, got {len(node.args)}",
+                                    f'Expected exactly {itm.value.req_args} args, got {len(node.args)}',
                                     node.line,
-                                    getattr(node, "col", None),
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
                                 )
                             else:
                                 raise CompilerError(
                                     11,
-                                    f"Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}",
+                                    f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
                                     node.line,
-                                    getattr(node, "col", None),
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
                                 )
             elif isinstance(node.func, Attribute):
-                atr_itm: tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None = None
-                for item in self.attrs:
-                    if item[0] == node.func.rhs:
-                        atr_itm = item
-                        break
-                if atr_itm is None:
-                    raise CompilerError(
-                        12,
-                        f"No attribute `{node.func.rhs}` found",
-                        node.line,
-                        getattr(node, "col", None),
-                    )
-                if atr_itm[3] is not None:
+                exported = None
+                atr_itm: (
+                    tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None
+                ) = None
+                if isinstance(node.func.lhs, Variable):
+                    obj = self.get_var_obj(node.func.lhs.name)
+                    if obj is not None and isinstance(obj[0].value, self.Module):
+                        exports = obj[0].value.exports
+                        for item in exports:
+                            if item.name == node.func.rhs:
+                                exported = item
+                                break
+                if exported is None:
+                    for item in self.attrs:
+                        if item[0] == node.func.rhs:
+                            atr_itm = item
+                            break
+                    if atr_itm is None:
+                        raise CompilerError(
+                            12,
+                            f'No attribute `{node.func.rhs}` found',
+                            node.line,
+                            getattr(node, 'col', None),
+                            self.mod_stack[-1].fp,
+                        )
+                else:
+                    if isinstance(exported.item, Function):  # pyright: ignore[reportPossiblyUnboundVariable]
+                        params = exported.item.params  # pyright: ignore[reportPossiblyUnboundVariable]
+                        req: list[FunctionParameter] = []
+                        for item in params:
+                            if item.option is None:
+                                req.append(item)
+                        if not (len(req) <= len(node.args) <= len(params)):
+                            if not len(req) == len(params):
+                                raise CompilerError(
+                                    11,
+                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
+                                )
+                            else:
+                                raise CompilerError(
+                                    11,
+                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
+                                )
+                if atr_itm is not None and atr_itm[3] is not None:
                     for item in atr_itm[3]:
                         if len(atr_itm[3]) > 1:
-                            yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
+                            yield from self.raise_for_req(
+                                item[0], item[1], item[2], node, True
+                            )
                         else:
-                            yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
-                min_args = atr_itm[1]
-                max_args = atr_itm[2]
-                if not (min_args <= len(node.args) <= max_args):
-                    if min_args == max_args:
-                        raise CompilerError(
-                            11,
-                            f"Expected exactly {min_args} args, got {len(node.args)}",
-                            node.line,
-                            getattr(node, "col", None),
-                        )
-                    else:
-                        raise CompilerError(
-                            11,
-                            f"Expected {min_args} to {max_args} args, got {len(node.args)}",
-                            node.line,
-                            getattr(node, "col", None),
-                        )
+                            yield from self.raise_for_req(
+                                item[0], item[1], item[2], node, True
+                            )
+                elif atr_itm is not None:
+                    min_args = atr_itm[1]
+                    max_args = atr_itm[2]
+                    if not (min_args <= len(node.args) <= max_args):
+                        if min_args == max_args:
+                            raise CompilerError(
+                                11,
+                                f'Expected exactly {min_args} args, got {len(node.args)}',
+                                node.line,
+                                getattr(node, 'col', None),
+                                self.mod_stack[-1].fp,
+                            )
+                        else:
+                            raise CompilerError(
+                                11,
+                                f'Expected {min_args} to {max_args} args, got {len(node.args)}',
+                                node.line,
+                                getattr(node, 'col', None),
+                                self.mod_stack[-1].fp,
+                            )
+                elif exported is not None:
+                    if isinstance(exported.item, Function):
+                        min_args = 0
+                        max_args = len(exported.item.params)
+                        for param in exported.item.params:
+                            if param.option is None:
+                                min_args += 1
+
+                        if not (min_args <= len(node.args) <= max_args):
+                            if min_args == max_args:
+                                raise CompilerError(
+                                    11,
+                                    f'Expected exactly {min_args} args, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
+                                )
+                            else:
+                                raise CompilerError(
+                                    11,
+                                    f'Expected {min_args} to {max_args} args, got {len(node.args)}',
+                                    node.line,
+                                    getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp,
+                                )
+
+                else:
+                    raise NotImplementedError
 
             # compile argument expressions once
             for arg in node.args:
@@ -1475,7 +1563,9 @@ class Compiler:
 
             # emit the call instruction appropriate for the kind of callable
             if isinstance(node.func, Variable):
-                itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
+                itm = self.get_var_obj(node.func.name)[  # pyright: ignore[reportOptionalSubscript]
+                    0
+                ]
                 if isinstance(itm, self.ScopeItem):
                     if isinstance(itm.value, Function):
                         params = itm.value.params
@@ -1494,37 +1584,47 @@ class Compiler:
                 else:
                     raise
             elif isinstance(node.func, Attribute):
-                # object + method are on the stack already, just call
-                self.emit(node.line, OP_CALL, len(node.args))
+                if exported is not None:
+                    if isinstance(exported.item, Function):
+                        for item in exported.item.params[len(node.args) :]:
+                            if item.option is not None:
+                                yield from self.compile_ins(item.option)
+                            else:
+                                raise RuntimeError  # impossible
+                        self.emit(node.line, OP_CALL, len(exported.item.params))
+                    else:
+                        raise RuntimeError  # impossible
+                else:
+                    self.emit(node.line, OP_CALL, len(node.args))
             else:
                 raise NotImplementedError  # falling back for future call types
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
-            jmp = self.emit(node.line, "JMPIFF", None)
+            jmp = self.emit(node.line, 'JMPIFF', None)
             yield from self.compile_ins(node.body)
             yield from self.compile_ins(node.expr)
-            self.emit(node.line, "JMPIF", jmp + 1)
-            self.code[jmp] = ("JMPIFF", len(self.code))
+            self.emit(node.line, 'JMPIF', jmp + 1)
+            self.code[jmp] = ('JMPIFF', len(self.code))
         elif isinstance(node, If):
             yield from self.compile_ins(node.expr)
-            jmp = self.emit(node.line, "JMPIFF", None)
+            jmp = self.emit(node.line, 'JMPIFF', None)
             yield from self.compile_ins(node.body)
             if node.else_body:
-                jmp2 = self.emit(node.line, "JMP", None)
-                self.code[jmp] = ("JMPIFF", len(self.code))
+                jmp2 = self.emit(node.line, 'JMP', None)
+                self.code[jmp] = ('JMPIFF', len(self.code))
                 yield from self.compile_ins(node.else_body)
-                self.code[jmp2] = ("JMP", len(self.code))
+                self.code[jmp2] = ('JMP', len(self.code))
             else:
-                self.code[jmp] = ("JMPIFF", len(self.code))
+                self.code[jmp] = ('JMPIFF', len(self.code))
         elif isinstance(node, Array):
-            yield from self.raise_for_req("types.arrays", "Array", 'Arrays', node)
+            yield from self.raise_for_req('types.arrays', 'Array', 'Arrays', node)
             for item in reversed(node.items):
                 yield from self.compile_ins(item)
-            self.emit(node.line, "BUILD_ARRAY", len(node.items))
+            self.emit(node.line, 'BUILD_ARRAY', len(node.items))
         elif isinstance(node, NOP):
-            self.emit(0, "NOP")
+            self.emit(0, 'NOP')
         elif isinstance(node, Function):
-            jmp = self.emit(node.line, "JMP", None)
+            jmp = self.emit(node.line, 'JMP', None)
             fn_entry = len(self.code)
             self.enter_scope({})
             for param in node.params:
@@ -1532,18 +1632,18 @@ class Compiler:
             yield from self.compile_ins(node.body)
 
             self.emit(
-                node.line, "PUSH_CONST", self.add_constant((base_env.T_NULL, None))
+                node.line, 'PUSH_CONST', self.add_constant((base_env.T_NULL, None))
             )
-            self.emit(node.line, "RET")
+            self.emit(node.line, 'RET')
 
             local_count = self.scopes[-1].next_local
             self.exit_scope()
-            self.code[jmp] = ("JMP", len(self.code))
+            self.code[jmp] = ('JMP', len(self.code))
             if len(other) >= 1:
                 idx = self.add_constant([T_STRING, other[0]])
                 self.emit(
                     node.line,
-                    "MAKE_FUNCTION",
+                    'MAKE_FUNCTION',
                     fn_entry,
                     local_count,
                     len(node.params),
@@ -1552,42 +1652,79 @@ class Compiler:
             else:
                 raise CompilerError(
                     13,
-                    "(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.",
+                    '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.',
                     None,
                     None,
+                    self.mod_stack[-1].fp,
                 )
         elif isinstance(node, Return):
             if node.value is None:
-                idx = self.add_constant((T_NULL, ""))
+                idx = self.add_constant((T_NULL, ''))
                 self.emit(node.line, OP_PUSH_CONST, idx)
                 return
             yield from self.compile_ins(node.value)
-            self.emit(node.line, "RET")
+            self.emit(node.line, 'RET')
         elif isinstance(node, Export):
             yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
             idx = self.add_constant((T_STRING, node.name))
-            self.emit(node.line, "EXPORT", idx)
+            self.mod_stack[-1].exports.append(self.ExportItem(node.name, node.lhs))
+            self.emit(node.line, 'EXPORT', idx)
         elif isinstance(node, Attribute):
-            yield from self.raise_for_req("attributes", "Attribute", 'Attributes', node)
+            yield from self.raise_for_req('attributes', 'Attribute', 'Attributes', node)
             broken = False
-            for item in self.attrs:
-                if item[0] == node.rhs:
-                    broken = True
-                    break
+            if isinstance(node.lhs, Variable):
+                itm = self.get_var_obj(node.lhs.name)
+                if itm is not None and isinstance(itm[0].value, self.Module):
+                    exports = itm[0].value.exports
+                    for item in exports:
+                        if item.name == node.rhs:
+                            broken = True
+                            break
             if not broken:
-                raise CompilerError(
-                    12,
-                    f"Could not find attribute {node.rhs}",
-                    node.line,
-                    getattr(node, "col", None),
-                )
+                for item in self.attrs:
+                    if item[0] == node.rhs:
+                        broken = True
+                        break
+                if not broken:
+                    raise CompilerError(
+                        12,
+                        f'Could not find attribute {node.rhs}',
+                        node.line,
+                        getattr(node, 'col', None),
+                        self.mod_stack[-1].fp,
+                    )
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((T_STRING, node.rhs))
-            self.emit(node.line, "GETATTR", idx)
+            self.emit(node.line, 'GETATTR', idx)
         elif isinstance(node, GetIndex):
-            yield from self.raise_for_req("indexes", "Index", "Indexing", node)
+            yield from self.raise_for_req('indexes', 'Index', 'Indexing', node)
             yield from self.compile_ins(node.idx)
             yield from self.compile_ins(node.item)
-            self.emit(node.line, "GET_ITEM")
+            self.emit(node.line, 'GET_ITEM')
+        elif isinstance(node, Import):
+            yield from self.raise_for_req('imports', 'Import', 'Importing', node)
+            module = yield self.ModuleRequest(node.mod, node.line)
+
+            if module is None:
+                raise TypeError('`module` is None')
+            self.mod_stack.append(self.Module([], module.filepath))
+            self.modules.append(node.mod)
+            self.enter_scope()
+            self.sources[module.filepath] = module.content
+            for statement in module.program.statements:
+                yield from self.compile_ins(statement)
+            self.exit_scope()
+            self.emit(node.line, 'MAKE_MODULE')
+            md = self.mod_stack.pop()
+            self.scopes[0].next_local += 1  # TODO: make this better
+            yield from self.compile_ins(Assign(node.line, node.mod, md))
+        elif isinstance(node, self.Module):
+            pass
         else:
-            raise CompilerError(13, f"Did not implement {node} yet :<", None, None)
+            raise CompilerError(
+                13,
+                f'Did not implement {node} yet :<',
+                None,
+                None,
+                self.mod_stack[-1].fp,
+            )
