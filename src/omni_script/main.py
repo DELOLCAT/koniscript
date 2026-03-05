@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-import enum
+from math import exp
 from typing import Any, Collection, Generator, Literal
 
 from omni_script import base_env
@@ -1387,7 +1387,7 @@ class Compiler:
         elif isinstance(node, Call):
             # compile the expression that identifies the callable (variable, attribute, etc.)
             yield from self.compile_ins(node.func)
-
+            exported = None
             # validate argument count depending on what kind of call this is
             if isinstance(node.func, Variable):
                 itm = self.get_var_obj(node.func.name)[0]  # pyright: ignore[reportOptionalSubscript]
@@ -1443,7 +1443,7 @@ class Compiler:
                                     getattr(node, "col", None),
                                 )
             elif isinstance(node.func, Attribute):
-                broken = False
+                exported = None
                 atr_itm: tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None = None
                 if isinstance(node.func.lhs, Variable):
                     obj = self.get_var_obj(node.func.lhs.name)
@@ -1451,9 +1451,9 @@ class Compiler:
                         exports = obj[0].value.exports
                         for item in exports:
                             if item.name == node.func.rhs:
-                                broken = True
+                                exported = item
                                 break
-                if not broken:
+                if exported is None:
                     for item in self.attrs:
                         if item[0] == node.func.rhs:
                             atr_itm = item
@@ -1465,15 +1465,34 @@ class Compiler:
                             node.line,
                             getattr(node, "col", None),
                         )
-                
+                else:
+                    if isinstance(exported.item, Function): # pyright: ignore[reportPossiblyUnboundVariable]
+                        params = exported.item.params # pyright: ignore[reportPossiblyUnboundVariable]
+                        req: list[FunctionParameter] = []
+                        for item in params:
+                            if item.option is None:
+                                req.append(item)
+                        if not (len(req) <= len(node.args) <= len(params)):
+                            if not len(req) == len(params):
+                                raise CompilerError(
+                                    11,
+                                    f"Expected {len(req)} to {len(params)} arguments, got {len(node.args)}",
+                                    node.line,
+                                    getattr(node, "col", None),
+                                )
+                            else:
+                                raise CompilerError(
+                                    11,
+                                    f"Expected exactly {len(req)} arguments, got {len(node.args)}",
+                                    node.line,
+                                    getattr(node, "col", None),
+                                )
                 if atr_itm is not None and atr_itm[3] is not None:
                     for item in atr_itm[3]:
                         if len(atr_itm[3]) > 1:
                             yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
                         else:
                             yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
-                if broken:
-                    ...
                 elif atr_itm is not None:
                     min_args = atr_itm[1]
                     max_args = atr_itm[2]
@@ -1492,6 +1511,32 @@ class Compiler:
                                 node.line,
                                 getattr(node, "col", None),
                             )
+                elif exported is not None:
+                    if isinstance(exported.item, Function):
+                        min_args = 0
+                        max_args = len(exported.item.params)
+                        for param in exported.item.params:
+                            if param.option is None:    
+                                min_args+=1
+                        
+                        if not (min_args <= len(node.args) <= max_args):
+                            if min_args == max_args:
+                                raise CompilerError(
+                                    11,
+                                    f"Expected exactly {min_args} args, got {len(node.args)}",
+                                    node.line,
+                                    getattr(node, "col", None),
+                                )
+                            else:
+                                raise CompilerError(
+                                    11,
+                                    f"Expected {min_args} to {max_args} args, got {len(node.args)}",
+                                    node.line,
+                                    getattr(node, "col", None),
+                                )
+
+                        
+                        
                 else:
                     raise NotImplementedError
 
@@ -1520,8 +1565,18 @@ class Compiler:
                 else:
                     raise
             elif isinstance(node.func, Attribute):
-                # object + method are on the stack already, just call
-                self.emit(node.line, OP_CALL, len(node.args))
+                if exported is not None:
+                    if isinstance(exported.item, Function):
+                        for item in exported.item.params[len(node.args):]:
+                            if item.option is not None:
+                                yield from self.compile_ins(item.option)
+                            else:
+                                raise RuntimeError #impossible
+                        self.emit(node.line, OP_CALL, len(exported.item.params))
+                    else:
+                        raise RuntimeError # impossible
+                else:
+                    self.emit(node.line, OP_CALL, len(node.args))
             else:
                 raise NotImplementedError  # falling back for future call types
         elif isinstance(node, While):
