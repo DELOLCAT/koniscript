@@ -33,9 +33,7 @@ tracebacks = os.environ.get('OMNI_TRACEBACKS')
 
 
 def exec_name(name: str) -> str:
-    if sys.platform == 'win32':
-        return name + '.exe'
-    return name
+    return f'{name}.exe' if sys.platform == 'win32' else name
 
 
 def bundled_exe(name: str) -> Path:
@@ -108,10 +106,10 @@ def comp(
         try:
             a = cmp.send(result)
             if isinstance(a, Compiler.ModuleRequest):
-                if (Path(filepath).parent / (a.name + '.om')).is_file():
-                    fp = Path(filepath).parent / (a.name + '.om')
-                elif (Path(filepath).parent / 'packages' / (a.name + '.om')).is_file():
-                    fp = Path(filepath).parent / 'packages' / (a.name + '.om')
+                if (Path(filepath).parent / (f'{a.name}.om')).is_file():
+                    fp = Path(filepath).parent / (f'{a.name}.om')
+                elif (Path(filepath).parent / 'packages' / (f'{a.name}.om')).is_file():
+                    fp = Path(filepath).parent / 'packages' / ('{a.name}.om')
                 else:
                     raise CompilerError(
                         6,
@@ -255,7 +253,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     print()
     print(f'{tag}: {msg}:', file=sys.stderr)
     print(
-        f'at {filepath}{"[green]:" + str(ln + 1) if ln is not None else " [red]No line data available"}{":" + str(col) if col is not None else ""}',
+        f'at {filepath}{f"[green]:{str(ln + 1)}" if ln is not None else " [red]No line data available"}{f":{str(col)}" if col is not None else ""}',
         file=sys.stderr,
     )
     if ln is not None:
@@ -303,9 +301,7 @@ def run(
         vm_path = shutil.which('omvm')
         if (Path(__file__).parent / exec_name('omvm')).is_file():
             vm_path = Path(__file__).parent / exec_name('omvm')
-        elif vm_path is not None:
-            pass
-        else:
+        elif vm_path is None:
             print(
                 '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
             )
