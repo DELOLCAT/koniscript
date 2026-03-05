@@ -63,34 +63,61 @@ class Failed(CompilationResult):
 class Success(CompilationResult):
     instructions: list[str]
 
+def get_program(file_content):
+        try:
+            current_env = copy.copy(base_env.compiler_env)
+            tknr = Tokenizer(file_content)
+            tkns: list[Token] = []
+            while True:
+                tkn = tknr.get_next_token()
+                tkns.append(tkn)
+                if tkn.type == EOF:
+                    break
+            psr: Parser = Parser(tkns, base_env.ASTenv)
+            program: Program = psr.program()
+            return program, current_env
+        except CompilationException as e:
+            return Failed(None, e)
 
 def comp(
-    file_content: str, features=None
-) -> Generator[Compiler.Warn, None, CompilationResult]:
-    try:
-        if features is None:
-            features = []
-        current_env = copy.copy(base_env.compiler_env)  # noqa: F841
-        tknr = Tokenizer(file_content)
-        tkns: list[Token] = []
-        while True:
-            tkn = tknr.get_next_token()
-            tkns.append(tkn)
-            if tkn.type == EOF:
-                break
-        psr: Parser = Parser(tkns, base_env.ASTenv)
-        program: Program = psr.program()
-    except CompilationException as e:
-        return Failed(None, e)
+    file_content: str, filepath, features=None
+) -> Generator[Compiler.Warn | Compiler.ModuleRequest, Program, CompilationResult]:
 
+    if features is None:
+        features = []
+    
+    tmp = get_program(file_content)
+    
+    if isinstance(tmp, Failed):
+        return tmp
+    
+    program, current_env = tmp
+    
     compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
+    
     try:
         cmp = compiler.compile(program, features, file_content)
     except CompilationException as e:
         return Failed(compiler, e)
     while True:
         try:
-            yield next(cmp)
+            a = next(cmp)
+            if isinstance(a, Compiler.ModuleRequest):
+                if (Path(filepath).parent / (a.name + '.om')).is_file():
+                    fp = Path(filepath).parent / a.name
+                elif (Path(filepath).parent / 'packages' / (a.name + '.om')).is_file():
+                    fp = (Path(filepath).parent / 'packages' / (a.name + '.om'))
+                else:
+                    raise #TODO
+                content = fp.read_text()
+                tmp = get_program(content)
+                if isinstance(tmp, Failed):
+                    return tmp
+                import_program, import_env = tmp
+                cmp.send(import_program)
+                                
+            else:
+                yield a
         except StopIteration as e:
             return Success(e.value)
         except CompilationException as e:
@@ -143,7 +170,7 @@ def compile(
     )
     file_content = Path(filepath).read_text()
     start_time = perf_counter()
-    it = iter(comp(file_content, comp_features))
+    it = iter(comp(file_content, filepath, comp_features))
 
     instructions = None
     warns = 0
@@ -218,7 +245,7 @@ def run(
     comp_features: list[str] = ['source', 'line']
 
     file_content = Path(filepath).read_text()
-    it = iter(comp(file_content, comp_features))
+    it = iter(comp(file_content, filepath, comp_features))
     instructions = None
     while True:
         try:

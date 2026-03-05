@@ -1,5 +1,7 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
+
 from omni_script import base_env
 from omni_script.runtime import (
     T_BOOL,
@@ -8,14 +10,12 @@ from omni_script.runtime import (
     T_NULL,
     T_STRING,
     BuiltinFunction,
-    Module,
+    DEPRECATEDModule,
     ASTNode,
     Program,
-    BuiltinModule,
     BuiltinModulePointer,
     Builtin,
 )
-import os
 
 ADD = "ADD"
 INTEGER = "INT"
@@ -680,37 +680,7 @@ class Parser:
             ln = self.current_token.line
             self.eat(IMPORT)
             name = self.eat(IDENTIFIER).value
-            base_path = os.curdir
-            for i, item in enumerate(self.base_env):
-                if isinstance(item[1], BuiltinModule) and item[1].name == name:
-                    return Assign(-1, name, BuiltinModulePointer(ln, i))
-            if f"{name}.om" in os.listdir(
-                "packages"
-            ):  # TODO: do this in a more dynamic way
-                modpath = os.path.join(base_path, "packages", f"{name}.om")
-            elif f"{name}.om" in os.listdir():
-                modpath = os.path.join(base_path, f"{name}.om")
-            else:
-                raise ParserError(
-                    6,
-                    f"Can't find module {name}",
-                    self.current_token.line,
-                    self.current_token.col,
-                )
-            with open(modpath) as f:
-                content = f.read()
-
-            tknr = Tokenizer(content)
-            tkns = []
-            while True:
-                tkn = tknr.get_next_token()
-                tkns.append(tkn)
-                if tkn.type == EOF:
-                    break
-            psr = Parser(tkns, self.base_env)
-            program = psr.program()
-            mod = Module(self.current_token.line, program, name)
-            return Assign(self.current_token.line, name, mod)
+            return Import(ln, name)
         elif self.current_token.type == RETURN:
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
@@ -852,7 +822,10 @@ class Parser:
 class BareRequire(ASTNode):
     line: int
     reqs: list[str]
-
+@dataclass
+class Import(ASTNode):
+    line: int
+    mod: str
 
 @dataclass
 class Array(ASTNode):
@@ -1061,6 +1034,7 @@ class Compiler:
         self.ASTenv = ASTenv
         self.lines = []
         self.modules = []
+        self.mod_stack: list[Compiler.Module] = [self.Module([])]
         self.exports = []
         self.req_stack: list[Compiler.RequirementGroup] = (
             []
@@ -1071,11 +1045,18 @@ class Compiler:
         self.attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]] = attrs
         self.enter_scope()
 
+
     @dataclass
     class ScopeItem:
         idx: int
         value: ASTNode
-
+    @dataclass
+    class Module(ASTNode):
+        exports: list[Compiler.ExportItem]
+    @dataclass
+    class ExportItem:
+        name: str
+        item: ASTNode
     @dataclass
     class RequirementGroup:  # I'm addicted to classes
         reqs: list[str]
@@ -1083,7 +1064,10 @@ class Compiler:
     @dataclass
     class BuiltinScopeItem:
         value: Builtin
-
+    @dataclass
+    class ModuleRequest:
+        name: str
+    
     class Scope:
         def __init__(self, var_map={}, args={}):
             self.var_map: dict[str, Compiler.ScopeItem] = var_map
@@ -1164,7 +1148,7 @@ class Compiler:
         program: Program,
         features: Collection[Literal["source"] | Literal["line"]] = [],
         input_source: str | None = None,
-    ) -> Generator[Warn, None, list[str]]:
+    ) -> Generator[Warn | ModuleRequest, Program, list[str]]:
         if input_source is None and "source" in features:
             raise CompilerError(
                 8,
@@ -1253,7 +1237,7 @@ class Compiler:
                         col,
                     )
 
-    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn, None, Any]:
+    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn | ModuleRequest, Program, Any]:
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -1314,6 +1298,8 @@ class Compiler:
                 idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, "DUP")
+                if depth is None:
+                    depth = 0
                 self.emit(node.line, OP_SET_VAR, idx, depth)
 
                 yield self.Warn(
@@ -1336,6 +1322,8 @@ class Compiler:
                 idx = self.declare_local(node.name, node.value)
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, "DUP")
+                if depth is None:
+                    depth = 0
                 self.emit(node.line, OP_SET_VAR, idx, depth)
         elif isinstance(node, BuiltinModulePointer):
             ref = self.ASTenv[node.idx]
@@ -1347,7 +1335,7 @@ class Compiler:
                     getattr(node, "col", None),
                 )
             self.emit(-1, "PUSH_BUILTIN", node.idx)
-        elif isinstance(node, Module):
+        elif isinstance(node, DEPRECATEDModule):
             if node.name in self.modules:
                 raise CompilerError(
                     10,
@@ -1433,41 +1421,57 @@ class Compiler:
                                     getattr(node, "col", None),
                                 )
             elif isinstance(node.func, Attribute):
+                broken = False
                 atr_itm: tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None = None
-                for item in self.attrs:
-                    if item[0] == node.func.rhs:
-                        atr_itm = item
-                        break
-                if atr_itm is None:
-                    raise CompilerError(
-                        12,
-                        f"No attribute `{node.func.rhs}` found",
-                        node.line,
-                        getattr(node, "col", None),
-                    )
-                if atr_itm[3] is not None:
+                if isinstance(node.func.lhs, Variable):
+                    obj = self.get_var_obj(node.func.lhs.name)
+                    if obj is not None and isinstance(obj[0].value, self.Module):
+                        exports = obj[0].value.exports
+                        for item in exports:
+                            if item.name == node.func.rhs:
+                                broken = True
+                                break
+                if not broken:
+                    for item in self.attrs:
+                        if item[0] == node.func.rhs:
+                            atr_itm = item
+                            break
+                    if atr_itm is None:
+                        raise CompilerError(
+                            12,
+                            f"No attribute `{node.func.rhs}` found",
+                            node.line,
+                            getattr(node, "col", None),
+                        )
+                
+                if atr_itm is not None and atr_itm[3] is not None:
                     for item in atr_itm[3]:
                         if len(atr_itm[3]) > 1:
                             yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
                         else:
                             yield from self.raise_for_req(item[0], item[1] , item[2], node, True)
-                min_args = atr_itm[1]
-                max_args = atr_itm[2]
-                if not (min_args <= len(node.args) <= max_args):
-                    if min_args == max_args:
-                        raise CompilerError(
-                            11,
-                            f"Expected exactly {min_args} args, got {len(node.args)}",
-                            node.line,
-                            getattr(node, "col", None),
-                        )
-                    else:
-                        raise CompilerError(
-                            11,
-                            f"Expected {min_args} to {max_args} args, got {len(node.args)}",
-                            node.line,
-                            getattr(node, "col", None),
-                        )
+                if broken:
+                    ...
+                elif atr_itm is not None:
+                    min_args = atr_itm[1]
+                    max_args = atr_itm[2]
+                    if not (min_args <= len(node.args) <= max_args):
+                        if min_args == max_args:
+                            raise CompilerError(
+                                11,
+                                f"Expected exactly {min_args} args, got {len(node.args)}",
+                                node.line,
+                                getattr(node, "col", None),
+                            )
+                        else:
+                            raise CompilerError(
+                                11,
+                                f"Expected {min_args} to {max_args} args, got {len(node.args)}",
+                                node.line,
+                                getattr(node, "col", None),
+                            )
+                else:
+                    raise NotImplementedError
 
             # compile argument expressions once
             for arg in node.args:
@@ -1566,21 +1570,31 @@ class Compiler:
         elif isinstance(node, Export):
             yield from self.compile_ins(Assign(node.line, node.name, node.lhs), True)
             idx = self.add_constant((T_STRING, node.name))
+            self.mod_stack[-1].exports.append(self.ExportItem(node.name, node.lhs))
             self.emit(node.line, "EXPORT", idx)
         elif isinstance(node, Attribute):
             yield from self.raise_for_req("attributes", "Attribute", 'Attributes', node)
             broken = False
-            for item in self.attrs:
-                if item[0] == node.rhs:
-                    broken = True
-                    break
+            if isinstance(node.lhs, Variable):
+                itm = self.get_var_obj(node.lhs.name)
+                if itm is not None and isinstance(itm[0].value, self.Module):
+                    exports = itm[0].value.exports
+                    for item in exports:
+                        if item.name == node.rhs:
+                            broken = True
+                            break
             if not broken:
-                raise CompilerError(
-                    12,
-                    f"Could not find attribute {node.rhs}",
-                    node.line,
-                    getattr(node, "col", None),
-                )
+                for item in self.attrs:
+                    if item[0] == node.rhs:
+                        broken = True
+                        break
+                if not broken:
+                    raise CompilerError(
+                        12,
+                        f"Could not find attribute {node.rhs}",
+                        node.line,
+                        getattr(node, "col", None),
+                    )
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((T_STRING, node.rhs))
             self.emit(node.line, "GETATTR", idx)
@@ -1589,5 +1603,18 @@ class Compiler:
             yield from self.compile_ins(node.idx)
             yield from self.compile_ins(node.item)
             self.emit(node.line, "GET_ITEM")
+        elif isinstance(node, Import):
+            module = yield self.ModuleRequest(node.mod)
+            self.mod_stack.append(self.Module([]))
+            self.modules.append(node.mod)
+            self.enter_scope()
+            for statement in module.statements:
+                yield from self.compile_ins(statement)
+            self.exit_scope()
+            self.emit(node.line, "MAKE_MODULE")
+            md = self.mod_stack.pop()
+            yield from self.compile_ins(Assign(node.line, node.mod, md))
+        elif isinstance(node, self.Module):
+            pass
         else:
             raise CompilerError(13, f"Did not implement {node} yet :<", None, None)
