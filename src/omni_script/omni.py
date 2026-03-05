@@ -63,21 +63,23 @@ class Failed(CompilationResult):
 class Success(CompilationResult):
     instructions: list[str]
 
+
 def get_program(file_content):
-        try:
-            current_env = copy.copy(base_env.compiler_env)
-            tknr = Tokenizer(file_content)
-            tkns: list[Token] = []
-            while True:
-                tkn = tknr.get_next_token()
-                tkns.append(tkn)
-                if tkn.type == EOF:
-                    break
-            psr: Parser = Parser(tkns, base_env.ASTenv)
-            program: Program = psr.program()
-            return program, current_env
-        except CompilationException as e:
-            return Failed(None, e)
+    try:
+        current_env = copy.copy(base_env.compiler_env)
+        tknr = Tokenizer(file_content)
+        tkns: list[Token] = []
+        while True:
+            tkn = tknr.get_next_token()
+            tkns.append(tkn)
+            if tkn.type == EOF:
+                break
+        psr: Parser = Parser(tkns, base_env.ASTenv)
+        program: Program = psr.program()
+        return program, current_env
+    except CompilationException as e:
+        return Failed(None, e)
+
 
 def comp(
     file_content: str, filepath, features=None
@@ -85,16 +87,16 @@ def comp(
 
     if features is None:
         features = []
-    
+
     tmp = get_program(file_content)
-    
+
     if isinstance(tmp, Failed):
         return tmp
-    
+
     program, current_env = tmp
-    
+
     compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs, str(filepath))
-    
+
     try:
         cmp = compiler.compile(program, features, file_content)
     except CompilationException as e:
@@ -107,16 +109,16 @@ def comp(
                 if (Path(filepath).parent / (a.name + '.om')).is_file():
                     fp = Path(filepath).parent / (a.name + '.om')
                 elif (Path(filepath).parent / 'packages' / (a.name + '.om')).is_file():
-                    fp = (Path(filepath).parent / 'packages' / (a.name + '.om'))
+                    fp = Path(filepath).parent / 'packages' / (a.name + '.om')
                 else:
-                    raise NotImplementedError #TODO
+                    raise NotImplementedError  # TODO
                 content = fp.read_text()
                 tmp = get_program(content)
                 if isinstance(tmp, Failed):
                     return tmp
                 import_program, import_env = tmp
                 result = Compiler.ModuleReceived(import_program, str(fp), content)
-                                
+
             else:
                 result = None
                 yield a
@@ -180,7 +182,7 @@ def compile(
         try:
             value = next(it)
             if isinstance(value, Compiler.Warn):
-                warns+=1
+                warns += 1
                 show_err_or_warn(value, filepath, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
@@ -191,15 +193,21 @@ def compile(
                     raise e.value.exception
                 show_err_or_warn(e.value, filepath, file_content)
                 if warns > 0:
-                    print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')
+                    print(
+                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+                    )
                 else:
-                    print(f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds')
+                    print(
+                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds'
+                    )
                 return
             else:
                 raise
     fp = f'{str(filepath).removesuffix(".om")}.omc'
     if warns > 0:
-        print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted')
+        print(
+            f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+        )
     else:
         print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds')
     status = console.status(f'Writing to {fp}')
@@ -258,13 +266,13 @@ def run(
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
                 break
-            elif isinstance(e.value, Failed): # `elif` for IDE type recognition
+            elif isinstance(e.value, Failed):  # `elif` for IDE type recognition
                 if tracebacks:
                     raise
                 show_err_or_warn(e.value, filepath, file_content)
-                exit(1) # Abort
+                exit(1)  # Abort
             else:
-                raise # Impossible
+                raise  # Impossible
 
     f = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.omc')
     try:
