@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 from omni_script.main import (
+    CompilerError,
     Tokenizer,
     Parser,
     EOF,
@@ -55,7 +56,7 @@ class CompilationResult:
 
 @dataclass
 class Failed(CompilationResult):
-    compiler: None | Compiler
+    compiler: Compiler | None
     exception: CompilationException
 
 
@@ -218,19 +219,31 @@ def compile(
     print(f'Wrote to {fp}')
 
 
-def show_err_or_warn(e: Failed | Compiler.Warn, filepath, file_content: str):
+def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     if isinstance(e, Failed):
         color = '[red b]'
         tag = f'[red b]E{e.exception.code:02}'
         ln = e.exception.line
         col = e.exception.col
         msg = e.exception.msg
+        if isinstance(e.exception, CompilerError):
+            filepath = e.exception.fp
+            if e.compiler is None:
+                ln = None
+            else:
+                file_content = e.compiler.sources[e.exception.fp]
+        else:
+            filepath = fp
+        
     else:
         color = '[yellow b]'
         tag = '[yellow b]Warning'
         col = e.col
         ln = e.line
         msg = e.message
+        filepath = e.fp
+        file_content = e.compiler.sources[e.fp]
+        
     print()
     print(f'{tag}: {msg}:', file=sys.stderr)
     print(

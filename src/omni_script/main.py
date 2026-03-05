@@ -1,7 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
-
 from omni_script import base_env
 from omni_script.runtime import (
     T_BOOL,
@@ -65,37 +64,25 @@ RBRACKET = 'RBRACKET'
 AT_RATE = 'AT_RATE'
 NOT = 'NOT'
 
-
+@dataclass
 class CompilationException(Exception):
-    code: int
+    code: int # TODO: Formalize these
     msg: str
     line: int | None
-    col: int | None
+    col: int | None # TODO: Actually use columns (also in Tokens)
 
 
 @dataclass
 class ParserError(CompilationException):
-    code: int  # TODO: Formalize these
-    msg: str
-    line: int | None
-    col: int | None  # TODO: Actually use columns (also in Tokens)
-
-
+    pass
 @dataclass
 class CompilerError(CompilationException):
-    code: int
-    msg: str
-    line: int | None
-    col: int | None
+    fp: str
 
 
 @dataclass
 class TokenizerError(CompilationException):
-    code: int
-    msg: str
-    line: int | None
-    col: int | None
-
+    pass
 
 KEYWORDS = {
     'func': FUNC,
@@ -1092,6 +1079,8 @@ class Compiler:
         message: str
         line: int | None
         col: int | None
+        fp: str
+        compiler: Compiler
 
     @dataclass
     class Result:
@@ -1168,6 +1157,7 @@ class Compiler:
                 'Compiler needs input source to compile with source info.',
                 None,
                 None,
+                self.mod_stack[-1].fp
             )
         if 'source' in features:
             self.sources[self.filepath] = input_source  # pyright: ignore[reportArgumentType]
@@ -1240,6 +1230,8 @@ class Compiler:
                         f'CRITICAL: This may need the `{req}` requirement, and is in an illegal zone. Perhaps add `@require {req}` to the top of your program?',  # TODO: warning priorities
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
+                        self
                     )
                 else:
                     raise CompilerError(
@@ -1247,6 +1239,7 @@ class Compiler:
                         f'Attempted using a(n) {name} when it requires `{req}` in an illegal area',
                         ln,
                         col,
+                        self.mod_stack[-1].fp
                     )
             else:
                 if unsure:
@@ -1254,6 +1247,8 @@ class Compiler:
                         f'This may need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?',
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
+                        self
                     )
                 else:
                     self.reqs.append(req)
@@ -1261,6 +1256,8 @@ class Compiler:
                         f'{second_name} implicitly adds the `{req}` requirement. Perhaps add `@require {req}` to the top of your program to make it explicit?',
                         ln,
                         col,
+                        self.mod_stack[-1].fp,
+                        self
                     )
 
     def compile_ins(
@@ -1305,6 +1302,7 @@ class Compiler:
                     f'Variable {node.name} not declared',
                     node.line,
                     getattr(node, 'col', None),
+                    self.mod_stack[-1].fp
                 )
             if idx[1] == 'user':
                 self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
@@ -1334,6 +1332,8 @@ class Compiler:
                     f'Reassignment to a function attempted for {node.name}. This is usually not recommended',
                     node.line,
                     getattr(node, 'col', None),
+                    self.mod_stack[-1].fp,
+                    self
                 )
                 return idx, 0
         elif isinstance(node, Assign):
@@ -1361,6 +1361,7 @@ class Compiler:
                     f'Module {ref[0]} already imported.',
                     node.line,
                     getattr(node, 'col', None),
+                    self.mod_stack[-1].fp
                 )
             self.emit(-1, 'PUSH_BUILTIN', node.idx)
         elif isinstance(node, DEPRECATEDModule):
@@ -1370,6 +1371,7 @@ class Compiler:
                     f'Module {node.name} already imported.',
                     node.line,
                     getattr(node, 'col', None),
+                    self.mod_stack[-1].fp
                 )
             self.modules.append(node.name)
             self.scopes.append(Compiler.Scope())
@@ -1411,6 +1413,7 @@ class Compiler:
                                     f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
                             else:
                                 raise CompilerError(
@@ -1418,6 +1421,7 @@ class Compiler:
                                     f'Expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
                 elif isinstance(itm, self.BuiltinScopeItem) and isinstance(
                     itm.value, BuiltinFunction
@@ -1429,6 +1433,7 @@ class Compiler:
                                 f'Expected at least {itm.value.req_args} args, got {len(node.args)}',
                                 node.line,
                                 getattr(node, 'col', None),
+                                self.mod_stack[-1].fp
                             )
                     else:
                         if not (
@@ -1440,6 +1445,7 @@ class Compiler:
                                     f'Expected exactly {itm.value.req_args} args, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
                             else:
                                 raise CompilerError(
@@ -1447,6 +1453,7 @@ class Compiler:
                                     f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
             elif isinstance(node.func, Attribute):
                 exported = None
@@ -1472,6 +1479,7 @@ class Compiler:
                             f'No attribute `{node.func.rhs}` found',
                             node.line,
                             getattr(node, 'col', None),
+                            self.mod_stack[-1].fp
                         )
                 else:
                     if isinstance(exported.item, Function):  # pyright: ignore[reportPossiblyUnboundVariable]
@@ -1487,6 +1495,7 @@ class Compiler:
                                     f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
                             else:
                                 raise CompilerError(
@@ -1494,6 +1503,7 @@ class Compiler:
                                     f'Expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
                 if atr_itm is not None and atr_itm[3] is not None:
                     for item in atr_itm[3]:
@@ -1515,6 +1525,7 @@ class Compiler:
                                 f'Expected exactly {min_args} args, got {len(node.args)}',
                                 node.line,
                                 getattr(node, 'col', None),
+                                self.mod_stack[-1].fp
                             )
                         else:
                             raise CompilerError(
@@ -1522,6 +1533,7 @@ class Compiler:
                                 f'Expected {min_args} to {max_args} args, got {len(node.args)}',
                                 node.line,
                                 getattr(node, 'col', None),
+                                self.mod_stack[-1].fp
                             )
                 elif exported is not None:
                     if isinstance(exported.item, Function):
@@ -1538,6 +1550,7 @@ class Compiler:
                                     f'Expected exactly {min_args} args, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
                             else:
                                 raise CompilerError(
@@ -1545,6 +1558,7 @@ class Compiler:
                                     f'Expected {min_args} to {max_args} args, got {len(node.args)}',
                                     node.line,
                                     getattr(node, 'col', None),
+                                    self.mod_stack[-1].fp
                                 )
 
                 else:
@@ -1646,6 +1660,7 @@ class Compiler:
                     '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/OmniScript.',
                     None,
                     None,
+                    self.mod_stack[-1].fp
                 )
         elif isinstance(node, Return):
             if node.value is None:
@@ -1681,6 +1696,7 @@ class Compiler:
                         f'Could not find attribute {node.rhs}',
                         node.line,
                         getattr(node, 'col', None),
+                        self.mod_stack[-1].fp
                     )
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((T_STRING, node.rhs))
@@ -1710,4 +1726,4 @@ class Compiler:
         elif isinstance(node, self.Module):
             pass
         else:
-            raise CompilerError(13, f'Did not implement {node} yet :<', None, None)
+            raise CompilerError(13, f'Did not implement {node} yet :<', None, None, self.mod_stack[-1].fp)
