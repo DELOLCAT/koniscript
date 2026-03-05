@@ -109,7 +109,7 @@ def comp(
                 if (Path(filepath).parent / (f'{a.name}.om')).is_file():
                     fp = Path(filepath).parent / (f'{a.name}.om')
                 elif (Path(filepath).parent / 'packages' / (f'{a.name}.om')).is_file():
-                    fp = Path(filepath).parent / 'packages' / ('{a.name}.om')
+                    fp = Path(filepath).parent / 'packages' / (f'{a.name}.om')
                 else:
                     raise CompilerError(
                         6,
@@ -159,7 +159,7 @@ def compile(
         is_flag=True,
         help='For adding a copy of the source into your app for stack traces. Default: TRUE',
     ),
-):
+):  # sourcery skip: low-code-quality
     if release:
         comp_features = []
     elif not source and not line:
