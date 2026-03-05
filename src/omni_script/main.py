@@ -1155,7 +1155,7 @@ class Compiler:
         self.code.append((opcode, *operands))
         self.lines.append(line)
         fp = self.mod_stack[-1].fp
-        for i, item in enumerate(self.sources.keys()):
+        for i, item in enumerate(self.sources.keys()): # TODO: make this O(1)
             if item == fp:
                 self.source_info.append(i)
         return idx
