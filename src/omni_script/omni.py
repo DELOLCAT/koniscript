@@ -105,7 +105,7 @@ def comp(
             a = cmp.send(result)
             if isinstance(a, Compiler.ModuleRequest):
                 if (Path(filepath).parent / (a.name + '.om')).is_file():
-                    fp = Path(filepath).parent / a.name
+                    fp = Path(filepath).parent / (a.name + '.om')
                 elif (Path(filepath).parent / 'packages' / (a.name + '.om')).is_file():
                     fp = (Path(filepath).parent / 'packages' / (a.name + '.om'))
                 else:

@@ -1171,8 +1171,8 @@ class Compiler:
         output.append("ISA 1")
         if len(self.reqs) > 0:
             output.append(".reqs " + " ".join([str(x) for x in self.reqs]))
-
-        output.append(f".frame {self.scopes[-1].next_local}")
+            
+        output.append(f".frame {self.scopes[0].next_local}")
 
         output.append(".const")
         for const in self.constants:
@@ -1617,6 +1617,7 @@ class Compiler:
             self.exit_scope()
             self.emit(node.line, "MAKE_MODULE")
             md = self.mod_stack.pop()
+            self.scopes[0].next_local += 1# TODO: make this better
             yield from self.compile_ins(Assign(node.line, node.mod, md))
         elif isinstance(node, self.Module):
             pass
