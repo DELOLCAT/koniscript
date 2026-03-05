@@ -1,6 +1,5 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from math import exp
 from typing import Any, Collection, Generator, Literal
 
 from omni_script import base_env
