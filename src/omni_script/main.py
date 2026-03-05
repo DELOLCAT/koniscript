@@ -9,7 +9,6 @@ from omni_script.runtime import (
     T_NULL,
     T_STRING,
     BuiltinFunction,
-    DEPRECATEDModule,
     ASTNode,
     Program,
     BuiltinModulePointer,
@@ -1364,21 +1363,6 @@ class Compiler:
                     self.mod_stack[-1].fp
                 )
             self.emit(-1, 'PUSH_BUILTIN', node.idx)
-        elif isinstance(node, DEPRECATEDModule):
-            if node.name in self.modules:
-                raise CompilerError(
-                    10,
-                    f'Module {node.name} already imported.',
-                    node.line,
-                    getattr(node, 'col', None),
-                    self.mod_stack[-1].fp
-                )
-            self.modules.append(node.name)
-            self.scopes.append(Compiler.Scope())
-            for statement in node.body.statements:
-                yield from self.compile_ins(statement)
-            self.scopes.pop()
-            self.emit(node.line, 'MAKE_MODULE')
         elif isinstance(node, BinOp):
             yield from self.compile_ins(node.left)
             yield from self.compile_ins(node.right)
