@@ -16,7 +16,7 @@
             },
             "args": [
                 "run",
-                "../test.rvm"
+                "../tmp/floats.omc"
             ]
         },
         {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import enum
 from typing import Any, Collection, Generator, Literal
 
 from omni_script import base_env
@@ -1021,6 +1022,7 @@ class Compiler:
         env: list[str],
         ASTenv: list[tuple[str, Builtin]],
         attrs: list[tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]],
+        filepath: str
     ):
         self.constants = []
         self.vars = []
@@ -1028,14 +1030,17 @@ class Compiler:
         self.var_map = {}
         self.const_map = {}
         self.code = []
+        self.sources: dict[str, str] = {}
         self.passed_env = env
         self.scopes: list[Compiler.Scope] = []
         self.var_count = 0
         self.ASTenv = ASTenv
         self.lines = []
         self.modules = []
-        self.mod_stack: list[Compiler.Module] = [self.Module([])]
+        self.mod_stack: list[Compiler.Module] = [self.Module([], filepath)]
+        self.filepath = filepath
         self.exports = []
+        self.source_info: list[int] = []
         self.req_stack: list[Compiler.RequirementGroup] = (
             []
         )  # LIFO stack for nested @require statements
@@ -1053,6 +1058,7 @@ class Compiler:
     @dataclass
     class Module(ASTNode):
         exports: list[Compiler.ExportItem]
+        fp: str
     @dataclass
     class ExportItem:
         name: str
@@ -1067,7 +1073,11 @@ class Compiler:
     @dataclass
     class ModuleRequest:
         name: str
-    
+    @dataclass
+    class ModuleReceived:
+        program: Program
+        filepath: str
+        content: str
     class Scope:
         def __init__(self, var_map={}, args={}):
             self.var_map: dict[str, Compiler.ScopeItem] = var_map
@@ -1141,6 +1151,10 @@ class Compiler:
         idx = len(self.code)
         self.code.append((opcode, *operands))
         self.lines.append(line)
+        fp = self.mod_stack[-1].fp
+        for i, item in enumerate(self.sources.keys()):
+            if item == fp:
+                self.source_info.append(i)
         return idx
 
     def compile(
@@ -1148,7 +1162,7 @@ class Compiler:
         program: Program,
         features: Collection[Literal["source"] | Literal["line"]] = [],
         input_source: str | None = None,
-    ) -> Generator[Warn | ModuleRequest, Program | None, list[str]]:
+    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, list[str]]:
         if input_source is None and "source" in features:
             raise CompilerError(
                 8,
@@ -1156,6 +1170,8 @@ class Compiler:
                 None,
                 None,
             )
+        if 'source' in features:
+            self.sources[self.filepath] = input_source # pyright: ignore[reportArgumentType]
         for node in program.statements:
             # empty statements (e.g. stray braces) may be None
             if node is None:
@@ -1187,8 +1203,14 @@ class Compiler:
             for line in self.lines:
                 output.append(line)
         if "source" in features:
-            output.append(".source")
-            output += (input_source.splitlines())  # pyright: ignore[reportOptionalMemberAccess]
+            output.append('.source_select')
+            output += self.source_info
+            for fp, source_content in self.sources.items():
+                idx = len(output)
+                output.append("")
+                output += source_content.splitlines()
+                output[idx] = f".source {len(output)} {fp}"
+        output.append("") # to prevent errors if a source's end is the end of the file
         return output
 
     def raise_for_req(
@@ -1237,7 +1259,7 @@ class Compiler:
                         col,
                     )
 
-    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn | ModuleRequest, Program | None, Any]:
+    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn | ModuleRequest, ModuleReceived | None, Any]:
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -1606,13 +1628,14 @@ class Compiler:
         elif isinstance(node, Import):
             yield from self.raise_for_req('imports', 'Import', 'Importing', node)
             module = yield self.ModuleRequest(node.mod)
-            self.mod_stack.append(self.Module([]))
-            self.modules.append(node.mod)
-            self.enter_scope()
-            input(module)
+                
             if module is None:
                 raise TypeError('`module` is None') 
-            for statement in module.statements:
+            self.mod_stack.append(self.Module([], module.filepath))
+            self.modules.append(node.mod)
+            self.enter_scope()
+            self.sources[module.filepath] = module.content
+            for statement in module.program.statements:
                 yield from self.compile_ins(statement)
             self.exit_scope()
             self.emit(node.line, "MAKE_MODULE")

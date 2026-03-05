@@ -93,7 +93,7 @@ def comp(
     
     program, current_env = tmp
     
-    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs)
+    compiler = Compiler(current_env, base_env.ASTenv, base_env.attrs, str(filepath))
     
     try:
         cmp = compiler.compile(program, features, file_content)
@@ -115,9 +115,7 @@ def comp(
                 if isinstance(tmp, Failed):
                     return tmp
                 import_program, import_env = tmp
-                print('[green]COMPILER:[/]',import_program ,end='')
-                input()
-                result = import_program
+                result = Compiler.ModuleReceived(import_program, str(fp), content)
                                 
             else:
                 result = None
