@@ -112,7 +112,8 @@ def comp(
                 elif (Path(filepath).parent / "packages" / (a.name + ".om")).is_file():
                     fp = Path(filepath).parent / "packages" / (a.name + ".om")
                 else:
-                    raise NotImplementedError  # TODO
+                    raise CompilerError(6, f'Could not resolve module `{a.name}`', a.line, None, compiler.mod_stack[-1].fp) # TODO: columns
+                
                 content = fp.read_text()
                 tmp = get_program(content)
                 if isinstance(tmp, Failed):

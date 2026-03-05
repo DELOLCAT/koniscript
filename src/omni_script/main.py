@@ -1071,6 +1071,7 @@ class Compiler:
     @dataclass
     class ModuleRequest:
         name: str
+        line: int
 
     @dataclass
     class ModuleReceived:
@@ -1174,8 +1175,8 @@ class Compiler:
                 self.mod_stack[-1].fp,
             )
         if "source" in features:
-            self.sources[self.filepath] = (
-                input_source  # pyright: ignore[reportArgumentType]
+            self.sources[self.filepath] = (  # pyright: ignore[reportArgumentType]
+                input_source
             )
         for node in program.statements:
             # empty statements (e.g. stray braces) may be None
@@ -1399,9 +1400,9 @@ class Compiler:
             exported = None
             # validate argument count depending on what kind of call this is
             if isinstance(node.func, Variable):
-                itm = self.get_var_obj(node.func.name)[
+                itm = self.get_var_obj(node.func.name)[  # pyright: ignore[reportOptionalSubscript]
                     0
-                ]  # pyright: ignore[reportOptionalSubscript]
+                ]  
                 if isinstance(itm, self.ScopeItem):
                     if isinstance(itm.value, Function):
                         params = itm.value.params
@@ -1577,9 +1578,9 @@ class Compiler:
 
             # emit the call instruction appropriate for the kind of callable
             if isinstance(node.func, Variable):
-                itm = self.get_var_obj(node.func.name)[
+                itm = self.get_var_obj(node.func.name)[  # pyright: ignore[reportOptionalSubscript]
                     0
-                ]  # pyright: ignore[reportOptionalSubscript]
+                ]  
                 if isinstance(itm, self.ScopeItem):
                     if isinstance(itm.value, Function):
                         params = itm.value.params
@@ -1589,9 +1590,7 @@ class Compiler:
                                 req.append(item)
                         if len(req) >= len(node.args):
                             for item in params[len(req) :]:
-                                yield from self.compile_ins(
-                                    item.option
-                                )  # pyright: ignore[reportArgumentType]
+                                yield from self.compile_ins(item.option)  # pyright: ignore[reportArgumentType]
                         self.emit(node.line, OP_CALL, len(params))
                     else:
                         raise  # should not happen
@@ -1719,7 +1718,7 @@ class Compiler:
             self.emit(node.line, "GET_ITEM")
         elif isinstance(node, Import):
             yield from self.raise_for_req("imports", "Import", "Importing", node)
-            module = yield self.ModuleRequest(node.mod)
+            module = yield self.ModuleRequest(node.mod, node.line)
 
             if module is None:
                 raise TypeError("`module` is None")
