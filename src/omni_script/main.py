@@ -1148,7 +1148,7 @@ class Compiler:
         program: Program,
         features: Collection[Literal["source"] | Literal["line"]] = [],
         input_source: str | None = None,
-    ) -> Generator[Warn | ModuleRequest, Program, list[str]]:
+    ) -> Generator[Warn | ModuleRequest, Program | None, list[str]]:
         if input_source is None and "source" in features:
             raise CompilerError(
                 8,
@@ -1237,7 +1237,7 @@ class Compiler:
                         col,
                     )
 
-    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn | ModuleRequest, Program, Any]:
+    def compile_ins(self, node: ASTNode, *other) -> Generator[Warn | ModuleRequest, Program | None, Any]:
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -1604,10 +1604,14 @@ class Compiler:
             yield from self.compile_ins(node.item)
             self.emit(node.line, "GET_ITEM")
         elif isinstance(node, Import):
+            yield from self.raise_for_req('imports', 'Import', 'Importing', node)
             module = yield self.ModuleRequest(node.mod)
             self.mod_stack.append(self.Module([]))
             self.modules.append(node.mod)
             self.enter_scope()
+            input(module)
+            if module is None:
+                raise TypeError('`module` is None') 
             for statement in module.statements:
                 yield from self.compile_ins(statement)
             self.exit_scope()

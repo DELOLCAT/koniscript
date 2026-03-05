@@ -99,24 +99,28 @@ def comp(
         cmp = compiler.compile(program, features, file_content)
     except CompilationException as e:
         return Failed(compiler, e)
+    result = None
     while True:
         try:
-            a = next(cmp)
+            a = cmp.send(result)
             if isinstance(a, Compiler.ModuleRequest):
                 if (Path(filepath).parent / (a.name + '.om')).is_file():
                     fp = Path(filepath).parent / a.name
                 elif (Path(filepath).parent / 'packages' / (a.name + '.om')).is_file():
                     fp = (Path(filepath).parent / 'packages' / (a.name + '.om'))
                 else:
-                    raise #TODO
+                    raise NotImplementedError #TODO
                 content = fp.read_text()
                 tmp = get_program(content)
                 if isinstance(tmp, Failed):
                     return tmp
                 import_program, import_env = tmp
-                cmp.send(import_program)
+                print('[green]COMPILER:[/]',import_program ,end='')
+                input()
+                result = import_program
                                 
             else:
+                result = None
                 yield a
         except StopIteration as e:
             return Success(e.value)
