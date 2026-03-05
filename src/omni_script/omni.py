@@ -28,19 +28,19 @@ app = typer.Typer()
 
 console = Console()
 
-tracebacks = os.environ.get('OMNI_TRACEBACKS')
+tracebacks = os.environ.get("OMNI_TRACEBACKS")
 
 
 def exec_name(name: str) -> str:
-    if sys.platform == 'win32':
-        return name + '.exe'
+    if sys.platform == "win32":
+        return name + ".exe"
     return name
 
 
 def bundled_exe(name: str) -> Path:
-    base = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
-    if sys.platform == 'win32':
-        name += '.exe'
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    if sys.platform == "win32":
+        name += ".exe"
     return base / name
 
 
@@ -107,10 +107,10 @@ def comp(
         try:
             a = cmp.send(result)
             if isinstance(a, Compiler.ModuleRequest):
-                if (Path(filepath).parent / (a.name + '.om')).is_file():
-                    fp = Path(filepath).parent / (a.name + '.om')
-                elif (Path(filepath).parent / 'packages' / (a.name + '.om')).is_file():
-                    fp = Path(filepath).parent / 'packages' / (a.name + '.om')
+                if (Path(filepath).parent / (a.name + ".om")).is_file():
+                    fp = Path(filepath).parent / (a.name + ".om")
+                elif (Path(filepath).parent / "packages" / (a.name + ".om")).is_file():
+                    fp = Path(filepath).parent / "packages" / (a.name + ".om")
                 else:
                     raise NotImplementedError  # TODO
                 content = fp.read_text()
@@ -134,42 +134,42 @@ def compile(
     filepath: Path,
     release: bool = typer.Option(
         False,
-        '--release',
-        '-r',
+        "--release",
+        "-r",
         is_flag=True,
-        help='For turning off all debug features. Use when building the final output of your app',
+        help="For turning off all debug features. Use when building the final output of your app",
     ),
     line: bool | None = typer.Option(
         None,
-        '--line',
-        '-l',
+        "--line",
+        "-l",
         is_flag=True,
-        help='For adding line info into your app for stack traces. Default: TRUE',
+        help="For adding line info into your app for stack traces. Default: TRUE",
     ),
     source: bool | None = typer.Option(
         None,
-        '--source',
-        '-s',
+        "--source",
+        "-s",
         is_flag=True,
-        help='For adding a copy of the source into your app for stack traces. Default: TRUE',
+        help="For adding a copy of the source into your app for stack traces. Default: TRUE",
     ),
 ):
     if release:
         comp_features = []
     elif not source and not line:
-        comp_features = ['source', 'line']
+        comp_features = ["source", "line"]
     else:
         comp_features = []
         if source:
-            comp_features.append('source')
+            comp_features.append("source")
         if line:
-            comp_features.append('line')
+            comp_features.append("line")
     if len(comp_features) == 2:
-        out = 'debug'
+        out = "debug"
     elif len(comp_features) == 0:
-        out = 'release'
+        out = "release"
     else:
-        out = '+ '.join(comp_features) + ' info'
+        out = "+ ".join(comp_features) + " info"
     print(
         f'Compiling with [b green]{out}[/]{" [d](source+line info)[/]" if out == "debug" else ""}. [blue]See `omni compile --help` for more info'
     )
@@ -195,11 +195,11 @@ def compile(
                 show_err_or_warn(e.value, filepath, file_content)
                 if warns > 0:
                     print(
-                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+                        f"[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted"
                     )
                 else:
                     print(
-                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds'
+                        f"[red b]Failed in {round(perf_counter() - start_time, 3)} seconds"
                     )
                 return
             else:
@@ -207,22 +207,22 @@ def compile(
     fp = f'{str(filepath).removesuffix(".om")}.omc'
     if warns > 0:
         print(
-            f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+            f"[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted"
         )
     else:
-        print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds')
-    status = console.status(f'Writing to {fp}')
+        print(f"[green]Compiled in {round(perf_counter() - start_time, 3)} seconds")
+    status = console.status(f"Writing to {fp}")
     status.start()
-    with open(fp, 'w') as file:
-        file.write('\n'.join([str(x) for x in instructions]))
+    with open(fp, "w") as file:
+        file.write("\n".join([str(x) for x in instructions]))
     status.stop()
-    print(f'Wrote to {fp}')
+    print(f"Wrote to {fp}")
 
 
 def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     if isinstance(e, Failed):
-        color = '[red b]'
-        tag = f'[red b]E{e.exception.code:02}'
+        color = "[red b]"
+        tag = f"[red b]E{e.exception.code:02}"
         ln = e.exception.line
         col = e.exception.col
         msg = e.exception.msg
@@ -234,18 +234,18 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
                 file_content = e.compiler.sources[e.exception.fp]
         else:
             filepath = fp
-        
+
     else:
-        color = '[yellow b]'
-        tag = '[yellow b]Warning'
+        color = "[yellow b]"
+        tag = "[yellow b]Warning"
         col = e.col
         ln = e.line
         msg = e.message
         filepath = e.fp
         file_content = e.compiler.sources[e.fp]
-        
+
     print()
-    print(f'{tag}: {msg}:', file=sys.stderr)
+    print(f"{tag}: {msg}:", file=sys.stderr)
     print(
         f'at {filepath}{"[green]:" + str(ln + 1) if ln is not None else " [red]No line data available"}{":" + str(col) if col is not None else ""}',
         file=sys.stderr,
@@ -255,8 +255,8 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         from_lines = max(0, min(ln - 3, len(splitted)))
         to_lines = max(0, min(ln + 4, len(splitted)))
         for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-            arr = f'{color}->    [/]' if ln == i - 1 else '      '
-            print(f'{arr}[blue dim]{i} | [/]{escape(cln)}', file=sys.stderr)
+            arr = f"{color}->    [/]" if ln == i - 1 else "      "
+            print(f"{arr}[blue dim]{i} | [/]{escape(cln)}", file=sys.stderr)
 
 
 @app.command()
@@ -265,7 +265,7 @@ def run(
 ):
     # run() should always compile with debug info enabled
     # ignore release/line/source choices and force both 'source' and 'line'
-    comp_features: list[str] = ['source', 'line']
+    comp_features: list[str] = ["source", "line"]
 
     file_content = Path(filepath).read_text()
     it = iter(comp(file_content, filepath, comp_features))
@@ -287,23 +287,23 @@ def run(
             else:
                 raise  # Impossible
 
-    f = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.omc')
+    f = tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".omc")
     try:
-        f.write('\n'.join([str(x) for x in instructions]))
+        f.write("\n".join([str(x) for x in instructions]))
         # We need to close the file so that the subprocess can open it.
         f.close()
-        vm_path = shutil.which('omvm')
-        if (Path(__file__).parent / exec_name('omvm')).is_file():
-            vm_path = Path(__file__).parent / exec_name('omvm')
+        vm_path = shutil.which("omvm")
+        if (Path(__file__).parent / exec_name("omvm")).is_file():
+            vm_path = Path(__file__).parent / exec_name("omvm")
         elif vm_path is not None:
             pass
         else:
             print(
-                '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
+                "[red b]Could not find `omvm` (OmniVM), which is required to run programs"
             )
             sys.exit(127)
         # run the VM and capture its output for tests, but also echo to user
-        out = subprocess.run([str(vm_path), 'run', f.name], capture_output=True)
+        out = subprocess.run([str(vm_path), "run", f.name], capture_output=True)
     finally:
         os.unlink(f.name)
 
@@ -319,5 +319,5 @@ def run(
     return out  # For tests
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app()
