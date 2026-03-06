@@ -739,6 +739,8 @@ fn gte(a: Value, b: Value) -> Result<Value, VmError> {
         }),
     }
 }
+
+
 fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va == vb)),
@@ -758,6 +760,27 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
         }),
     }
 }
+
+fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
+    match (&a, &b) {
+        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va != vb)),
+        (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va != vb)),
+        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Bool(*va as f64 != *vb)),
+        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va != *vb as f64)),
+        (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va != vb)),
+        (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va != vb)),
+
+        _ => Err(VmError {
+            msg: format!(
+                "TypeError: Cannot check if a {} is equal to a {}",
+                a.display(),
+                b.display()
+            ),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
+
 fn or(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va || *vb)),
@@ -797,6 +820,7 @@ static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> 
     fs.insert("GREATER_THAN_OR_EQ".to_string(), gte);
     fs.insert("LESS_THAN_OR_EQ".to_string(), lte);
     fs.insert("EQUAL_TO".to_string(), equal_to);
+    fs.insert("NOT_EQUAL_TO".to_string(), not_equal_to);
     fs.insert("OR".to_string(), or);
     fs.insert("AND".to_string(), and);
     fs
