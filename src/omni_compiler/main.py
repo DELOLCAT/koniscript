@@ -1,8 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Collection, Generator, Literal
-from omni_script import base_env
-from omni_script.runtime import (
+from omni_compiler import base_env
+from omni_compiler.runtime import (
     T_BOOL,
     T_FLOAT,
     T_INT,

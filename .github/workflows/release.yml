@@ -39,7 +39,7 @@ jobs:
         uses: MatteoH2O1999/setup-rust@v2.1.1
 
       - name: Lint with ruff
-        run: uvx ruff check src/omni_script/
+        run: uvx ruff check src/omni_compiler/
 
       - name: Build
         run: uv run build.py
@@ -53,21 +53,21 @@ jobs:
         run: |
           cp dist\omni.exe omni-windows.exe
           cp dist\omvm.exe omvm-windows.exe
-          cp dist\omvm.exe src\omni_script\omvm.exe
+          cp dist\omvm.exe src\omni_compiler\omvm.exe
         
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: |
           cp dist/omni omni-linux
           cp dist/omvm omvm-linux
-          cp dist/omvm src/omni_script/omvm
+          cp dist/omvm src/omni_compiler/omvm
 
       - name: Copy build artifact per OS (macOS)
         if: ${{ runner.os == 'macOS'}}
         run: |
           cp dist/omni omni-macos
           cp dist/omvm omvm-macos
-          cp dist/omvm src/omni_script/omvm
+          cp dist/omvm src/omni_compiler/omvm
 
       - name: Test with pytest
         run: uv run pytest

@@ -2,7 +2,7 @@
 
 
 a = Analysis( # type: ignore
-    ['src\\omni_script\\omni.py'],
+    ['src\\omni_compiler\\omni.py'],
     pathex=[],
     binaries=[],
     datas=[],

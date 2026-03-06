@@ -14,7 +14,7 @@ wheels/
 /omni_vm/target/
 
 #Built
-src/omni_script/omvm*
+src/omni_compiler/omvm*
 #Other
 *.log
 
