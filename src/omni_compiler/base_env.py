@@ -1,4 +1,4 @@
-from omni_script.runtime import BuiltinFunction, BuiltinModule, Builtin
+from omni_compiler.runtime import BuiltinFunction, BuiltinModule, Builtin
 
 T_INT = 1
 T_STRING = 2

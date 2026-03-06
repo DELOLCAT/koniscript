@@ -1,4 +1,4 @@
-from omni_script import omni
+from omni_compiler import omni
 from pathlib import Path
 
 

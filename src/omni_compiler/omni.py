@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from omni_script.main import (
+from omni_compiler.main import (
     CompilerError,
     Tokenizer,
     Parser,
@@ -16,7 +16,7 @@ from omni_script.main import (
     Compiler,
     CompilationException,
 )
-from omni_script import base_env
+from omni_compiler import base_env
 import copy
 import tempfile
 import subprocess
