@@ -119,6 +119,7 @@ class Token:
     value: Any
     line: int
     col: int
+    end_col: int
 
 
 class Tokenizer:
@@ -172,7 +173,7 @@ class Tokenizer:
         start_col = self.col
         current_char = self.get_current_char()
         if current_char is None:
-            return Token(EOF, None, start_line, start_col)  # End of input
+            return Token(EOF, None, start_line, start_col, self.col)  # End of input
 
         if current_char.isdigit():
             value = ''
@@ -187,18 +188,18 @@ class Tokenizer:
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance(1)
             if fl:
-                return Token(FLOAT, float(value), start_line, start_col)
+                return Token(FLOAT, float(value), start_line, start_col, self.col)
             else:
-                return Token(INT, int(value), start_line, start_col)
+                return Token(INT, int(value), start_line, start_col, self.col)
         elif current_char == '[':
             self.advance(1)
-            return Token(LBRACKET, None, start_line, start_col)
+            return Token(LBRACKET, None, start_line, start_col, self.col)
         elif current_char == ']':
             self.advance(1)
-            return Token(RBRACKET, None, start_line, start_col)
+            return Token(RBRACKET, None, start_line, start_col,self.col)
         elif current_char == '@':
             self.advance(1)
-            return Token(AT_RATE, None, start_line, start_col)
+            return Token(AT_RATE, None, start_line, start_col, self.col)
         elif current_char == '#':
             while (
                 self.get_current_char() is not None and self.get_current_char() != '\n'
@@ -207,67 +208,67 @@ class Tokenizer:
             return self.get_next_token()
         elif current_char == '+':
             self.advance(1)
-            return Token(ADD, None, start_line, start_col)
+            return Token(ADD, None, start_line, start_col, self.col)
         elif current_char == '.':
             self.advance(1)
-            return Token(DOT, None, start_line, start_col)
+            return Token(DOT, None, start_line, start_col, self.col)
         elif self.check('true'):
             self.advance(4)
-            return Token(BOOL, True, start_line, start_col)
+            return Token(BOOL, True, start_line, start_col, self.col)
         elif self.check('false'):
             self.advance(5)
-            return Token(BOOL, False, start_line, start_col)
+            return Token(BOOL, False, start_line, start_col, self.col)
         elif self.check('=='):
             self.advance(2)
-            return Token(EQUAL_TO, None, start_line, start_col)
+            return Token(EQUAL_TO, None, start_line, start_col, self.col)
         elif current_char == '=':
             self.advance(1)
-            return Token(ASSIGN, None, start_line, start_col)
+            return Token(ASSIGN, None, start_line, start_col, self.col)
         elif current_char == '-':
             self.advance(1)
-            return Token(SUB, None, start_line, start_col)
+            return Token(SUB, None, start_line, start_col, self.col)
         elif self.check('**'):
             self.advance(2)
-            return Token(POW, None, start_line, start_col)
+            return Token(POW, None, start_line, start_col ,self.col)
         elif current_char == '*':
             self.advance(1)
-            return Token(MUL, None, start_line, start_col)
+            return Token(MUL, None, start_line, start_col, self.col)
         elif self.check('!='):
             self.advance(2)
-            return Token(NOT_EQUAL_TO, None, start_line, start_col)
+            return Token(NOT_EQUAL_TO, None, start_line, start_col, self.col)
         elif self.check('<='):
             self.advance(2)
-            return Token(LTE, None, start_line, start_col)
+            return Token(LTE, None, start_line, start_col, self.col)
         elif self.check('>='):
             self.advance(2)
-            return Token(GTE, None, start_line, start_col)
+            return Token(GTE, None, start_line, start_col, self.col)
         elif current_char == '\n':
             self.advance(1)
-            return Token(NEWLINE, None, start_line, start_col)
+            return Token(NEWLINE, None, start_line, start_col, self.col)
         elif current_char == '(':
             self.advance(1)
-            return Token(LPAREN, None, start_line, start_col)
+            return Token(LPAREN, None, start_line, start_col, self.col)
         elif current_char == ')':
             self.advance(1)
-            return Token(RPAREN, None, start_line, start_col)
+            return Token(RPAREN, None, start_line, start_col, self.col)
         elif current_char == '{':
             self.advance(1)
-            return Token(LBRACE, None, start_line, start_col)
+            return Token(LBRACE, None, start_line, start_col, self.col)
         elif current_char == '}':
             self.advance(1)
-            return Token(RBRACE, None, start_line, start_col)
+            return Token(RBRACE, None, start_line, start_col, self.col)
         elif current_char == '/':
             self.advance(1)
-            return Token(DIV, None, start_line, start_col)
+            return Token(DIV, None, start_line, start_col, self.col)
         elif current_char == ',':
             self.advance(1)
-            return Token(COMMA, None, start_line, start_col)
+            return Token(COMMA, None, start_line, start_col, self.col)
         elif current_char == '<':
             self.advance(1)
-            return Token(LESS_THAN, None, start_line, start_col)
+            return Token(LESS_THAN, None, start_line, start_col, self.col)
         elif current_char == '>':
             self.advance(1)
-            return Token(GREATER_THAN, None, start_line, start_col)
+            return Token(GREATER_THAN, None, start_line, start_col, self.col)
         elif current_char == '"':
             self.advance(1)
             value = ''
@@ -291,7 +292,7 @@ class Tokenizer:
                     1, 'Unterminated string literal', self.line, self.col
                 )
             self.advance()
-            return Token(STRING, value, start_line, start_col)
+            return Token(STRING, value, start_line, start_col, self.col)
         elif current_char == "'":
             self.advance(1)
             value = ''
@@ -315,7 +316,7 @@ class Tokenizer:
                     1, 'Unterminated string literal', self.line, self.col
                 )
             self.advance()
-            return Token(STRING, value, start_line, start_col)
+            return Token(STRING, value, start_line, start_col, self.col)
 
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
@@ -328,7 +329,7 @@ class Tokenizer:
                 to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             tok_type = KEYWORDS.get(to_return, IDENTIFIER)
-            return Token(tok_type, to_return, start_line, start_col)
+            return Token(tok_type, to_return, start_line, start_col, self.col)
 
         raise TokenizerError(
             2, f'Unexpected character "{current_char}"', self.line, self.col
@@ -397,7 +398,7 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
         self.repl = repl
-        self.current_token = self.tokens[0] if self.tokens else Token(EOF, None, 0, 0)
+        self.current_token = self.tokens[0] if self.tokens else Token(EOF, None, 0, 0, 0)
 
     def incomplete_input(self):
         if self.repl:
@@ -420,7 +421,7 @@ class Parser:
         if self.pos < len(self.tokens):
             self.current_token = self.tokens[self.pos]
         else:
-            self.current_token = Token(EOF, None, 0, 0)
+            self.current_token = Token(EOF, None, 0, 0, 0)
 
     def arithmetic_expr(self):
         node = self.term()
@@ -763,7 +764,7 @@ class Parser:
         idx = self.pos + 1
         if idx < len(self.tokens):
             return self.tokens[idx]
-        return Token(EOF, None, 0, 0)
+        return Token(EOF, None, 0, 0, 0)
 
     def parse(self):
         node = self.statement()
