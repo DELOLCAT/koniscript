@@ -5,7 +5,6 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "omni-compiler",
-    "omni-lsp",
     "omni-script",
 ]
 
@@ -149,21 +148,11 @@ requires-dist = [
 ]
 
 [[package]]
-name = "omni-lsp"
-version = "0.1.0"
-source = { virtual = "omni_lsp" }
-dependencies = [
-    { name = "pygls" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "pygls", specifier = ">=2.0.1" }]
-
-[[package]]
 name = "omni-script"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "pygls" },
     { name = "pyinstaller" },
     { name = "pytest" },
     { name = "rich" },
@@ -178,6 +167,7 @@ nuitka = [
 [package.metadata]
 requires-dist = [
     { name = "nuitka", marker = "extra == 'nuitka'", specifier = ">=4.0.1" },
+    { name = "pygls", specifier = ">=2.0.1" },
     { name = "pyinstaller", specifier = ">=6.19.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "rich", specifier = ">=14.3.3" },

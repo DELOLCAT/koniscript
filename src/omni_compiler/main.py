@@ -68,22 +68,25 @@ NOT = 'NOT'
 class CompilationException(Exception):
     code: int  # TODO: Formalize these
     msg: str
+
+
+@dataclass
+class ParserError(CompilationException):
     line: int | None
     col: int | None  # TODO: Actually use columns (also in Tokens)
 
 
 @dataclass
-class ParserError(CompilationException):
-    pass
-
-
-@dataclass
 class CompilerError(CompilationException):
+    line: int | None
+    col: int | None  # TODO: Actually use columns (also in Tokens)
     fp: str
 
 
 @dataclass
 class TokenizerError(CompilationException):
+    line: int
+    col: int  # TODO: Actually use columns (also in Tokens)
     pass
 
 

@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "pygls>=2.0.1",
     "pyinstaller>=6.19.0",
     "pytest>=9.0.2",
     "rich>=14.3.3",
@@ -31,6 +32,5 @@ quote-style = "single"
 
 [tool.uv.workspace]
 members = [
-    "omni_lsp",
     "src/omni_compiler",
 ]
