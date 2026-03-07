@@ -27,7 +27,11 @@ class PublishDiagnosticServer(LanguageServer):
         self.diagnostics = {}
 
     def parse(self, document: TextDocument):
+        before = len(base_env.compiler_env)  # or however you'd measure its size
         diagnostics = []
+        self.diagnostics[document.uri] = (document.version, [])
+
+        ast_env, compiler_env, attrs = base_env.make_fresh_env()
 
         logging.info("SOURCE:\n%s", document.source)
         tkns = None
@@ -54,7 +58,7 @@ class PublishDiagnosticServer(LanguageServer):
             )
         program = None
         if tkns is not None:
-            psr = Parser(tkns, base_env.ASTenv)
+            psr = Parser(tkns, ast_env)
             try:
                 program = psr.program()
             except ParserError as e:
@@ -68,9 +72,12 @@ class PublishDiagnosticServer(LanguageServer):
                     )
                 )
         if program is not None:
-            compiler = Compiler(
-                base_env.compiler_env, base_env.ASTenv, base_env.attrs, document.path
-            )
+            compiler = Compiler(compiler_env, ast_env, attrs, document.path)
+            self.window_log_message(
+                types.LogMessageParams(
+                    type=types.MessageType.Warning, message=str(compiler)
+                )
+            )   
             it = iter(compiler.compile(program))
             while True:
                 try:
@@ -103,14 +110,21 @@ class PublishDiagnosticServer(LanguageServer):
                                         line=e.line,
                                         character=e.col if e.col is not None else 0,
                                     ),
-                                    end=types.Position(line=e.line, character=e.end_col if e.end_col is not None else 1),
+                                    end=types.Position(
+                                        line=e.line,
+                                        character=(
+                                            e.end_col if e.end_col is not None else 1
+                                        ),
+                                    ),
                                 ),
                                 message=e.msg,
                             )
                         )
 
         self.diagnostics[document.uri] = (document.version, diagnostics)
-
+        # ... run compiler ...
+        after = len(base_env.compiler_env)
+        logging.info("ASTenv size before: %d, after: %d", before, after)
 
 server = PublishDiagnosticServer("diagnostic-server", "v1")
 

@@ -1,5 +1,5 @@
 from omni_compiler.runtime import BuiltinFunction, BuiltinModule, Builtin
-
+import copy
 T_INT = 1
 T_STRING = 2
 T_BOOL = 3
@@ -54,3 +54,6 @@ attrs: list[
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]
+
+def make_fresh_env():
+    return copy.deepcopy(ASTenv), copy.deepcopy(compiler_env), copy.deepcopy(attrs)

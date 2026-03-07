@@ -1131,17 +1131,14 @@ class Compiler:
         program: Program
         filepath: str
         content: str
-
+    @dataclass
     class Scope:
-        def __init__(self, var_map={}, args={}):
-            self.var_map: dict[str, Compiler.ScopeItem] = var_map
+        def __init__(self, var_map=None, args=None):
+            self.var_map: dict[str, Compiler.ScopeItem] = var_map if var_map is not None else {}
 
-            self.next_local = len(var_map)
-            self.args = args
-
-        def __repr__(self):
-            return f"Scope({self.var_map}, {self.next_local})"
-
+            self.next_local = len(self.var_map)
+            self.args = args if args is not None else {}
+            
     @dataclass
     class Warn:
         message: str
@@ -1155,7 +1152,7 @@ class Compiler:
     class Result:
         value: str
 
-    def enter_scope(self, var_map={}, args={}):
+    def enter_scope(self, var_map=None, args=None):
         self.scopes.append(Compiler.Scope(var_map, args))
 
     def exit_scope(self):
