@@ -115,7 +115,8 @@ def comp(
                         6,
                         f'Could not resolve module `{a.name}`',
                         a.line,
-                        None,
+                        a.col,
+                        a.end_col,
                         compiler.mod_stack[-1].fp,
                     )  # TODO: columns
 

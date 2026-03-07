@@ -48,7 +48,7 @@ class PublishDiagnosticServer(LanguageServer):
                             line=e.line,
                             character=e.col,
                         ),
-                        end=types.Position(line=e.line, character=e.col + 1),
+                        end=types.Position(line=e.line, character=e.end_col),
                     ),
                 )
             )
@@ -58,18 +58,15 @@ class PublishDiagnosticServer(LanguageServer):
             try:
                 program = psr.program()
             except ParserError as e:
-                if e.line and e.col:
-                    diagnostics.append(
-                        types.Diagnostic(
-                            message=e.msg,
-                            range=types.Range(
-                                start=types.Position(line=e.line, character=e.col),
-                                end=types.Position(line=e.line, character=e.col + 1),
-                            ),
-                        )
+                diagnostics.append(
+                    types.Diagnostic(
+                        message=e.msg,
+                        range=types.Range(
+                            start=types.Position(line=e.line, character=e.col),
+                            end=types.Position(line=e.line, character=e.end_col),
+                        ),
                     )
-                else:
-                    logging.error(f"FAILED: {e}")
+                )
         if program is not None:
             compiler = Compiler(
                 base_env.compiler_env, base_env.ASTenv, base_env.attrs, document.path
@@ -85,14 +82,14 @@ class PublishDiagnosticServer(LanguageServer):
                                 types.Diagnostic(
                                     range=types.Range(
                                         start=types.Position(
-                                            line=a.line, character=0
+                                            line=a.line, character=a.col
                                         ),
                                         end=types.Position(
-                                            line=a.line, character=1
+                                            line=a.line, character=a.end_col
                                         ),
                                     ),
                                     message=a.message,
-                                    severity=types.DiagnosticSeverity.Warning
+                                    severity=types.DiagnosticSeverity.Warning,
                                 )
                             )
                 except StopIteration:
@@ -102,15 +99,16 @@ class PublishDiagnosticServer(LanguageServer):
                         diagnostics.append(
                             types.Diagnostic(
                                 range=types.Range(
-                                    start=types.Position(line=e.line, character=0),
-                                    end=types.Position(
-                                        line=e.line, character=1
+                                    start=types.Position(
+                                        line=e.line,
+                                        character=e.col if e.col is not None else 0,
                                     ),
+                                    end=types.Position(line=e.line, character=e.end_col if e.end_col is not None else 1),
                                 ),
-                                message=e.msg
+                                message=e.msg,
                             )
                         )
-                        
+
         self.diagnostics[document.uri] = (document.version, diagnostics)
 
 

@@ -124,9 +124,11 @@ T_BUILTIN = 5
 T_NULL = 6
 T_FLOAT = 7
 
-
+@dataclass
 class ASTNode:
     line: int
+    col: int
+    end_col: int
     pass
 
 
@@ -137,14 +139,12 @@ class Program(ASTNode):
 
 @dataclass
 class DEPRECATEDModule(ASTNode):
-    line: int
     body: Program
     name: str
 
 
 @dataclass
 class BuiltinModulePointer(ASTNode):
-    line: int
     idx: int
 
 

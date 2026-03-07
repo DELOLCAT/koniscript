@@ -29,7 +29,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.omniscript",
-					"match": "(?<!\\.)(\\b(if|while|func|return|else|or|and|not)\\b|@require)"
+					"match": "(?<!\\.)(\\b(if|while|func|return|else|or|and|not|import)\\b|@require)"
+				},
+				{
+					"name": "constant.character.omniscript",
+					"match": "(?<!\\.)(\\b(true|false)\\b)"
 				}
 			]
 		},
