@@ -656,8 +656,7 @@ class Parser:
             self.eat(LBRACKET)
             if self.current_token.type == EOF:
                 self.incomplete_input()
-            if self.current_token.type == NEWLINE:
-                self.eat(NEWLINE)
+            self.skip_newline()
             items = []
             if self.current_token.type != RBRACKET:
                 if self.current_token.type == EOF:
@@ -729,8 +728,7 @@ class Parser:
         return Export(ln, col, self.current_token.end_line, self.current_token.end_col, out.value, name)
 
     def statement(self):
-        while self.current_token.type == NEWLINE:
-            self.eat(NEWLINE)
+        self.skip_newline()            
         if self.current_token.type == RBRACE:
             return None
         elif self.current_token.type == AT_RATE:
