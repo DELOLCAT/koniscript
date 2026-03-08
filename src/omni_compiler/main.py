@@ -1409,8 +1409,8 @@ class Compiler:
                         f"Attempted using a(n) {name} when it requires `{req}` in an illegal area",
                         ln,
                         col,
-                        end_col,
                         end_line,
+                        end_col,
                         self.mod_stack[-1].fp,
                     )
             else:
@@ -1507,7 +1507,7 @@ class Compiler:
                 self.emit(node.line, OP_SET_VAR, idx, depth)
 
                 yield self.Warn(
-                    f"Reassignment to a function attempted for {node.name}. This is usually not recommended",
+                    f"Reassignment to a function attempted for {node.name}(). This is usually not recommended",
                     node.line,
                     node.col,
                     node.end_line,
