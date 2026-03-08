@@ -17,7 +17,7 @@ nuitka = [
 ]
 dev = [
     "pyperclip>=1.11.0",
-    "questionary>=2.1.1"
+    "questionary>=2.1.1",
 ]
 [build-system]
 requires = ["hatchling"]
