@@ -20,7 +20,11 @@
         "extensions": [
           ".om"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "icons/omni-dark.svg",
+          "light": "icons/omni-light.svg"
+        }
       }
     ],
     "grammars": [
