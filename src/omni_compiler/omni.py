@@ -259,8 +259,9 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
 
     print()
     print(f'{tag}: {msg}:', file=sys.stderr)
+    
     print(
-        f'at {filepath}{f"[green]:{str(ln + 1)}" if ln is not None else " [red]No line data available"}{f":{str(col + 1)}" if col is not None else ""}',
+        f'at {filepath}{f"[green]:{escape(str(ln + 1))}" if ln is not None else " [red]No line data available" + f":{str(col + 1)}" if col is not None else ""}',
         file=sys.stderr,
     )
     if ln is not None: # TODO: make the following more readable
@@ -269,28 +270,26 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             from_lines = max(0, min(ln - 3, len(splitted)))
             to_lines = max(0, min(ln + 4, len(splitted)))
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-                spaces = ' ' * (6 - len(str(i)))
-                arr_spaces = ' ' * (4 - len(str(i)))
-                arr = f'{color}->{arr_spaces}[/]' if ln == i - 1 else spaces
+                arr = f'{color}->[/]' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
-                    print(f'[blue dim]{spaces}  | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
-                print(f'{arr}[blue dim]{i} | [/]{escape(cln)}', file=sys.stderr)
+                    print(f'[blue dim]          | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
+                print(f'{arr}[blue dim]{i:7} | [/]{escape(cln)}', file=sys.stderr)
+            #if ln == len(splitted) - 1:
+            #    print(f'[blue dim]{spaces}  | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
         elif end_col is not None:
             from_lines = max(0, min(ln - 3, len(splitted)))
             to_lines = max(0, min(end_line + 4, len(splitted)))
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-                spaces = ' ' * (6 - len(str(i)))
-                arr_spaces = ' ' * (4 - len(str(i)))
-                arr = f'{color}->{arr_spaces}[/]' if ln == i - 1 else spaces
+                arr = f'{color}->[/]' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
-                    print(f'[blue dim]{spaces}... [/]', file=sys.stderr)
+                    print('[blue dim]       ... [/]', file=sys.stderr)
                 elif not ln < i-1 < end_line:
-                    print(f'{arr}[blue dim]{i} | [/]{escape(cln)}', file=sys.stderr)
+                    print(f'{arr}[blue dim]{i:7} | [/]{escape(cln)}', file=sys.stderr)
                 if ln <= i-1 <= end_line and col is not None:
                     if ln == i-1:
-                        print(f'[blue dim]{spaces}  | [/]{color}{' ' * col}{('^' * (len(cln) - col))}', file=sys.stderr)
+                        print(f'[blue dim]          | [/]{color}{' ' * col}{('^' * (len(cln) - col))}', file=sys.stderr)
                     elif end_line == i-1:
-                        print(f'[blue dim]{spaces}  | [/]{color}{('^' * end_col)}', file=sys.stderr)
+                        print(f'[blue dim]          | [/]{color}{('^' * end_col)}', file=sys.stderr)
 
 
 @app.command()
