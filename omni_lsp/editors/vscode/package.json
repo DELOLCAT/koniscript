@@ -1,0 +1,54 @@
+{
+  "name": "omniscript",
+  "displayName": "OmniScript",
+  "description": "OmniScript language support",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "omniscript",
+        "aliases": [
+          "OmniScript",
+          "omniscript"
+        ],
+        "extensions": [
+          ".om"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "icons/omni-dark.svg",
+          "light": "icons/omni-light.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "omniscript",
+        "scopeName": "source.omniscript",
+        "path": "./syntaxes/omniscript.tmLanguage.json"
+      }
+    ]
+  },
+  "main": "./out/extension.js",
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@types/vscode": "^1.109.0"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "lint": "eslint",
+    "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+    "test": "sh ./scripts/e2e.sh"
+  }
+}
