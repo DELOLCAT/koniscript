@@ -290,7 +290,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
                     if ln == i-1:
                         print(f'[blue dim]{spaces}  | [/]{color}{' ' * col}{('^' * (len(cln) - col))}', file=sys.stderr)
                     elif end_line == i-1:
-                        print(f'[blue dim]{spaces}   | [/]{color}{('^' * end_col)}', file=sys.stderr)
+                        print(f'[blue dim]{spaces}  | [/]{color}{('^' * end_col)}', file=sys.stderr)
 
 
 @app.command()
