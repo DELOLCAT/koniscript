@@ -870,6 +870,7 @@ class Parser:
                 self.eat(ASSIGN)
                 params[-1].option = self.primary()
                 params[-1].end_col = params[-1].option.end_col
+                params[-1].end_line = params[-1].option.end_line
             elif optional:
                 raise ParserError(
                     7,
