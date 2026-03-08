@@ -123,11 +123,11 @@ T_FUNC = 4
 T_BUILTIN = 5
 T_NULL = 6
 T_FLOAT = 7
-
 @dataclass
 class ASTNode:
     line: int
     col: int
+    end_line: int
     end_col: int
     pass
 

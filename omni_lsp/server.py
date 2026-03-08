@@ -52,7 +52,7 @@ class PublishDiagnosticServer(LanguageServer):
                             line=e.line,
                             character=e.col,
                         ),
-                        end=types.Position(line=e.line, character=e.end_col),
+                        end=types.Position(line=e.end_line, character=e.end_col),
                     ),
                 )
             )
@@ -67,7 +67,7 @@ class PublishDiagnosticServer(LanguageServer):
                         message=e.msg,
                         range=types.Range(
                             start=types.Position(line=e.line, character=e.col),
-                            end=types.Position(line=e.line, character=e.end_col),
+                            end=types.Position(line=e.end_line, character=e.end_col),
                         ),
                     )
                 )
@@ -77,28 +77,25 @@ class PublishDiagnosticServer(LanguageServer):
                 types.LogMessageParams(
                     type=types.MessageType.Warning, message=str(compiler)
                 )
-            )   
+            )
             it = iter(compiler.compile(program))
             while True:
                 try:
                     a = next(it)
                     logging.info(a)
                     if isinstance(a, Compiler.Warn):
-                        if a.line is not None:
-                            diagnostics.append(
-                                types.Diagnostic(
-                                    range=types.Range(
-                                        start=types.Position(
-                                            line=a.line, character=a.col
-                                        ),
-                                        end=types.Position(
-                                            line=a.line, character=a.end_col
-                                        ),
+                        diagnostics.append(
+                            types.Diagnostic(
+                                range=types.Range(
+                                    start=types.Position(line=a.line, character=a.col),
+                                    end=types.Position(
+                                        line=a.end_line, character=a.end_col
                                     ),
-                                    message=a.message,
-                                    severity=types.DiagnosticSeverity.Warning,
-                                )
+                                ),
+                                message=a.message,
+                                severity=types.DiagnosticSeverity.Warning,
                             )
+                        )
                 except StopIteration:
                     break
                 except CompilerError as e:
@@ -111,7 +108,11 @@ class PublishDiagnosticServer(LanguageServer):
                                         character=e.col if e.col is not None else 0,
                                     ),
                                     end=types.Position(
-                                        line=e.line,
+                                        line=(
+                                            e.end_line
+                                            if e.end_line is not None
+                                            else e.line
+                                        ),
                                         character=(
                                             e.end_col if e.end_col is not None else 1
                                         ),
@@ -125,6 +126,7 @@ class PublishDiagnosticServer(LanguageServer):
         # ... run compiler ...
         after = len(base_env.compiler_env)
         logging.info("ASTenv size before: %d, after: %d", before, after)
+
 
 server = PublishDiagnosticServer("diagnostic-server", "v1")
 

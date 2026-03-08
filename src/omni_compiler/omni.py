@@ -116,6 +116,7 @@ def comp(
                         f'Could not resolve module `{a.name}`',
                         a.line,
                         a.col,
+                        a.end_line,
                         a.end_col,
                         compiler.mod_stack[-1].fp,
                     )  # TODO: columns
@@ -233,6 +234,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         ln = e.exception.line
         col = e.exception.col
         msg = e.exception.msg
+        end_col = e.exception.end_col
         if isinstance(e.exception, CompilerError):
             filepath = e.exception.fp
             if e.compiler is None:
@@ -246,6 +248,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         color = '[yellow b]'
         tag = '[yellow b]Warning'
         col = e.col
+        end_col = e.end_col
         ln = e.line
         msg = e.message
         filepath = e.fp
@@ -254,7 +257,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     print()
     print(f'{tag}: {msg}:', file=sys.stderr)
     print(
-        f'at {filepath}{f"[green]:{str(ln + 1)}" if ln is not None else " [red]No line data available"}{f":{str(col)}" if col is not None else ""}',
+        f'at {filepath}{f"[green]:{str(ln + 1)}" if ln is not None else " [red]No line data available"}{f":{str(col + 1)}" if col is not None else ""}',
         file=sys.stderr,
     )
     if ln is not None:
@@ -263,6 +266,8 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         to_lines = max(0, min(ln + 4, len(splitted)))
         for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
             arr = f'{color}->    [/]' if ln == i - 1 else '      '
+            if ln == i-2 and col is not None:
+                print(f'[blue dim]        | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') # unreadable af, but this basically shows the colun
             print(f'{arr}[blue dim]{i} | [/]{escape(cln)}', file=sys.stderr)
 
 
