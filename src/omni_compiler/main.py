@@ -15,14 +15,14 @@ from omni_compiler.runtime import (
     Builtin,
 )
 
-ADD = "ADD"
+ADD = "ADD"  # TODO: refactor this to be better
 INTEGER = "INT"
 INT = INTEGER
 IDENTIFIER = "IDENTIFIER"
 ASSIGN = "ASSIGN"
 NEWLINE = "NEWLINE"
 EOF = "EOF"
-DIVIDE = "DIVIDE"
+DIVIDE = "DIV"
 DIV = DIVIDE
 MULTIPLY = "MULTIPLY"
 MUL = MULTIPLY
@@ -62,6 +62,10 @@ LBRACKET = "LBRACKET"
 RBRACKET = "RBRACKET"
 AT_RATE = "AT_RATE"
 NOT = "NOT"
+PLUS_ASSIGN = "PLUS_ASSIGN"
+SUB_ASSIGN = 'SUB_ASSIGN'
+MUL_ASSIGN = 'MUL_ASSIGN'
+DIV_ASSIGN = 'DIV_ASSIGN'
 
 
 @dataclass
@@ -219,6 +223,19 @@ class Tokenizer:
             ):
                 self.advance()
             return self.get_next_token()
+        elif self.check("+="):
+            self.advance(2)
+            return Token(PLUS_ASSIGN, None, start_line, start_col, self.line, self.col)
+        elif self.check("-="):
+            self.advance(2)
+            return Token(SUB_ASSIGN, None, start_line, start_col, self.line, self.col)
+        elif self.check("/="):
+            self.advance(2)
+            return Token(DIV_ASSIGN, None, start_line, start_col, self.line, self.col)
+        elif self.check("*="):
+            self.advance(2)
+            return Token(MUL_ASSIGN, None, start_line, start_col, self.line, self.col)
+        
         elif current_char == "+":
             self.advance(1)
             return Token(ADD, None, start_line, start_col, self.line, self.col)
@@ -314,7 +331,7 @@ class Tokenizer:
                     self.col + 1,
                 )
             self.advance()
-            return Token(STRING, value, start_line, start_col, self.line,  self.col)
+            return Token(STRING, value, start_line, start_col, self.line, self.col)
         elif current_char == "'":
             self.advance(1)
             value = ""
@@ -347,7 +364,7 @@ class Tokenizer:
                     self.col + 1,
                 )
             self.advance()
-            return Token(STRING, value, start_line, start_col,self.line, self.col)
+            return Token(STRING, value, start_line, start_col, self.line, self.col)
 
         elif current_char.isalpha() or current_char == "_":
             to_return = current_char
@@ -362,7 +379,9 @@ class Tokenizer:
                 )  # pyright: ignore[reportOperatorIssue]
                 self.advance()
             tok_type = KEYWORDS.get(to_return, IDENTIFIER)
-            return Token(tok_type, to_return, start_line, start_col,self.line,  self.col)
+            return Token(
+                tok_type, to_return, start_line, start_col, self.line, self.col
+            )
 
         raise TokenizerError(
             2,
@@ -595,7 +614,9 @@ class Parser:
         token = self.current_token
         if token.type == SUB:
             self.eat(SUB)
-            return UnaryOp(token.line, token.col, token.end_line, token.end_col, NEG, self.factor())
+            return UnaryOp(
+                token.line, token.col, token.end_line, token.end_col, NEG, self.factor()
+            )
         return self.postfix()
 
     def postfix(self):
@@ -616,7 +637,14 @@ class Parser:
                     self.current_token.end_col,
                 )
             end_tok = self.eat(IDENTIFIER)
-            node = Attribute(dot_line, dot_col, end_tok.end_line, end_tok.end_col, node, end_tok.value)
+            node = Attribute(
+                dot_line,
+                dot_col,
+                end_tok.end_line,
+                end_tok.end_col,
+                node,
+                end_tok.value,
+            )
 
         # Then handle function calls
         while self.current_token.type == LPAREN:
@@ -632,7 +660,14 @@ class Parser:
             if self.current_token.type == EOF:
                 self.incomplete_input()
             self.eat(RPAREN)
-            node = Call(call_line, call_col, self.current_token.end_line, self.current_token.end_col, node, args)
+            node = Call(
+                call_line,
+                call_col,
+                self.current_token.end_line,
+                self.current_token.end_col,
+                node,
+                args,
+            )
 
         while self.current_token.type == LBRACKET:
             ln = self.current_token.line
@@ -640,7 +675,14 @@ class Parser:
             self.eat(LBRACKET)
             idx = self.expr()
             self.eat(RBRACKET)
-            node = GetIndex(ln, col, self.current_token.end_line, self.current_token.end_col, node, idx)
+            node = GetIndex(
+                ln,
+                col,
+                self.current_token.end_line,
+                self.current_token.end_col,
+                node,
+                idx,
+            )
         return node
 
     def skip_newline(self):
@@ -651,7 +693,9 @@ class Parser:
         token = self.current_token
         if token.type == INT:
             self.eat(INT)
-            return Number(token.line, token.col, token.end_line, token.end_col, token.value)
+            return Number(
+                token.line, token.col, token.end_line, token.end_col, token.value
+            )
         elif token.type == LBRACKET:
             self.eat(LBRACKET)
             if self.current_token.type == EOF:
@@ -671,19 +715,29 @@ class Parser:
                     items.append(self.expr())
                 self.skip_newline()
             end_tok = self.eat(RBRACKET)
-            return Array(token.line, token.col, end_tok.end_line, end_tok.end_col, items)
+            return Array(
+                token.line, token.col, end_tok.end_line, end_tok.end_col, items
+            )
         elif token.type == FLOAT:
             self.eat(FLOAT)
-            return Float(token.line, token.col, token.end_line,token.end_col, token.value)
+            return Float(
+                token.line, token.col, token.end_line, token.end_col, token.value
+            )
         elif token.type == STRING:
             self.eat(STRING)
-            return String(token.line, token.col, token.end_line, token.end_col, token.value)
+            return String(
+                token.line, token.col, token.end_line, token.end_col, token.value
+            )
         elif token.type == BOOL:
             self.eat(BOOL)
-            return Bool(token.line, token.col, token.end_line, token.end_col, token.value)
+            return Bool(
+                token.line, token.col, token.end_line, token.end_col, token.value
+            )
         elif token.type == IDENTIFIER:
             self.eat(IDENTIFIER)
-            return Variable(token.line, token.col, token.end_line, token.end_col, token.value)
+            return Variable(
+                token.line, token.col, token.end_line, token.end_col, token.value
+            )
         elif token.type == LPAREN:
             self.eat(LPAREN)
             node = self.expr()
@@ -725,10 +779,17 @@ class Parser:
         name = out.name
         ln = out.line
         col = out.col
-        return Export(ln, col, self.current_token.end_line, self.current_token.end_col, out.value, name)
+        return Export(
+            ln,
+            col,
+            self.current_token.end_line,
+            self.current_token.end_col,
+            out.value,
+            name,
+        )
 
     def statement(self):
-        self.skip_newline()            
+        self.skip_newline()
         if self.current_token.type == RBRACE:
             return None
         elif self.current_token.type == AT_RATE:
@@ -771,7 +832,9 @@ class Parser:
                         ln, col, blk.end_line, blk.end_col, reqs, blk, else_block
                     )
                 else:
-                    return BareRequire(ln, col, self.current_token.line, self.current_token.col, reqs)
+                    return BareRequire(
+                        ln, col, self.current_token.line, self.current_token.col, reqs
+                    )
         elif self.current_token.type == LBRACE:
             return self.block()
         elif self.current_token.type == FUNC:
@@ -787,13 +850,15 @@ class Parser:
             col = self.current_token.col
             self.eat(IMPORT)
             name_tok = self.eat(IDENTIFIER)
-            return Import(ln, col, name_tok.end_line,name_tok.end_col, name_tok.value)
+            return Import(ln, col, name_tok.end_line, name_tok.end_col, name_tok.value)
         elif self.current_token.type == RETURN:
             ln = self.current_token.line
             col = self.current_token.col
             self.eat(RETURN)
             if self.current_token.type in (NEWLINE, RBRACE):
-                return Return(ln, col, self.current_token.line, self.current_token.col, None)
+                return Return(
+                    ln, col, self.current_token.line, self.current_token.col, None
+                )
             value = self.expr()
             return Return(ln, col, value.end_line, value.end_col, value)
         elif self.current_token.type == IDENTIFIER:
@@ -805,7 +870,41 @@ class Parser:
                 name = self.eat(IDENTIFIER).value
                 self.eat(ASSIGN)
                 value = self.expr()
-                return Assign(ln, col,value.end_line, value.end_col, name, value)
+                return Assign(ln, col, value.end_line, value.end_col, name, value)
+            elif next_tok and next_tok.type in (PLUS_ASSIGN, DIV_ASSIGN, MUL_ASSIGN, SUB_ASSIGN):
+                ln = self.current_token.line
+                col = self.current_token.col
+                name = self.eat(IDENTIFIER).value
+                op_type = self.current_token.type
+                self.eat(op_type)
+                if op_type == PLUS_ASSIGN:
+                    op = ADD
+                elif op_type == SUB_ASSIGN:
+                    op = SUB
+                elif op_type == MUL_ASSIGN:
+                    op = MUL
+                elif op_type == DIV_ASSIGN:
+                    op = DIV
+                else:
+                    raise ParserError(13, f'(internal) Expected token to be of type PLUS_ASSIGN, DIV_ASSIGN, MUL_ASSIGN, or SUB_ASSIGN, got {op_type}.', self.current_token.line, self.current_token.col, self.current_token.end_line, self.current_token.end_col)
+                value = self.expr()
+                
+                return Assign(
+                    ln,
+                    col,
+                    value.end_line,
+                    value.end_col,
+                    name,
+                    BinOp(
+                        ln,
+                        col,
+                        value.end_line,
+                        value.end_col,
+                        Variable(ln, col, value.end_line, value.end_col, name),
+                        op,
+                        value,
+                    ),
+                )
         return self.expr()
 
     def if_decl(self):
@@ -842,7 +941,7 @@ class Parser:
             self.incomplete_input()
         self.skip_newline()
         body = self.block()
-        return While(ln, col,body.end_line, body.end_col, expr, body)
+        return While(ln, col, body.end_line, body.end_col, expr, body)
 
     def function_decl(self):
         ln = self.current_token.line
@@ -1171,7 +1270,7 @@ class Compiler:
         self.ASTenv = ASTenv
         self.lines = []
         self.modules = []
-        self.mod_stack: list[Compiler.Module] = [self.Module(0, 0, 0, 0,  [], filepath)]
+        self.mod_stack: list[Compiler.Module] = [self.Module(0, 0, 0, 0, [], filepath)]
         self.filepath = filepath
         self.exports = []
         self.source_info: list[int] = []
@@ -1877,7 +1976,15 @@ class Compiler:
             self.emit(node.line, "RET")
         elif isinstance(node, Export):
             yield from self.compile_ins(
-                Assign(node.line, node.col, node.end_line, node.end_col, node.name, node.lhs), True
+                Assign(
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
+                    node.name,
+                    node.lhs,
+                ),
+                True,
             )
             idx = self.add_constant((T_STRING, node.name))
             self.mod_stack[-1].exports.append(self.ExportItem(node.name, node.lhs))
@@ -1924,7 +2031,7 @@ class Compiler:
 
             if module is None:
                 raise TypeError("`module` is None")
-            self.mod_stack.append(self.Module(0, 0, 0, 0,  [], module.filepath))
+            self.mod_stack.append(self.Module(0, 0, 0, 0, [], module.filepath))
             self.modules.append(node.mod)
             self.enter_scope()
             self.sources[module.filepath] = module.content
