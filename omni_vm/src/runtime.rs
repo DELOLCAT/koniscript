@@ -829,17 +829,17 @@ fn and(a: Value, b: Value) -> Result<Value, VmError> {
 static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> = Lazy::new(|| {
     let mut fs: HashMap<String, fn(Value, Value) -> Result<Value, VmError>> = HashMap::new();
     fs.insert("ADD".to_string(), add);
-    fs.insert("MULTIPLY".to_string(), mul);
+    fs.insert("MUL".to_string(), mul);
     fs.insert("DIV".to_string(), div);
     fs.insert("MOD".to_string(), vm_mod);
-    fs.insert("SUBTRACT".to_string(), sub);
+    fs.insert("SUB".to_string(), sub);
     fs.insert("POW".to_string(), pow);
-    fs.insert("LESS_THAN".to_string(), lt);
-    fs.insert("GREATER_THAN".to_string(), gt);
-    fs.insert("GREATER_THAN_OR_EQ".to_string(), gte);
-    fs.insert("LESS_THAN_OR_EQ".to_string(), lte);
-    fs.insert("EQUAL_TO".to_string(), equal_to);
-    fs.insert("NOT_EQUAL_TO".to_string(), not_equal_to);
+    fs.insert("LT".to_string(), lt);
+    fs.insert("GT".to_string(), gt);
+    fs.insert("GTE".to_string(), gte);
+    fs.insert("LTE".to_string(), lte);
+    fs.insert("EQ".to_string(), equal_to);
+    fs.insert("NEQ".to_string(), not_equal_to);
     fs.insert("OR".to_string(), or);
     fs.insert("AND".to_string(), and);
     fs
