@@ -66,7 +66,7 @@ PLUS_ASSIGN = "PLUS_ASSIGN"
 SUB_ASSIGN = 'SUB_ASSIGN'
 MUL_ASSIGN = 'MUL_ASSIGN'
 DIV_ASSIGN = 'DIV_ASSIGN'
-
+MOD = 'MOD'
 
 @dataclass
 class CompilationException(Exception):
@@ -296,6 +296,9 @@ class Tokenizer:
         elif current_char == "<":
             self.advance(1)
             return Token(LESS_THAN, None, start_line, start_col, self.line, self.col)
+        elif current_char == '%':
+            self.advance(1)
+            return Token(MOD, None, start_line, start_col, self.line, self.col)
         elif current_char == ">":
             self.advance(1)
             return Token(GREATER_THAN, None, start_line, start_col, self.line, self.col)
@@ -580,7 +583,7 @@ class Parser:
 
     def term(self):
         node = self.power()
-        while self.current_token and self.current_token.type in (MUL, DIV):
+        while self.current_token and self.current_token.type in (MUL, DIV, MOD):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -1139,7 +1142,6 @@ class UnaryOp(ASTNode):
 
 @dataclass
 class BinOp(ASTNode):
-
     left: ASTNode
     op: str
     right: ASTNode
@@ -1227,6 +1229,7 @@ OP_AND = AND
 OP_CALL = "CALL"
 NEG = "NEG"
 OP_NEG = NEG
+OP_MOD = MOD
 OP_NOT = NOT
 OPCODE_MAP = {
     ADD: OP_ADD,
@@ -1244,6 +1247,7 @@ OPCODE_MAP = {
     AND: OP_AND,
     NEG: OP_NEG,
     NOT: OP_NOT,
+    MOD: OP_MOD
 }
 BUILTIN = "BUILTIN"
 NULL = "NULL"

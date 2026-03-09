@@ -620,6 +620,24 @@ fn div(a: Value, b: Value) -> Result<Value, VmError> {
         }),
     }
 }
+fn vm_mod(a: Value, b: Value) -> Result<Value, VmError> {
+    match (&a, &b) {
+        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va % vb)),
+        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va % *vb as f64)),
+
+        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Float(*va as f64 % vb)),
+        (Value::Float(va), Value::Float(vb)) => Ok(Value::Float(va % vb)),
+
+        _ => Err(VmError {
+            msg: format!(
+                "TypeError: Cannot apply modulo a {} with a {}",
+                a.display(),
+                b.display()
+            ),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}
 fn mul(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va * vb)),
@@ -813,6 +831,7 @@ static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> 
     fs.insert("ADD".to_string(), add);
     fs.insert("MULTIPLY".to_string(), mul);
     fs.insert("DIV".to_string(), div);
+    fs.insert("MOD".to_string(), vm_mod);
     fs.insert("SUBTRACT".to_string(), sub);
     fs.insert("POW".to_string(), pow);
     fs.insert("LESS_THAN".to_string(), lt);
