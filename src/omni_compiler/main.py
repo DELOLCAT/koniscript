@@ -1071,7 +1071,7 @@ class Parser:
         end_line = self.current_token.end_line
         end_col = self.current_token.end_col
         self.eat(RBRACE)
-        return Block(line, col, end_line, end_col, statements)  # TODO: end lines
+        return Block(line, col, end_line, end_col, statements)
 
 
 @dataclass

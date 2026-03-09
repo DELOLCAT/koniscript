@@ -995,18 +995,7 @@ fn arr_str_is_empty(val: ValueRef, args: MethodArgs) -> MethodReturn {
 }
 
 fn arr_get(val: Rc<Value>, args: MethodArgs) -> MethodReturn {
-    if args.len() > 2 {
-        // TODO: make a function that makes arg checking better
-        return Err(VmError {
-            msg: format!("Expected 1 to 2 args, got {}", args.len()),
-            errcode: ErrCode::InvalidArgCount,
-        });
-    } else if args.is_empty() {
-        return Err(VmError {
-            msg: format!("Expected 1 to 2 args, got {}", args.len()),
-            errcode: ErrCode::InvalidArgCount,
-        });
-    }
+    check_method_args(args, 1, 2)?;
     let idx = match args[0].as_ref() {
         Value::Integer(v) => v,
         _ => {
