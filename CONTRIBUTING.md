@@ -7,5 +7,5 @@ Nobody has contributed to this project yet, but imma keep this just in case some
 AI use should follow these simple guidelines:
 
 - For simple things: writing unit tests, documentation, etc., AI use is fine.
-- For more complex things: AI should be used to assist or make ideas, almost never to generate code
+- For more complex things: AI should be used to assist or make ideas, almost never to generate code. Code generation is fine if you understand the concepts behind what you are generating, and can explain it.
 - ***No matter what***, you should **understand your code**. Contributions will ***not*** be accepted from AI generated code that you clearly don't understand
