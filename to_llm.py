@@ -1,7 +1,7 @@
 """
 This is a simple tool I made so that you can send file contents with line numbers to LLMs.
 This is purely to **FIND BUGS** and is **NOT** intended to generate code.
-AI can be great for assisting software development, but should **NOT** be used for more than assisting or teaching.
+AI can be great for assisting software development, but should **NOT** be used to completely replace a human.
 """
 import sys
 from rich import print
