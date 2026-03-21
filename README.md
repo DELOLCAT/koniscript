@@ -27,20 +27,20 @@ OmniScript is a dynamic programming language that focuses on these main features
 
 Since OmniScript is still in early development, there aren't many features.
 
-- Types: `"string"`, integer: `2`, float: `3.14`, and booleans `true`/`false`
+- Types: `'string'`, integer: `2`, float: `3.14`, and booleans `true`/`false`
 - Functions: `name(args)`
 - Comments (multi-line soon): `# I am a comment`
 
 Example:
 
 ```omniscript
-print("foo, bar", " baz") # The print function takes multiple arguments, and concatenates them (without a space)
+print('foo, bar', ' baz') # The print function takes multiple arguments, and concatenates them (without a space)
 ```
 
 - Variables:
 
 ```omniscript
-this_is_a_var = "foo"
+this_is_a_var = 'foo'
 print(this_is_a_var)
 ```
 
@@ -53,15 +53,15 @@ print(5 + 5 / 2)
 - Conditionals:
 
 ```omniscript
-num = input("Enter a number\n>>> ") # The input function prints a message and waits for user input, returning the input given by the user.
+num = input('Enter a number\n>>> ') # The input function prints a message and waits for user input, returning the input given by the user.
 
 print(num == 5)
 if num == 5 {
-  print("The number is equal to 5")
+  print('The number is equal to 5')
 } else if num == 10 {
-  print("The number is equal to 10")
+  print('The number is equal to 10')
 } else {
-  print("The number is not equal to 5 or 10")
+  print('The number is not equal to 5 or 10')
 }
 ```
 
@@ -78,7 +78,30 @@ func fib(n) {
 print(fib(10)) # => 55
 ```
 
-- Requirements: `@require fs, gpu` (indev, expect more features)
+- Requirements:
+```omniscript
+@require strings.methods, attributes # A bare require statement will cause the VM to exit when starting to execute.
+print('hi'.upper())
+
+@require types.arrays {
+  arr = []
+  arr.push('test')
+} else {
+  print('Arrays not supported') # Any code that tries to use arrays in here will fail to compile
+}
+```
+- Imports:
+main.om
+```omniscript
+import some_mod
+print(some_mod.hi())
+```
+some_mod.om
+```omniscript
+export func hi() {
+  print('Hello from some_mod!'
+  return 'some value'
+```
 
 ### CLI
 
