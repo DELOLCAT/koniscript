@@ -89,6 +89,9 @@ print('hi'.upper())
 } else {
   print('Arrays not supported') # Any code that tries to use arrays in here will fail to compile
 }
+
+@require indexes # All bare require statements are collected. This whole program will fail on launch if the runtime doesn't support indexes
+# ...
 ```
 - Imports:
 main.om
@@ -99,8 +102,9 @@ print(some_mod.hi())
 some_mod.om
 ```omniscript
 export func hi() {
-  print('Hello from some_mod!'
+  print('Hello from some_mod!')
   return 'some value'
+}
 ```
 
 ### CLI
