@@ -18,6 +18,7 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
         "attributes".to_string(),
         "indexes".to_string(),
         "imports".to_string(),
+        "runtime_values".to_string()
     ]
 });
 #[derive(Debug, Clone, PartialEq)]
