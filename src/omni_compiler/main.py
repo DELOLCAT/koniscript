@@ -1581,6 +1581,8 @@ class Compiler:
             if idx[1] == 'user':
                 self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
+                if node.name == '_name':
+                    yield from self.raise_for_req('runtime_values', 'Runtime Value', 'Runtime Values', node)
                 self.emit(node.line, 'PUSH_BUILTIN', idx[0])
         elif isinstance(node, Assign) and isinstance(node.value, Function):
             res = self.get_var(node.name)
