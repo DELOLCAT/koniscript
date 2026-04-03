@@ -1858,7 +1858,7 @@ class Compiler:
                             for item in params[len(node.args) :]:
                                 if item.option is not None:
                                     yield from self.compile_ins(item.option)
-                        self.emit(node.line, OP_CALL, len(node.args))
+                        self.emit(node.line, OP_CALL, len(params))
                     else:
                         yield self.Warn(
                             'Could not detect how many min and max arguments for function call',
