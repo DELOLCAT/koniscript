@@ -236,7 +236,6 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         msg = e.exception.msg
         end_col = e.exception.end_col
         end_line = e.exception.end_line
-        print(e)
         if isinstance(e.exception, CompilerError):
             filepath = e.exception.fp
             if e.compiler is None:

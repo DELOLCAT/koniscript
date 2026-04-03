@@ -18,13 +18,19 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
         "attributes".to_string(),
         "indexes".to_string(),
         "imports".to_string(),
+        "runtime_values".to_string()
     ]
 });
+#[derive(Debug, Clone, PartialEq)]
+pub struct Export {
+    pub name: String,
+    pub val: ValueRef,
+}
 #[derive(Debug, Clone)]
 pub struct Env {
     pub values: Vec<Option<ValueRef>>,
     pub parent: Option<Rc<RefCell<Env>>>,
-    pub exports: HashMap<String, ValueRef>,
+    pub exports: HashMap<String, Export>,
 }
 
 impl PartialEq for Env {
@@ -34,8 +40,8 @@ impl PartialEq for Env {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
-    pub exports: HashMap<String, ValueRef>,
-    pub name: Option<String>,
+    pub exports: HashMap<String, Export>,
+    pub name: String,
 }
 #[derive(Debug)]
 pub struct VmError {
@@ -68,6 +74,7 @@ pub enum ValueTag {
     Float = 7,
     Module = 8,
     Array = 9,
+    RuntimeValue = 10,
 }
 
 impl TryFrom<i8> for ValueTag {
@@ -83,6 +90,7 @@ impl TryFrom<i8> for ValueTag {
             7 => Ok(ValueTag::Float),
             8 => Ok(ValueTag::Module),
             9 => Ok(ValueTag::Array),
+            10 => Ok(ValueTag::RuntimeValue),
             _ => Err(VmError {
                 msg: format!("Invalid value tag {}", tag),
                 errcode: ErrCode::InvalidBytecode,
@@ -90,7 +98,17 @@ impl TryFrom<i8> for ValueTag {
         }
     }
 }
-
+#[derive(Debug, Clone)]
+pub enum RuntimeType {
+    Name,
+}
+impl RuntimeType {
+    fn name(&self) -> String {
+        match self {
+            RuntimeType::Name => "name".to_string(),
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub enum Value {
     Integer(i64),
@@ -101,6 +119,7 @@ pub enum Value {
     Module(Module),
     Array(Rc<RefCell<Vec<ValueRef>>>),
     Null,
+    RuntimeValue(RuntimeType),
 }
 
 impl PartialEq for Value {
@@ -157,11 +176,9 @@ impl Value {
                 OmniFunc::BuiltinMethod { name, .. } => format!("builtin method {}]", name),
             },
             Value::Null => "null".to_string(),
-            Value::Module(m) => match &m.name {
-                Some(v) => format!("[module {}]", v),
-                None => "[module]".to_string(),
-            },
+            Value::Module(m) => format!("[module {}]", m.name),
             Value::Array(_) => "array".to_string(),
+            Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()),
         }
     }
     pub fn get_tag(&self) -> ValueTag {
@@ -174,6 +191,7 @@ impl Value {
             Value::Module(_) => ValueTag::Module,
             Value::Func(_) => ValueTag::Func,
             Value::Null => ValueTag::Null,
+            Value::RuntimeValue(_) => ValueTag::RuntimeValue,
         }
     }
     pub fn repr(&self) -> String {
@@ -188,11 +206,7 @@ impl Value {
                 OmniFunc::BuiltinMethod { name, .. } => format!("<builtin method {}>", name),
             },
             Value::Module(v) => {
-                if let Some(name) = &v.name {
-                    format!("<module {} ({} exports)>", name, v.exports.len())
-                } else {
-                    format!("<module ({} exports)>", v.exports.len())
-                }
+                format!("<module {} ({} exports)>", v.name, v.exports.len())
             }
             Value::Null => "null".to_string(),
             Value::Array(items_rc) => {
@@ -209,6 +223,7 @@ impl Value {
                 output.push(']');
                 output
             }
+            Value::RuntimeValue(_) => panic!("Illegal value recieved for repr()"), // It should've been converted on PUSH_BUILTIN
         }
     }
 }
@@ -220,6 +235,7 @@ pub enum OmniFunc {
         param_count: usize,
         closure: Rc<RefCell<Env>>,
         name: String,
+        module: String
     },
     Builtin {
         name: String,
@@ -292,23 +308,14 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         Value::String(val) => Result::Ok(Value::String(val.to_string())),
         Value::Null => Result::Ok(Value::String("null".to_string())),
         Value::Array(_) => Ok(Value::String(item.repr())),
-        Value::Module(v) => {
-            if v.name.is_some() {
-                Ok(Value::String(format!(
-                    "[module {} with {} exports]",
-                    v.name.as_ref().unwrap(),
-                    v.exports.len()
-                )))
-            } else {
-                Ok(Value::String(format!(
-                    "[module with {} exports]",
-                    v.exports.len()
-                )))
-            }
-        }
+        Value::Module(v) => Ok(Value::String(format!(
+            "[module {} with {} exports]",
+            v.name,
+            v.exports.len()
+        ))),
+        _ => todo!(),
     }
 }
-
 pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
@@ -517,13 +524,17 @@ pub fn vmenv() -> Vec<Value> {
         Value::Module(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
-                Rc::new(Value::Func(OmniFunc::Builtin {
-                    name: "hi".to_string(),
-                    func: vm_hi,
-                })),
+                Export {
+                    name: "math".to_string(),
+                    val: Rc::new(Value::Func(OmniFunc::Builtin {
+                        name: "hi".to_string(),
+                        func: vm_hi,
+                    })),
+                },
             )]),
-            name: Some("math".to_string()),
+            name: "math".to_string(),
         }),
+        Value::RuntimeValue(RuntimeType::Name),
     ]
 }
 
@@ -757,7 +768,6 @@ fn gte(a: Value, b: Value) -> Result<Value, VmError> {
         }),
     }
 }
-
 
 fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {

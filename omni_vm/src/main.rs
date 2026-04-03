@@ -7,7 +7,7 @@ use std::process::exit;
 use std::rc::Rc;
 use std::{fs, vec};
 mod runtime;
-use runtime::{ErrCode, OmniFunc};
+use runtime::{ErrCode, Export, OmniFunc, RuntimeType};
 
 #[derive(Parser)]
 struct Cli {
@@ -108,6 +108,7 @@ struct VM {
     frames: Vec<Frame>,
     sources: Vec<Source>,
     source_select: Vec<usize>,
+    mod_stack: Vec<String>,
 }
 #[derive(Debug, Clone)]
 struct Frame {
@@ -349,6 +350,7 @@ impl VM {
             frames: vec![frame],
             sources,
             source_select,
+            mod_stack: vec!["[main]".to_string()],
         })
     }
     //fn global_env(mut self, env: &[Value]) -> Self {
@@ -510,7 +512,15 @@ impl VM {
                 "PUSH_BUILTIN" => {
                     let item: Value =
                         self.global_env[operators[1].parse::<usize>().unwrap()].clone();
-                    self.push_to_stack(Rc::new(item));
+                    let to_push = match item {
+                        Value::RuntimeValue(t) => match t {
+                            RuntimeType::Name => {
+                                Value::String(self.mod_stack.last().expect("Module stack underflow").to_string())
+                            }
+                        },
+                        _ => item,
+                    };
+                    self.push_to_stack(Rc::new(to_push));
                 }
                 "BREAK" => {
                     println!("Breakpoint: at {}:", self.frames.last().unwrap().name);
@@ -556,7 +566,7 @@ impl VM {
                     };
                     let out = match attrl.as_ref() {
                         Value::Module(m) => match m.exports.get(attrand) {
-                            Some(v) => v.clone(),
+                            Some(v) => v.clone().val,
                             None => {
                                 return Err(VmError {
                                     msg: format!(
@@ -752,7 +762,9 @@ impl VM {
                             param_count,
                             closure,
                             name,
+                            module
                         } => {
+                            self.mod_stack.push(module.to_string());
                             let mut fenv = Env {
                                 values: vec![None; *local_count],
                                 parent: Some(closure.clone()),
@@ -761,6 +773,15 @@ impl VM {
                             let mut rust_args: Vec<Option<ValueRef>> = vec![];
                             for arg in args {
                                 rust_args.push(Some(arg))
+                            }
+                            if *param_count != arg_count {
+                                return Err(VmError {
+                                    msg: format!(
+                                        "Expected {} args, got {}",
+                                        param_count, arg_count
+                                    ),
+                                    errcode: ErrCode::InvalidArgCount,
+                                });
                             }
                             for i in 0..*param_count {
                                 fenv.values[i] = rust_args[i].clone()
@@ -807,6 +828,7 @@ impl VM {
                     let return_addr: usize = self.frames.last().unwrap().ret_addr.unwrap();
                     self.frames.last_mut().unwrap().i = return_addr;
                     self.frames.pop();
+                    self.mod_stack.pop();
                     self.push_to_stack(to_ret);
                 }
                 "NEG" => {
@@ -854,12 +876,65 @@ impl VM {
                     };
                     self.push_to_stack(out);
                 }
-
+                "ENTER_MODULE" => {
+                    let mod_name_idx = operators[1].parse::<usize>().expect("Invalid Bytecode");
+                    let mod_name = match self.const_pool.get(mod_name_idx) {
+                        None => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Could not find a value in the constant pool at index {}",
+                                    mod_name_idx
+                                ),
+                                errcode: ErrCode::ValueError,
+                            });
+                        }
+                        Some(v) => match v {
+                            Value::String(s) => s,
+                            _ => {
+                                return Err(VmError {
+                                    msg: format!(
+                                        "Expected ENTER_MODULE to reference a string, not a {}",
+                                        v.display()
+                                    ),
+                                    errcode: ErrCode::TypeError,
+                                });
+                            }
+                        },
+                    };
+                    self.mod_stack.push(mod_name.to_string());
+                }
                 "MAKE_MODULE" => {
+                    let mod_name_tmp = self
+                        .const_pool
+                        .get(operators[1].parse::<usize>().expect("Invalid Bytecode"));
+                    let mod_name = match mod_name_tmp {
+                        None => {
+                            return Err(VmError {
+                                msg: format!(
+                                    "Could not find a value from the constant pool at index {}",
+                                    operators[1]
+                                ),
+                                errcode: ErrCode::ValueError,
+                            });
+                        }
+                        Some(v) => match v {
+                            Value::String(s) => s,
+                            _ => {
+                                return Err(VmError {
+                                    msg: format!(
+                                        "Expected `MAKE_MODULE` to reference a string, not a {}",
+                                        v.display()
+                                    ),
+                                    errcode: ErrCode::TypeError,
+                                });
+                            }
+                        },
+                    };
                     let new_mod = Module {
                         exports: self.frames.last().unwrap().env.borrow().exports.clone(),
-                        name: None,
+                        name: mod_name.to_string(),
                     };
+                    self.mod_stack.pop();
                     self.push_to_stack(Rc::new(Value::Module(new_mod)));
                 }
 
@@ -913,7 +988,21 @@ impl VM {
                         .env
                         .borrow_mut()
                         .exports
-                        .insert(name.to_string(), to_ex);
+                        .insert(
+                            name.to_string(),
+                            Export {
+                                name: match self.mod_stack.last() {
+                                    Some(v) => v.to_string(),
+                                    None => {
+                                        return Err(VmError {
+                                            msg: "Module stack underflow".to_string(),
+                                            errcode: ErrCode::StackUnderflow,
+                                        });
+                                    }
+                                },
+                                val: to_ex,
+                            },
+                        );
                 }
                 "MAKE_FUNCTION" => {
                     let entry: usize = operators[1].parse().expect("Invalid bytecode");
@@ -937,6 +1026,15 @@ impl VM {
                         param_count,
                         closure,
                         name: name.to_string(),
+                        module: match self.mod_stack.last() {
+                            Some(v) => v.to_string(),
+                            None => return Err(
+                                VmError {
+                                    msg: "Module stack underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow
+                                }
+                            )
+                        }
                     }));
                     self.push_to_stack(item);
                 }
@@ -1073,7 +1171,6 @@ fn run(file: String) {
 
                 // Frame location info
                 let source_num = vm.source_select.get(frame.i);
-                println!("{:?}", source_num);
                 let ip_str_val = format!("ins 0x{:04X} ({})", frame.i, frame.i);
                 let ip_str = ip_str_val.dimmed();
 

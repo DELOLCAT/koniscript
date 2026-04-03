@@ -10,36 +10,14 @@ def get_with_default(lst: list | tuple, index: int, default: Any = None):
 class Builtin:
     pass
 
-
+@dataclass 
+class RuntimeValue(Builtin):
+    name: str
 @dataclass
 class BuiltinFunction(Builtin):
     name: str
     req_args: int
     max_args: int | None
-
-
-class Environment:
-    def __init__(self, parent=None):
-        self.values = {}
-        self.parent = parent
-
-    def get(self, name):
-        if name in self.values:
-            return self.values[name]
-        if self.parent:
-            return self.parent.get(name)
-        raise NameError(f"Undefined variable '{name}'")
-
-    def set(self, name, value):
-        self.values[name] = value
-
-    def assign(self, name, value):
-        if name in self.values:
-            self.values[name] = value
-        elif self.parent:
-            self.parent.assign(name, value)
-        else:
-            raise NameError(f"Undefined variable '{name}'")
 
 
 NULL = 'NULL'
@@ -135,13 +113,6 @@ class ASTNode:
 @dataclass
 class Program(ASTNode):
     statements: list[ASTNode]
-
-
-@dataclass
-class DEPRECATEDModule(ASTNode):
-    body: Program
-    name: str
-
 
 @dataclass
 class BuiltinModulePointer(ASTNode):

@@ -1,4 +1,4 @@
-from omni_compiler.runtime import BuiltinFunction, BuiltinModule, Builtin
+from omni_compiler.runtime import BuiltinFunction, BuiltinModule, Builtin, RuntimeValue
 import copy
 T_INT = 1
 T_STRING = 2
@@ -18,6 +18,7 @@ ASTenv: list[tuple[str, Builtin]] = [
     ('exit', BuiltinFunction('exit', 0, 1)),
     ('len', BuiltinFunction('len', 1, 1)),
     ('math', BuiltinModule([BuiltinFunction('hi', 0, 0)], 'math')),
+    ('_name', RuntimeValue('_name'))
 ]
 Requirement = tuple[str, str, str]  # TODO: make this more readable
 attrs: list[
@@ -50,7 +51,7 @@ attrs: list[
         ),
     ),
     ('insert', 2, 2, (('types.arrays', 'Array', 'Arrays'),)),
-    ('empty', 0, 0, (('types.arrays', 'Array', 'Arrays'),)),
+    ('empty', 0, 0, (('types.arrays', 'Array', 'Arrays'),))
 ]
 
 compiler_env: list[str] = [x[0] for x in ASTenv]
