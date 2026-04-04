@@ -37,6 +37,7 @@
   },
   "main": "./out/extension.js",
   "dependencies": {
+    "typescript": "^6.0.2",
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {

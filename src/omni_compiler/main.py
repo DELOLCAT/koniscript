@@ -616,67 +616,64 @@ class Parser:
     def postfix(self):
         node = self.primary()
 
-        # Handle dots first
-        while self.current_token.type == DOT:
-            dot_line = self.current_token.line
-            dot_col = self.current_token.col
-            self.eat(DOT)
-            if self.current_token.type != IDENTIFIER:
-                raise ParserError(
-                    4,
-                    "Expected identifier after '.'",
-                    self.current_token.line,
-                    self.current_token.col,
-                    self.current_token.end_line,
-                    self.current_token.end_col,
+        while self.current_token.type in (DOT, LPAREN, LBRACKET):
+            if self.current_token.type == DOT:
+                dot_line = self.current_token.line
+                dot_col = self.current_token.col
+                self.eat(DOT)
+                if self.current_token.type != IDENTIFIER:
+                    raise ParserError(
+                        4,
+                        "Expected identifier after '.'",
+                        self.current_token.line,
+                        self.current_token.col,
+                        self.current_token.end_line,
+                        self.current_token.end_col,
+                    )
+
+                end_tok = self.eat(IDENTIFIER)
+                node = Attribute(
+                    dot_line,
+                    dot_col,
+                    end_tok.end_line,
+                    end_tok.end_col,
+                    node,
+                    end_tok.value,
                 )
-            end_tok = self.eat(IDENTIFIER)
-            node = Attribute(
-                dot_line,
-                dot_col,
-                end_tok.end_line,
-                end_tok.end_col,
-                node,
-                end_tok.value,
-            )
 
-        # Then handle function calls
-        while self.current_token.type == LPAREN:
-            call_line = self.current_token.line
-            call_col = self.current_token.col
-            self.eat(LPAREN)
-            args = []
-            if self.current_token.type != RPAREN:
-                args.append(self.expr())
-                while self.current_token.type == COMMA:
-                    self.eat(COMMA)
+            elif self.current_token.type == LPAREN:
+                call_line = self.current_token.line
+                call_col = self.current_token.col
+                self.eat(LPAREN)
+                args = []
+
+                self.skip_newline()
+
+                if self.current_token.type != RPAREN:
                     args.append(self.expr())
-            if self.current_token.type == EOF:
-                self.incomplete_input()
-            self.eat(RPAREN)
-            node = Call(
-                call_line,
-                call_col,
-                self.current_token.end_line,
-                self.current_token.end_col,
-                node,
-                args,
-            )
 
-        while self.current_token.type == LBRACKET:
-            ln = self.current_token.line
-            col = self.current_token.col
-            self.eat(LBRACKET)
-            idx = self.expr()
-            self.eat(RBRACKET)
-            node = GetIndex(
-                ln,
-                col,
-                self.current_token.end_line,
-                self.current_token.end_col,
-                node,
-                idx,
-            )
+                    while self.current_token.type == COMMA:
+                        self.eat(COMMA)
+                        self.skip_newline()
+                        args.append(self.expr())
+
+                self.skip_newline()
+
+                if self.current_token.type == EOF:
+                    self.incomplete_input()
+
+                end_tok = self.eat(RPAREN)
+                node = Call(
+                    call_line, call_col, end_tok.end_line, end_tok.end_col, node, args
+                )
+            elif self.current_token.type == LBRACKET:
+                ln = self.current_token.line
+                col = self.current_token.col
+                self.eat(LBRACKET)
+                idx = self.expr()
+                end_tok = self.eat(RBRACKET)
+                node = GetIndex(ln, col, end_tok.end_line, end_tok.end_col, node, idx)
+
         return node
 
     def skip_newline(self):
@@ -694,8 +691,8 @@ class Parser:
             self.eat(LBRACKET)
             if self.current_token.type == EOF:
                 self.incomplete_input()
-            self.skip_newline()
             items = []
+            self.skip_newline()
             if self.current_token.type != RBRACKET:
                 if self.current_token.type == EOF:
                     self.incomplete_input()
@@ -732,6 +729,9 @@ class Parser:
             return Variable(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
+        elif token.type == NULL:
+            self.eat(NULL)
+            return Null(token.line, token.col, token.end_line, token.end_col)
         elif token.type == LPAREN:
             self.eat(LPAREN)
             node = self.expr()
@@ -860,7 +860,6 @@ class Parser:
             if next_tok and next_tok.type == ASSIGN:
                 ln = self.current_token.line
                 col = self.current_token.col
-
                 name = self.eat(IDENTIFIER).value
                 self.eat(ASSIGN)
                 value = self.expr()
@@ -874,27 +873,26 @@ class Parser:
                 ln = self.current_token.line
                 col = self.current_token.col
                 name = self.eat(IDENTIFIER).value
-                op_type = self.current_token.type
+                op_token = self.current_token
+                op_type = op_token.type
                 self.eat(op_type)
-                if op_type == PLUS_ASSIGN:
-                    op = ADD
-                elif op_type == SUB_ASSIGN:
-                    op = SUB
-                elif op_type == MUL_ASSIGN:
-                    op = MUL
-                elif op_type == DIV_ASSIGN:
-                    op = DIV
-                else:
+                op_map = {
+                    PLUS_ASSIGN: ADD,
+                    SUB_ASSIGN: SUB,
+                    MUL_ASSIGN: MUL,
+                    DIV_ASSIGN: DIV,
+                }
+                op = op_map.get(op_type)
+                if op is None:
                     raise ParserError(
-                        13,
-                        f'(internal) Expected token to be of type PLUS_ASSIGN, DIV_ASSIGN, MUL_ASSIGN, or SUB_ASSIGN, got {op_type}.',
-                        self.current_token.line,
-                        self.current_token.col,
-                        self.current_token.end_line,
-                        self.current_token.end_col,
+                        5,
+                        'Internal error: unexpected assignment operator',
+                        op_token.line,
+                        op_token.col,
+                        op_token.end_line,
+                        op_token.end_col,
                     )
                 value = self.expr()
-
                 return Assign(
                     ln,
                     col,
@@ -906,7 +904,7 @@ class Parser:
                         col,
                         value.end_line,
                         value.end_col,
-                        Variable(ln, col, value.end_line, value.end_col, name),
+                        Variable(ln, col, op_token.end_line, op_token.end_col, name),
                         op,
                         value,
                     ),
@@ -1048,7 +1046,12 @@ class Parser:
             if self.current_token.type == NEWLINE:
                 self.eat(NEWLINE)
                 continue
-            statements.append(self.statement())
+            stmnt = self.statement()
+            if stmnt is not None:
+                statements.append(stmnt)
+            else:
+                if self.current_token.type != EOF:
+                    self.advance()
         end_col = 0
         end_line = 0
         for i in reversed(statements):
@@ -1064,11 +1067,13 @@ class Parser:
         line = self.current_token.line
         col = self.current_token.col
         while self.current_token.type != RBRACE:
+            self.skip_newline()
             if self.current_token.type == EOF:
                 self.incomplete_input()
-            stmt = self.statement()
-            if stmt is not None:
-                statements.append(stmt)
+                break
+            stmnt = self.statement()
+            if stmnt is not None:
+                statements.append(stmnt)
         if self.current_token.type == EOF:
             self.incomplete_input()
         end_line = self.current_token.end_line
@@ -1080,6 +1085,11 @@ class Parser:
 @dataclass
 class BareRequire(ASTNode):
     reqs: list[str]
+
+
+@dataclass
+class Null(ASTNode):
+    pass
 
 
 @dataclass
@@ -1587,7 +1597,9 @@ class Compiler:
                 self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
                 if node.name == '_name':
-                    yield from self.raise_for_req('runtime_values', 'Runtime Value', 'Runtime Values', node)
+                    yield from self.raise_for_req(
+                        'runtime_values', 'Runtime Value', 'Runtime Values', node
+                    )
                 self.emit(node.line, 'PUSH_BUILTIN', idx[0])
         elif isinstance(node, Assign) and isinstance(node.value, Function):
             res = self.get_var(node.name)
@@ -2013,7 +2025,9 @@ class Compiler:
             self.emit(node.line, 'GET_ITEM')
         elif isinstance(node, Import):
             yield from self.raise_for_req('imports', 'Import', 'Importing', node)
-            self.emit(node.line, 'ENTER_MODULE', self.add_constant((T_STRING, node.mod)))
+            self.emit(
+                node.line, 'ENTER_MODULE', self.add_constant((T_STRING, node.mod))
+            )
             module = yield self.ModuleRequest(
                 node.mod, node.line, node.col, node.end_line, node.end_col
             )
