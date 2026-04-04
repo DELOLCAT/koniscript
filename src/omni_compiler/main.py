@@ -66,6 +66,7 @@ SUB_ASSIGN = 'SUB_ASSIGN'
 MUL_ASSIGN = 'MUL_ASSIGN'
 DIV_ASSIGN = 'DIV_ASSIGN'
 MOD = 'MOD'
+NULL = 'NULL'
 
 
 @dataclass
@@ -111,6 +112,7 @@ KEYWORDS = {
     'export': EXPORT,
     '@': AT_RATE,
     'not': NOT,
+    'null': NULL
 }
 
 
@@ -1546,6 +1548,9 @@ class Compiler:
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, BareRequire):
             self.reqs += node.reqs
+        elif isinstance(node, Null):
+            idx = self.add_constant([T_NULL, ''])
+            self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, RequireStatement):
             consts: list[int] = []
             for item in node.reqs:
