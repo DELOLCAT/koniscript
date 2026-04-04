@@ -313,7 +313,7 @@ def run(
                 break
             elif isinstance(e.value, Failed):  # `elif` for IDE type recognition
                 if tracebacks:
-                    raise
+                    raise e.value.exception
                 show_err_or_warn(e.value, filepath, file_content)
                 exit(1)  # Abort
             else:
