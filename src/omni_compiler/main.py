@@ -620,34 +620,50 @@ class Parser:
                 dot_col = self.current_token.col
                 self.eat(DOT)
                 if self.current_token.type != IDENTIFIER:
-                    raise ParserError(4, "Expected identifier after '.'", self.current_token.line, self.current_token.col, self.current_token.end_line, self.current_token.end_col)
+                    raise ParserError(
+                        4,
+                        "Expected identifier after '.'",
+                        self.current_token.line,
+                        self.current_token.col,
+                        self.current_token.end_line,
+                        self.current_token.end_col,
+                    )
 
                 end_tok = self.eat(IDENTIFIER)
-                node = Attribute(dot_line, dot_col, end_tok.end_line, end_tok.end_col, node, end_tok.value)
+                node = Attribute(
+                    dot_line,
+                    dot_col,
+                    end_tok.end_line,
+                    end_tok.end_col,
+                    node,
+                    end_tok.value,
+                )
 
             elif self.current_token.type == LPAREN:
                 call_line = self.current_token.line
                 call_col = self.current_token.col
                 self.eat(LPAREN)
                 args = []
-                
+
                 self.skip_newline()
-            
+
                 if self.current_token.type != RPAREN:
                     args.append(self.expr())
-                    
+
                     while self.current_token.type == COMMA:
                         self.eat(COMMA)
-                        self.skip_newline() 
+                        self.skip_newline()
                         args.append(self.expr())
-                        
+
                 self.skip_newline()
-            
+
                 if self.current_token.type == EOF:
                     self.incomplete_input()
-            
+
                 end_tok = self.eat(RPAREN)
-                node = Call(call_line, call_col, end_tok.end_line, end_tok.end_col, node, args)
+                node = Call(
+                    call_line, call_col, end_tok.end_line, end_tok.end_col, node, args
+                )
             elif self.current_token.type == LBRACKET:
                 ln = self.current_token.line
                 col = self.current_token.col
@@ -657,6 +673,7 @@ class Parser:
                 node = GetIndex(ln, col, end_tok.end_line, end_tok.end_col, node, idx)
 
         return node
+
     def skip_newline(self):
         while self.current_token.type == NEWLINE:
             self.eat(NEWLINE)
@@ -673,8 +690,8 @@ class Parser:
             if self.current_token.type == EOF:
                 self.incomplete_input()
             items = []
+            self.skip_newline()
             if self.current_token.type != RBRACKET:
-                self.skip_newline()
                 if self.current_token.type == EOF:
                     self.incomplete_input()
                 self.skip_newline()
@@ -845,23 +862,53 @@ class Parser:
                 self.eat(ASSIGN)
                 value = self.expr()
                 return Assign(ln, col, value.end_line, value.end_col, name, value)
-            elif next_tok and next_tok.type in (PLUS_ASSIGN, DIV_ASSIGN, MUL_ASSIGN, SUB_ASSIGN):
+            elif next_tok and next_tok.type in (
+                PLUS_ASSIGN,
+                DIV_ASSIGN,
+                MUL_ASSIGN,
+                SUB_ASSIGN,
+            ):
                 ln = self.current_token.line
                 col = self.current_token.col
                 name = self.eat(IDENTIFIER).value
                 op_token = self.current_token
                 op_type = op_token.type
                 self.eat(op_type)
-                op_map = {PLUS_ASSIGN: ADD, SUB_ASSIGN: SUB, MUL_ASSIGN: MUL, DIV_ASSIGN: DIV}
-                op = op_map[op_type]
+                op_map = {
+                    PLUS_ASSIGN: ADD,
+                    SUB_ASSIGN: SUB,
+                    MUL_ASSIGN: MUL,
+                    DIV_ASSIGN: DIV,
+                }
+                op = op_map.get(op_type)
+                if op is None:
+                    raise ParserError(
+                        5,
+                        'Internal error: unexpected assignment operator',
+                        op_token.line,
+                        op_token.col,
+                        op_token.end_line,
+                        op_token.end_col,
+                    )
                 value = self.expr()
                 return Assign(
-                    ln, col, value.end_line, value.end_col, name,
-                    BinOp(ln, col, value.end_line, value.end_col, 
-                          Variable(ln, col, op_token.end_line, op_token.end_col, name), 
-                          op, value)
+                    ln,
+                    col,
+                    value.end_line,
+                    value.end_col,
+                    name,
+                    BinOp(
+                        ln,
+                        col,
+                        value.end_line,
+                        value.end_col,
+                        Variable(ln, col, op_token.end_line, op_token.end_col, name),
+                        op,
+                        value,
+                    ),
                 )
         return self.expr()
+
     def if_decl(self):
         ln = self.current_token.line
         col = self.current_token.col
@@ -1037,9 +1084,12 @@ class Parser:
 class BareRequire(ASTNode):
     reqs: list[str]
 
+
 @dataclass
 class Null(ASTNode):
     pass
+
+
 @dataclass
 class Import(ASTNode):
     mod: str
@@ -1542,7 +1592,9 @@ class Compiler:
                 self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
                 if node.name == '_name':
-                    yield from self.raise_for_req('runtime_values', 'Runtime Value', 'Runtime Values', node)
+                    yield from self.raise_for_req(
+                        'runtime_values', 'Runtime Value', 'Runtime Values', node
+                    )
                 self.emit(node.line, 'PUSH_BUILTIN', idx[0])
         elif isinstance(node, Assign) and isinstance(node.value, Function):
             res = self.get_var(node.name)
@@ -1968,7 +2020,9 @@ class Compiler:
             self.emit(node.line, 'GET_ITEM')
         elif isinstance(node, Import):
             yield from self.raise_for_req('imports', 'Import', 'Importing', node)
-            self.emit(node.line, 'ENTER_MODULE', self.add_constant((T_STRING, node.mod)))
+            self.emit(
+                node.line, 'ENTER_MODULE', self.add_constant((T_STRING, node.mod))
+            )
             module = yield self.ModuleRequest(
                 node.mod, node.line, node.col, node.end_line, node.end_col
             )
