@@ -1,3 +1,9 @@
+"""
+This script is still not fully working. If one of the steps error out, the other process doesn't stop, and is still attached to your terminal.
+I'll fix it later
+"""
+
+
 from pathlib import Path
 import shutil
 import platform
