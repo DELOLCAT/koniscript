@@ -45,7 +45,7 @@ The whole file will get a number as well, say 2.
 
 The compiler will parse the platform file, and see which items have been used. For instance, let's say we only used `foo` and `bar`. Since those have a number of `1`, the compiler will output a used version of `1`. On the other hand, if we also use `baz`, the compiler will output a used version of `2`, which will be found out with `max(<used versions>)`.
 
-When someone adds an item to the platform file, all what will happen is that they will decorate that new item with a feature version.
+When someone adds an item to the platform file, all what will happen is that they will decorate that new item with an ***incremented feature version***.
 
 When someone __removes__ an item, the whole platform file's version will get incremented.
 
