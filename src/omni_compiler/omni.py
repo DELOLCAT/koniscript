@@ -205,7 +205,7 @@ def compile(
                     )
                 else:
                     print(
-                        f'<red><b>Failed in {round(perf_counter() - start_time, 3)} seconds</red></b>'
+                        f'<red><b>Failed in {round(perf_counter() - start_time, 3)} seconds</b></red>'
                     )
                 return
             else:
