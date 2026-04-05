@@ -14,7 +14,7 @@ cmd = input('Enter the command to run (shell)\n>>> ').strip()
 
 ansiprint('Enter the file to save to\n>>> <d>./bench/</d>', flush=True, end='')
 out = Path('.') / 'bench' / input('')
-input(out)
+out.parent.mkdir(parents=True, exist_ok=True)
 for _ in range(10):
     f = perf_counter()
     run(cmd, shell=True)
