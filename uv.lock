@@ -27,6 +27,18 @@ wheels = [
 ]
 
 [[package]]
+name = "ansimarkup"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/25/dae36932f7151f47783a11b3403a21c4d743151abfe7a86da3a970636788/ansimarkup-2.2.0.tar.gz", hash = "sha256:69ce2b9521bcea28b2a487e02abe3ce524578dc5f84235ffc15b53462c2e1188", size = 9410, upload-time = "2026-02-04T21:48:02.601Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/39/d2/39a95e2597947972d5d9e102c250a9fab27b10844223de87a47e4fc8064e/ansimarkup-2.2.0-py3-none-any.whl", hash = "sha256:a5f9bc7c8da88feaf3902745977baf9271319892703e9eb5d37b2c7e70aba7ec", size = 10801, upload-time = "2026-02-04T21:48:03.913Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -135,15 +147,15 @@ name = "omni-compiler"
 version = "0.1.0"
 source = { virtual = "src/omni_compiler" }
 dependencies = [
+    { name = "ansimarkup" },
     { name = "pyinstaller" },
-    { name = "rich" },
     { name = "typer" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "ansimarkup", specifier = ">=2.2.0" },
     { name = "pyinstaller", specifier = ">=6.19.0" },
-    { name = "rich", specifier = ">=14.3.3" },
     { name = "typer", specifier = ">=0.24.1" },
 ]
 
@@ -152,10 +164,10 @@ name = "omni-script"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ansimarkup" },
     { name = "pygls" },
     { name = "pyinstaller" },
     { name = "pytest" },
-    { name = "rich" },
     { name = "typer" },
 ]
 
@@ -170,13 +182,13 @@ nuitka = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ansimarkup", specifier = ">=2.2.0" },
     { name = "nuitka", marker = "extra == 'nuitka'", specifier = ">=4.0.3" },
     { name = "pygls", specifier = ">=2.0.1" },
     { name = "pyinstaller", specifier = ">=6.19.0" },
     { name = "pyperclip", marker = "extra == 'dev'", specifier = ">=1.11.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "questionary", marker = "extra == 'dev'", specifier = ">=2.1.1" },
-    { name = "rich", specifier = ">=14.3.3" },
     { name = "typer", specifier = ">=0.24.1" },
 ]
 provides-extras = ["nuitka", "dev"]

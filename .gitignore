@@ -20,6 +20,8 @@ src/omni_compiler/omvm*
 
 #For development
 tmp/
+/bench/
+
 #Nuitka
 omni.dist/
 omni.onefile-build/

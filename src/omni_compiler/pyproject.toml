@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "ansimarkup>=2.2.0",
     "pyinstaller>=6.19.0",
-    "rich>=14.3.3",
     "typer>=0.24.1",
 ]

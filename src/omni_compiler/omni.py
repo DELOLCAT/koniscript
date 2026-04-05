@@ -5,7 +5,7 @@ import typer
 import os
 import sys
 from pathlib import Path
-
+from colorama import init
 from omni_compiler.main import (
     CompilerError,
     Tokenizer,
@@ -20,14 +20,12 @@ from omni_compiler import base_env
 import copy
 import tempfile
 import subprocess
-from rich import print
-from rich.markup import escape
-from rich.console import Console
+from ansimarkup import ansiprint as print
+from ansimarkup import raw
 from time import perf_counter
-
+init(True)
 app = typer.Typer()
 
-console = Console()
 
 tracebacks = os.environ.get('OMNI_TRACEBACKS')
 
@@ -179,7 +177,7 @@ def compile(
     else:
         out = '+ '.join(comp_features) + ' info'
     print(
-        f'Compiling with [b green]{out}[/]{" [d](source+line info)[/]" if out == "debug" else ""}. [blue]See `omni compile --help` for more info'
+        f'Compiling with <b><green>{out}</green></b>{" <d>(source+line info)</d>" if out == "debug" else ""}. <blue>See `omni compile --help` for more info</blue>'
     )
     file_content = Path(filepath).read_text()
     start_time = perf_counter()
@@ -203,11 +201,11 @@ def compile(
                 show_err_or_warn(e.value, filepath, file_content)
                 if warns > 0:
                     print(
-                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+                        f'<red><b>Failed in {round(perf_counter() - start_time, 3)} seconds, </red><yellow>{warns} warnings emitted</yellow></b>'
                     )
                 else:
                     print(
-                        f'[red b]Failed in {round(perf_counter() - start_time, 3)} seconds'
+                        f'<red><b>Failed in {round(perf_counter() - start_time, 3)} seconds</red></b>'
                     )
                 return
             else:
@@ -215,22 +213,20 @@ def compile(
     fp = f'{str(filepath).removesuffix(".om")}.omc'
     if warns > 0:
         print(
-            f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds, [yellow b]{warns} warnings emitted'
+            f'<green>Compiled in <b>{round(perf_counter() - start_time, 3)}</b> seconds, </green><yellow><b>{warns} warnings emitted</b></yellow>'
         )
     else:
-        print(f'[green]Compiled in {round(perf_counter() - start_time, 3)} seconds')
-    status = console.status(f'Writing to {fp}')
-    status.start()
+        print(f'<green>Compiled in <b>{round(perf_counter() - start_time, 3)}</b> seconds</green>')
     with open(fp, 'w') as file:
         file.write('\n'.join([str(x) for x in instructions]))
-    status.stop()
     print(f'Wrote to {fp}')
 
 
 def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     if isinstance(e, Failed):
-        color = '[red b]'
-        tag = f'[red b]E{e.exception.code:02}'
+        color = '<red><b>'
+        tag = f'<red><b>E{e.exception.code:02}'
+        end_color = '</b></red>'
         ln = e.exception.line
         col = e.exception.col
         msg = e.exception.msg
@@ -246,8 +242,9 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             filepath = fp
 
     else:
-        color = '[yellow b]'
-        tag = '[yellow b]Warning'
+        color = '<yellow><b>'
+        end_color = '</b></yellow>'
+        tag = '<yellow><b>Warning'
         col = e.col
         end_col = e.end_col
         end_line = e.end_line
@@ -260,7 +257,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
     print(f'{tag}: {msg}:', file=sys.stderr)
     
     print(
-        f'at {filepath}{f"[green]:{escape(str(ln + 1))}" if ln is not None else " [red]No line data available" + f":{str(col + 1)}" if col is not None else ""}',
+        f'at {filepath}{f"<green>:{raw(str(ln + 1))}" if ln is not None else " <red>No line data available" + f":{str(col + 1)}" if col is not None else ""}',
         file=sys.stderr,
     )
     if ln is not None: # TODO: make the following more readable
@@ -269,10 +266,10 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             from_lines = max(0, min(ln - 3, len(splitted)))
             to_lines = max(0, min(ln + 4, len(splitted)))
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-                arr = f'{color}->[/]' if ln == i - 1 else '  '
+                arr = f'{color}->{end_color}' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
-                    print(f'[blue dim]          | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
-                print(f'{arr}[blue dim]{i:7} | [/]{escape(cln)}', file=sys.stderr)
+                    print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
+                print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
             #if ln == len(splitted) - 1:
             #    print(f'[blue dim]{spaces}  | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
         elif end_col is not None:
@@ -281,14 +278,14 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
                 arr = f'{color}->[/]' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
-                    print('[blue dim]       ... [/]', file=sys.stderr)
+                    print('<blue><d>       ... </d></blue>', file=sys.stderr)
                 elif not ln < i-1 < end_line:
-                    print(f'{arr}[blue dim]{i:7} | [/]{escape(cln)}', file=sys.stderr)
+                    print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
                 if ln <= i-1 <= end_line and col is not None:
                     if ln == i-1:
-                        print(f'[blue dim]          | [/]{color}{' ' * col}{('^' * (len(cln) - col))}', file=sys.stderr)
+                        print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (len(cln) - col))}', file=sys.stderr)
                     elif end_line == i-1:
-                        print(f'[blue dim]          | [/]{color}{('^' * end_col)}', file=sys.stderr)
+                        print(f'<blue><d>          | </d></blue>{color}{('^' * end_col)}', file=sys.stderr)
 
 
 @app.command()
@@ -329,7 +326,7 @@ def run(
             vm_path = Path(__file__).parent / exec_name('omvm')
         elif vm_path is None:
             print(
-                '[red b]Could not find `omvm` (OmniVM), which is required to run programs'
+                '<red><b>Could not find `omvm` (OmniVM), which is required to run programs'
             )
             sys.exit(127)
         # run the VM and capture its output for tests, but also echo to user
