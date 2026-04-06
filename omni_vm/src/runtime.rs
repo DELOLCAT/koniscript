@@ -816,15 +816,6 @@ fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
     }
 }
 
-// _ => Err(VmError {
-//     msg: format!(
-//         "TypeError: Cannot check if a {} is equal to a {}",
-//         a.display(),
-//         b.display()
-//     ),
-//     errcode: ErrCode::TypeError,
-// }),
-
 fn or(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va || *vb)),
