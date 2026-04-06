@@ -18,7 +18,7 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
         "attributes".to_string(),
         "indexes".to_string(),
         "imports".to_string(),
-        "runtime_values".to_string()
+        "runtime_values".to_string(),
     ]
 });
 #[derive(Debug, Clone, PartialEq)]
@@ -235,7 +235,7 @@ pub enum OmniFunc {
         param_count: usize,
         closure: Rc<RefCell<Env>>,
         name: String,
-        module: String
+        module: String,
     },
     Builtin {
         name: String,
@@ -777,7 +777,13 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va == *vb as f64)),
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
         (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
-
+        (Value::Null, Value::Null) => Ok(Value::Bool(true)),
+        (Value::Array(va), Value::Array(vb)) => {
+            if Rc::ptr_eq(va, vb) {
+                return Ok(Value::Bool(true));
+            }
+            Ok(Value::Bool(*va.borrow() == *vb.borrow()))
+        }
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is equal to a {}",
@@ -790,22 +796,23 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
 }
 
 fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
-    match (&a, &b) {
-        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va != vb)),
-        (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va != vb)),
-        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Bool(*va as f64 != *vb)),
-        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va != *vb as f64)),
-        (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va != vb)),
-        (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va != vb)),
-
-        _ => Err(VmError {
-            msg: format!(
-                "TypeError: Cannot check if a {} is equal to a {}",
-                a.display(),
-                b.display()
-            ),
-            errcode: ErrCode::TypeError,
-        }),
+    let a_display = a.display();
+    let b_display = b.display();
+    match equal_to(a, b) {
+        Ok(v) => match v {
+            Value::Bool(vb) => Ok(Value::Bool(!vb)),
+            _ => unreachable!(),
+        },
+        Err(_) => {
+            return Err(VmError {
+                msg: format!(
+                    "Cannot check if a(n) {} is not equal to a(n) {}",
+                    a_display,
+                    b_display
+                ),
+                errcode: ErrCode::TypeError,
+            });
+        }
     }
 }
 
