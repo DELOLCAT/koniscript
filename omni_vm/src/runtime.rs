@@ -18,7 +18,7 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
         "attributes".to_string(),
         "indexes".to_string(),
         "imports".to_string(),
-        "runtime_values".to_string()
+        "runtime_values".to_string(),
     ]
 });
 #[derive(Debug, Clone, PartialEq)]
@@ -235,7 +235,7 @@ pub enum OmniFunc {
         param_count: usize,
         closure: Rc<RefCell<Env>>,
         name: String,
-        module: String
+        module: String,
     },
     Builtin {
         name: String,
@@ -778,8 +778,9 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
         (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
         (Value::Null, Value::Null) => Ok(Value::Bool(true)),
-        (Value::Null, b) => Ok(Value::Bool(*b == Value::Null)),
-        (a, Value::Null) => Ok(Value::Bool(*a == Value::Null)),
+        (Value::Null, other) | (other, Value::Null) => {
+            Ok(Value::Bool(matches!(other, Value::Null)))
+        }
         (Value::Array(va), Value::Array(vb)) => {
             if Rc::ptr_eq(va, vb) {
                 return Ok(Value::Bool(true));
