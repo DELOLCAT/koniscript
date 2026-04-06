@@ -778,6 +778,9 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
         (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
         (Value::Null, Value::Null) => Ok(Value::Bool(true)),
+        (Value::Null, other) | (other, Value::Null) => {
+            Ok(Value::Bool(matches!(other, Value::Null)))
+        }
         (Value::Array(va), Value::Array(vb)) => {
             if Rc::ptr_eq(va, vb) {
                 return Ok(Value::Bool(true));
