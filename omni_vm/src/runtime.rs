@@ -796,7 +796,9 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
 }
 
 fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
-    match equal_to(a.clone(), b.clone()) {
+    let a_display = a.display();
+    let b_display = b.display();
+    match equal_to(a, b) {
         Ok(v) => match v {
             Value::Bool(vb) => Ok(Value::Bool(!vb)),
             _ => unreachable!(),
@@ -805,8 +807,8 @@ fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
             return Err(VmError {
                 msg: format!(
                     "Cannot check if a(n) {} is not equal to a(n) {}",
-                    a.display(),
-                    b.display()
+                    a_display,
+                    b_display
                 ),
                 errcode: ErrCode::TypeError,
             });
