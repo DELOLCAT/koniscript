@@ -15,7 +15,7 @@ OmniScript is a dynamic programming language that focuses on these main features
 
 - Variables
 - Functions
-- Basic builtins (print, input, to_(type))
+- Basic builtins (print, println, input, to_(type))
 - Arrays (methods indev)
 - The requirements syntax
 - Stack traces
@@ -34,20 +34,20 @@ Since OmniScript is still in early development, there aren't many features.
 Example:
 
 ```omniscript
-print('foo, bar', ' baz') # The print function takes multiple arguments, and concatenates them (without a space)
+println('foo, bar', ' baz') # The println function takes multiple arguments, and concatenates them with a space
 ```
 
 - Variables:
 
 ```omniscript
 this_is_a_var = 'foo'
-print(this_is_a_var)
+println(this_is_a_var)
 ```
 
 - Arithmetic:
 
 ```omniscript
-print(5 + 5 / 2)
+println(5 + 5 / 2)
 ```
 
 - Conditionals:
@@ -55,13 +55,13 @@ print(5 + 5 / 2)
 ```omniscript
 num = input('Enter a number\n>>> ') # The input function prints a message and waits for user input, returning the input given by the user.
 
-print(num == 5)
+println(num == 5)
 if num == 5 {
-  print('The number is equal to 5')
+  println('The number is equal to 5')
 } else if num == 10 {
-  print('The number is equal to 10')
+  println('The number is equal to 10')
 } else {
-  print('The number is not equal to 5 or 10')
+  println('The number is not equal to 5 or 10')
 }
 ```
 
@@ -75,34 +75,40 @@ func fib(n) {
   return fib(n - 1) + fib(n - 2)
 }
 
-print(fib(10)) # => 55
+println(fib(10)) # => 55
 ```
 
 - Requirements:
+
 ```omniscript
 @require strings.methods, attributes # A bare require statement will cause the VM to exit when starting to execute.
-print('hi'.upper())
+println('hi'.upper())
 
 @require types.arrays {
   arr = []
   arr.push('test')
 } else {
-  print('Arrays not supported') # Any code that tries to use arrays in here will fail to compile
+  println('Arrays not supported') # Any code that tries to use arrays in here will fail to compile
 }
 
 @require indexes # All bare require statements are collected. This whole program will fail on launch if the runtime doesn't support indexes
 # ...
 ```
+
 - Imports:
+
 main.om
+
 ```omniscript
 import some_mod
-print(some_mod.hi())
+println(some_mod.hi())
 ```
+
 some_mod.om
+
 ```omniscript
 export func hi() {
-  print('Hello from some_mod!')
+  println('Hello from some_mod!')
   return 'some value'
 }
 ```

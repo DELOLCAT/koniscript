@@ -403,6 +403,11 @@ pub fn vm_to_bool(args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::Bool(b))
 }
+pub fn vm_println(args: &[Value]) -> Result<Value, VmError> {
+    vm_print(args)?;
+    println!();
+    Ok(Value::Null)
+}
 pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
     let mut rust_args: Vec<String> = Vec::new();
     for item in args {
@@ -422,7 +427,13 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
         }
     }
 
-    println!("{}", rust_args.join(" "));
+    print!("{}", rust_args.join(" "));
+
+    io::stdout().flush().map_err(|e| VmError {
+        msg: format!("Failed to flush stdout: {}", e),
+        errcode: ErrCode::IoError, // Or a specific I/O error code
+    })?;
+    
     Ok(Value::Null)
 }
 pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
@@ -488,6 +499,10 @@ pub fn vmenv() -> Vec<Value> {
         Value::Func(OmniFunc::Builtin {
             name: "print".to_string(),
             func: vm_print,
+        }),
+        Value::Func(OmniFunc::Builtin {
+            name: "println".to_string(),
+            func: vm_println,
         }),
         Value::Func(OmniFunc::Builtin {
             name: "sleep".to_string(),
@@ -790,22 +805,22 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
 }
 
 fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
-    match (&a, &b) {
-        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va != vb)),
-        (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va != vb)),
-        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Bool(*va as f64 != *vb)),
-        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va != *vb as f64)),
-        (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va != vb)),
-        (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va != vb)),
-
-        _ => Err(VmError {
-            msg: format!(
-                "TypeError: Cannot check if a {} is equal to a {}",
-                a.display(),
-                b.display()
-            ),
-            errcode: ErrCode::TypeError,
-        }),
+    let a_display = a.display();
+    let b_display = b.display();
+    match equal_to(a, b) {
+        Ok(v) => match v {
+            Value::Bool(vb) => Ok(Value::Bool(!vb)),
+            _ => unreachable!(),
+        },
+        Err(_) => {
+            return Err(VmError {
+                msg: format!(
+                    "Cannot check if a(n) {} is not equal to a(n) {}",
+                    a_display, b_display
+                ),
+                errcode: ErrCode::TypeError,
+            });
+        }
     }
 }
 

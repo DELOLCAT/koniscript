@@ -201,7 +201,7 @@ def compile(
                 show_err_or_warn(e.value, filepath, file_content)
                 if warns > 0:
                     print(
-                        f'<red><b>Failed in {round(perf_counter() - start_time, 3)} seconds, </red><yellow>{warns} warnings emitted</yellow></b>'
+                        f'<b><red>Failed in {round(perf_counter() - start_time, 3)} seconds, </red><yellow>{warns} warnings emitted</yellow></b>'
                     )
                 else:
                     print(
