@@ -777,7 +777,15 @@ fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va == *vb as f64)),
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
         (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
-
+        (Value::Null, Value::Null) => Ok(Value::Bool(true)),
+        (Value::Null, b) => Ok(Value::Bool(*b == Value::Null)),
+        (a, Value::Null) => Ok(Value::Bool(*a == Value::Null)),
+        (Value::Array(va), Value::Array(vb)) => {
+            if Rc::ptr_eq(va, vb) {
+                return Ok(Value::Bool(true));
+            }
+            Ok(Value::Bool(*va.borrow() == *vb.borrow()))
+        }
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is equal to a {}",
