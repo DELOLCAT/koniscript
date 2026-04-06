@@ -404,11 +404,11 @@ pub fn vm_to_bool(args: &[Value]) -> Result<Value, VmError> {
     Ok(Value::Bool(b))
 }
 pub fn vm_println(args: &[Value]) -> Result<Value, VmError> {
-    vm_print(args)?;
+    print_helper(args)?;
     println!();
     Ok(Value::Null)
 }
-pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
+fn print_helper(args: &[Value]) -> Result<(), VmError> {
     let mut rust_args: Vec<String> = Vec::new();
     for item in args {
         let out = vm_to_str(std::slice::from_ref(item));
@@ -426,9 +426,11 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
             Err(e) => return Err(e),
         }
     }
-
     print!("{}", rust_args.join(" "));
-
+    Ok(())
+}
+pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
+    print_helper(args)?;
     io::stdout().flush().map_err(|e| VmError {
         msg: format!("Failed to flush stdout: {}", e),
         errcode: ErrCode::IoError, // Or a specific I/O error code
