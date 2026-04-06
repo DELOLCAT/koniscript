@@ -403,7 +403,12 @@ pub fn vm_to_bool(args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::Bool(b))
 }
-pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_println(args: &[Value]) -> Result<Value, VmError> {
+    print_helper(args)?;
+    println!();
+    Ok(Value::Null)
+}
+fn print_helper(args: &[Value]) -> Result<(), VmError> {
     let mut rust_args: Vec<String> = Vec::new();
     for item in args {
         let out = vm_to_str(std::slice::from_ref(item));
@@ -421,8 +426,16 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
             Err(e) => return Err(e),
         }
     }
-
-    println!("{}", rust_args.join(" "));
+    print!("{}", rust_args.join(" "));
+    Ok(())
+}
+pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
+    print_helper(args)?;
+    io::stdout().flush().map_err(|e| VmError {
+        msg: format!("Failed to flush stdout: {}", e),
+        errcode: ErrCode::IoError, // Or a specific I/O error code
+    })?;
+    
     Ok(Value::Null)
 }
 pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
@@ -488,6 +501,10 @@ pub fn vmenv() -> Vec<Value> {
         Value::Func(OmniFunc::Builtin {
             name: "print".to_string(),
             func: vm_print,
+        }),
+        Value::Func(OmniFunc::Builtin {
+            name: "println".to_string(),
+            func: vm_println,
         }),
         Value::Func(OmniFunc::Builtin {
             name: "sleep".to_string(),
@@ -810,8 +827,7 @@ fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
             return Err(VmError {
                 msg: format!(
                     "Cannot check if a(n) {} is not equal to a(n) {}",
-                    a_display,
-                    b_display
+                    a_display, b_display
                 ),
                 errcode: ErrCode::TypeError,
             });
