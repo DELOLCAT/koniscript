@@ -77,6 +77,7 @@ pub enum ValueTag {
     Array = 9,
     RuntimeValue = 10,
     Dict = 11,
+    CallRequest = 12,
 }
 
 impl TryFrom<i8> for ValueTag {
@@ -123,6 +124,7 @@ pub enum Value {
     Null,
     RuntimeValue(RuntimeType),
     Dict(Vec<(ValueRef, ValueRef)>),
+    CallRequest(Rc<OmniFunc>, Vec<ValueRef>),
 }
 fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
     match (a, other) {
@@ -218,8 +220,11 @@ impl Value {
             Value::Null => "null".to_string(),
             Value::Module(m) => format!("[module {}]", m.name),
             Value::Array(_) => "array".to_string(),
-            Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()),
+            Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()), // This should never be called
             Value::Dict(_) => "dict".to_string(),
+            Value::CallRequest(r, _) => {
+                format!("[call request for {}]", Value::Func(r.as_ref().clone()).display())
+            } // This should also never be called
         }
     }
     pub fn get_tag(&self) -> ValueTag {
@@ -234,6 +239,7 @@ impl Value {
             Value::Null => ValueTag::Null,
             Value::RuntimeValue(_) => ValueTag::RuntimeValue,
             Value::Dict(_) => ValueTag::Dict,
+            Value::CallRequest(_, _) => ValueTag::CallRequest,
         }
     }
     pub fn repr(&self) -> String {
@@ -267,17 +273,19 @@ impl Value {
             }
             Value::RuntimeValue(_) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
             Value::Dict(_) => todo!(),                                             //TODO
+            Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
         }
     }
-pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
-    match self {
-        Value::Dict(d) => Ok(d.iter().find(|(k, _)| **k == *key).map(|(_, v)| v.clone())),
-        _ => Err(VmError {
-            msg: format!("Expected a dict, got a(n) {}", self.display()),
-            errcode: ErrCode::TypeError,
-        }),
+    pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
+        match self {
+            Value::Dict(d) => Ok(d.iter().find(|(k, _)| **k == *key).map(|(_, v)| v.clone())),
+            _ => Err(VmError {
+                msg: format!("Expected a dict, got a(n) {}", self.display()),
+                errcode: ErrCode::TypeError,
+            }),
+        }
     }
-}}
+}
 #[derive(Debug, Clone)]
 pub enum OmniFunc {
     User {
@@ -364,7 +372,7 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             v.name,
             v.exports.len()
         ))),
-        _ => todo!(),
+        _ => todo!("{}", item.display()),
     }
 }
 pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
@@ -634,6 +642,28 @@ fn vm_len(args: &[Value]) -> Result<Value, VmError> {
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
         Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
+        Value::Dict(_) => {
+            match args[0]
+                .dict_get(&Value::String("_len".to_string()))
+                .unwrap()
+            {
+                None => {
+                    return Err(VmError {
+                        msg: format!("Cannot find the `len()` of a {}", args[0].display()),
+                        errcode: ErrCode::TypeError,
+                    });
+                }
+                Some(   v) => match v.as_ref() {
+                    Value::Func(v) => Ok(Value::CallRequest(Rc::new(v.clone()), vec![Rc::new(args[0].clone())])), // TODO: perhaps find out how to not clone this
+                    _ => {
+                        return Err(VmError {
+                            msg: format!("Expected `_len` to be a function, not a {}", v.display()),
+                            errcode: ErrCode::TypeError,
+                        });
+                    }
+                },
+            }
+        }
         _ => Err(VmError {
             msg: format!("Cannot find the `len()` of a {}", args[0].display()),
             errcode: ErrCode::TypeError,
