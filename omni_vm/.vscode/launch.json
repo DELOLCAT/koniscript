@@ -10,14 +10,15 @@
             "request": "launch",
             "cargo": {
                 "args": [
-                    "run",
-                    "--bin=omni_vm",
+                    "build",
+                    "--bin=omni_vm"
                 ]
             },
             "args": [
                 "run",
-                "../tmp/floats.omc"
-            ]
+                "../tmp/tmp.omc"
+            ],
+            "sourceLanguages": ["Rust"]
         },
         {
             "name": "Debug unit tests in executable 'omni_vm'",

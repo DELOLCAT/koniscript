@@ -221,7 +221,16 @@ impl Value {
             Value::Module(m) => format!("[module {}]", m.name),
             Value::Array(_) => "array".to_string(),
             Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()), // This should never be called
-            Value::Dict(_) => "dict".to_string(),
+            Value::Dict(_) => {
+                match self.dict_get(&Value::String("_display_type".to_string())).unwrap() {
+                    None => "dict".to_string(),
+                    Some(v) => match v.as_ref() {
+                        Value::String(s) => s.to_string(),
+                        _ => "dict".to_string()
+                    }
+                }
+                
+            },
             Value::CallRequest(r, _) => {
                 format!("[call request for {}]", Value::Func(r.as_ref().clone()).display())
             } // This should also never be called
