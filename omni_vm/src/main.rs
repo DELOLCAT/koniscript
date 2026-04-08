@@ -504,6 +504,41 @@ impl VM {
                     }
                     self.push_to_stack(Rc::new(Value::Array(Rc::new(RefCell::new(items)))));
                 }
+                "BUILD_DICT" => {
+                    let ops = match operators.get(1) {
+                        Some(v) => v.parse::<usize>().unwrap(),
+                        None => return Err(
+                            VmError {
+                                msg: "Invalid bytecode".to_string(),
+                                errcode: ErrCode::InvalidBytecode
+                            }
+                        )
+                    };
+                    let mut map: Vec<(ValueRef, ValueRef)> = vec![];
+
+                    for _ in 0..ops { 
+                        let k = match self.frames.last_mut().unwrap().stack.pop() {
+                            Some(v) => v,
+                            None => return Err(
+                                VmError {
+                                    msg: "Stack Underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow
+                                }
+                            )
+                        };
+                        let v = match self.frames.last_mut().unwrap().stack.pop() {
+                            Some(v) => v,
+                            None => return Err(
+                                VmError {
+                                    msg: "Stack Underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow
+                                }
+                            )
+                        };
+                        map.push((k, v));
+                    }
+                    self.push_to_stack(Rc::new(Value::Dict(map)));
+                }
                 "PUSH_CONST" => {
                     let item: Value =
                         self.const_pool[operators[1].parse::<usize>().unwrap()].clone();
@@ -577,6 +612,18 @@ impl VM {
                                 });
                             }
                         },
+                        Value::Dict(_) => match attrl.dict_get(&Value::String(attrand.to_string())){
+                            Ok(v) => match v {
+                                Some(vs) => vs,
+                                None => return Err(
+                                    VmError {
+                                        msg: format!("Could not find an entry {} from the dict.", attrand),
+                                        errcode: ErrCode::AttributeError
+                                    }
+                                )
+                            },
+                            Err(_) => unreachable!()
+                        }
                         _ => {
                             if let Some(methods) = runtime::ATTRMAP.get(&attrl.get_tag()) {
                                 self.frames.last_mut().unwrap().stack.push(attrl.clone());
@@ -636,6 +683,18 @@ impl VM {
                                     });
                                 }
                             }
+                        },
+                        Value::Dict(_) => match item.dict_get(&rhs) {
+                            Ok(v) => match v {
+                                Some(v) => self.push_to_stack(v),
+                                None => return Err(
+                                    VmError {
+                                        msg: format!("Cannot find key {} from dict", rhs.display()),
+                                        errcode: ErrCode::IndexError
+                                    }
+                                )
+                            },
+                            Err(_) => unreachable!()
                         }
                         _ => {
                             return Err(VmError {

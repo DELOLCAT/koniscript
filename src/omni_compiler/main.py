@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from tkinter.dialog import DIALOG_ICON
 from typing import Any, Collection, Generator, Literal
 from omni_compiler import base_env
 from omni_compiler.runtime import (
@@ -67,7 +68,8 @@ MUL_ASSIGN = 'MUL_ASSIGN'
 DIV_ASSIGN = 'DIV_ASSIGN'
 MOD = 'MOD'
 NULL = 'NULL'
-
+DICT_STARTER = 'DICT_STARTER'
+COLON = 'COLON'
 
 @dataclass
 class CompilationException(Exception):
@@ -236,7 +238,9 @@ class Tokenizer:
         elif self.check('*='):
             self.advance(2)
             return Token(MUL_ASSIGN, None, start_line, start_col, self.line, self.col)
-
+        elif self.check('%{'):
+            self.advance(2)
+            return Token(DICT_STARTER, None, start_line, start_col, self.line, self.col)
         elif current_char == '+':
             self.advance(1)
             return Token(ADD, None, start_line, start_col, self.line, self.col)
@@ -255,6 +259,9 @@ class Tokenizer:
         elif current_char == '=':
             self.advance(1)
             return Token(ASSIGN, None, start_line, start_col, self.line, self.col)
+        elif current_char == ':':
+            self.advance(1)
+            return(Token(COLON, None, start_line, start_col, self.line, self.col))
         elif current_char == '-':
             self.advance(1)
             return Token(SUB, None, start_line, start_col, self.line, self.col)
@@ -687,6 +694,30 @@ class Parser:
             return Number(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
+        elif token.type == DICT_STARTER:
+            self.eat(DICT_STARTER)
+            if self.current_token.type == EOF:
+                self.incomplete_input()
+            items = []
+            self.skip_newline()
+            if self.current_token.type != RBRACE:
+                if self.current_token.type == EOF:
+                    self.incomplete_input()
+                self.skip_newline()
+                k = self.expr()
+                self.eat(COLON)
+                v = self.expr()
+                items.append((k, v))
+                while self.current_token.type == COMMA:
+                    self.eat(COMMA)
+                    if self.current_token.type == EOF:
+                        self.incomplete_input()
+                    self.skip_newline()
+                    k = self.expr()
+                    self.eat(COLON)
+                    v = self.expr()
+                    items.append((k, v))
+                return OmniDict(token.line, token.col, self.current_token.line, self.current_token.col, items)
         elif token.type == LBRACKET:
             self.eat(LBRACKET)
             if self.current_token.type == EOF:
@@ -1119,7 +1150,9 @@ class RequireStatement(ASTNode):
     statement: Block
     else_block: Block | None
 
-
+@dataclass
+class OmniDict(ASTNode):
+    vals: list[tuple[ASTNode, ASTNode]]
 @dataclass
 class Number(ASTNode):
     value: int
@@ -1287,6 +1320,7 @@ class Compiler:
         self.req_stack: list[
             Compiler.RequirementGroup
         ] = []  # LIFO stack for nested @require statements
+        self.warns: list[str] = []
         self.req_stack_not_allowed: list[
             Compiler.RequirementGroup
         ] = []  # for errors when using a feature where it isn't allowed, like the else branch of an @require statement
@@ -1754,16 +1788,17 @@ class Compiler:
                         if item[0] == node.func.rhs:
                             atr_itm = item
                             break
-                    if atr_itm is None:
-                        raise CompilerError(
-                            12,
-                            f'No attribute `{node.func.rhs}` found',
-                            node.line,
-                            node.col,
-                            node.end_line,
-                            node.end_col,
-                            self.mod_stack[-1].fp,
-                        )
+                    if atr_itm is None:    
+                        if 'types.dicts' not in self.reqs:    #TODO             
+                            raise CompilerError(
+                                12,
+                                f'No attribute `{node.func.rhs}` found',
+                                node.line,
+                                node.col,
+                                node.end_line,
+                                node.end_col,
+                                self.mod_stack[-1].fp,
+                            )
                 else:
                     if isinstance(exported.item, Function):  # pyright: ignore[reportPossiblyUnboundVariable]
                         params = exported.item.params  # pyright: ignore[reportPossiblyUnboundVariable]
@@ -1857,7 +1892,7 @@ class Compiler:
                                 )
 
                 else:
-                    raise NotImplementedError
+                    pass
 
             # compile argument expressions once
             for arg in node.args:
@@ -1905,7 +1940,7 @@ class Compiler:
                 else:
                     self.emit(node.line, OP_CALL, len(node.args))
             else:
-                raise NotImplementedError  # falling back for future call types
+                pass  # falling back for future call types #TODO
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -1929,6 +1964,12 @@ class Compiler:
             for item in reversed(node.items):
                 yield from self.compile_ins(item)
             self.emit(node.line, 'BUILD_ARRAY', len(node.items))
+        elif isinstance(node, OmniDict):
+            yield from self.raise_for_req('types.dicts', 'Dictionary', 'Dictionaries', node)
+            for item in reversed(node.vals):
+                yield from self.compile_ins(item[1])
+                yield from self.compile_ins(item[0])
+            self.emit(node.line, 'BUILD_DICT', len(node.vals))
         elif isinstance(node, NOP):
             self.emit(0, 'NOP')
         elif isinstance(node, Function):
@@ -1992,29 +2033,40 @@ class Compiler:
         elif isinstance(node, Attribute):
             yield from self.raise_for_req('attributes', 'Attribute', 'Attributes', node)
             broken = False
-            if isinstance(node.lhs, Variable):
-                itm = self.get_var_obj(node.lhs.name)
-                if itm is not None and isinstance(itm[0].value, self.Module):
-                    exports = itm[0].value.exports
-                    for item in exports:
-                        if item.name == node.rhs:
+            if 'types.dicts' in self.reqs:
+                yield self.Warn(
+                    'Dictionaries are enabled, so OmniScript cannot check arguments or weather this attribute exists. This will be fixed once OmniScript releases a proper type checker',
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
+                    self.mod_stack[-1].fp,
+                    self,
+                )
+            else:
+                if isinstance(node.lhs, Variable):
+                    itm = self.get_var_obj(node.lhs.name)
+                    if itm is not None and isinstance(itm[0].value, self.Module):
+                        exports = itm[0].value.exports
+                        for item in exports:
+                            if item.name == node.rhs:
+                                broken = True
+                                break        
+                if not broken:
+                    for item in self.attrs:
+                        if item[0] == node.rhs:
                             broken = True
                             break
-            if not broken:
-                for item in self.attrs:
-                    if item[0] == node.rhs:
-                        broken = True
-                        break
-                if not broken:
-                    raise CompilerError(
-                        12,
-                        f'Could not find attribute {node.rhs}',
-                        node.line,
-                        node.col,
-                        node.end_line,
-                        node.end_col,
-                        self.mod_stack[-1].fp,
-                    )
+                    if not broken:
+                        raise CompilerError(
+                            12,
+                            f'Could not find attribute {node.rhs}',
+                            node.line,
+                            node.col,
+                            node.end_line,
+                            node.end_col,
+                            self.mod_stack[-1].fp,
+                        )
             yield from self.compile_ins(node.lhs)
             idx = self.add_constant((T_STRING, node.rhs))
             self.emit(node.line, 'GETATTR', idx)

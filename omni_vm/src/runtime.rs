@@ -19,6 +19,7 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
         "indexes".to_string(),
         "imports".to_string(),
         "runtime_values".to_string(),
+        "types.dicts".to_string(),
     ]
 });
 #[derive(Debug, Clone, PartialEq)]
@@ -75,6 +76,7 @@ pub enum ValueTag {
     Module = 8,
     Array = 9,
     RuntimeValue = 10,
+    Dict = 11,
 }
 
 impl TryFrom<i8> for ValueTag {
@@ -120,19 +122,57 @@ pub enum Value {
     Array(Rc<RefCell<Vec<ValueRef>>>),
     Null,
     RuntimeValue(RuntimeType),
+    Dict(Vec<(ValueRef, ValueRef)>),
+}
+fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
+    match (a, other) {
+        (Value::Integer(va), Value::Integer(vb)) => Ok(va == vb),
+        (Value::Bool(va), Value::Bool(vb)) => Ok(va == vb),
+        (Value::Integer(va), Value::Float(vb)) => Ok(*va as f64 == *vb),
+        (Value::Float(va), Value::Integer(vb)) => Ok(*va == *vb as f64),
+        (Value::Float(va), Value::Float(vb)) => Ok(va == vb),
+        (Value::String(va), Value::String(vb)) => Ok(va == vb),
+        (Value::Null, Value::Null) => Ok(true),
+        (Value::Null, other) | (other, Value::Null) => Ok(matches!(other, Value::Null)),
+        (Value::Array(va), Value::Array(vb)) => {
+            if Rc::ptr_eq(va, vb) {
+                return Ok(true);
+            }
+            Ok(*va.borrow() == *vb.borrow())
+        }
+        _ => Err(()),
+    }
+}
+
+impl PartialEq for OmniFunc {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                OmniFunc::User {
+                    name: a,
+                    module: ma,
+                    ..
+                },
+                OmniFunc::User {
+                    name: b,
+                    module: mb,
+                    ..
+                },
+            ) => a == b && ma == mb,
+            (OmniFunc::Builtin { name: a, .. }, OmniFunc::Builtin { name: b, .. }) => a == b,
+            (OmniFunc::BuiltinMethod { name: a, .. }, OmniFunc::BuiltinMethod { name: b, .. }) => {
+                a == b
+            }
+            _ => false,
+        }
+    }
 }
 
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Value::Integer(a), Value::Integer(b)) => a == b,
-            (Value::String(a), Value::String(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Null, Value::Null) => true,
-            (Value::Module(a), Value::Module(b)) => a == b,
-            (Value::Array(a), Value::Array(b)) => a.borrow().clone() == b.borrow().clone(),
-            _ => false,
+        match eq_helper(self, other) {
+            Ok(v) => v,
+            Err(_) => false,
         }
     }
 }
@@ -179,6 +219,7 @@ impl Value {
             Value::Module(m) => format!("[module {}]", m.name),
             Value::Array(_) => "array".to_string(),
             Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()),
+            Value::Dict(_) => "dict".to_string(),
         }
     }
     pub fn get_tag(&self) -> ValueTag {
@@ -192,6 +233,7 @@ impl Value {
             Value::Func(_) => ValueTag::Func,
             Value::Null => ValueTag::Null,
             Value::RuntimeValue(_) => ValueTag::RuntimeValue,
+            Value::Dict(_) => ValueTag::Dict,
         }
     }
     pub fn repr(&self) -> String {
@@ -223,10 +265,19 @@ impl Value {
                 output.push(']');
                 output
             }
-            Value::RuntimeValue(_) => panic!("Illegal value recieved for repr()"), // It should've been converted on PUSH_BUILTIN
+            Value::RuntimeValue(_) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
+            Value::Dict(_) => todo!(),                                             //TODO
         }
     }
-}
+pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
+    match self {
+        Value::Dict(d) => Ok(d.iter().find(|(k, _)| **k == *key).map(|(_, v)| v.clone())),
+        _ => Err(VmError {
+            msg: format!("Expected a dict, got a(n) {}", self.display()),
+            errcode: ErrCode::TypeError,
+        }),
+    }
+}}
 #[derive(Debug, Clone)]
 pub enum OmniFunc {
     User {
@@ -435,7 +486,7 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
         msg: format!("Failed to flush stdout: {}", e),
         errcode: ErrCode::IoError, // Or a specific I/O error code
     })?;
-    
+
     Ok(Value::Null)
 }
 pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
@@ -787,24 +838,9 @@ fn gte(a: Value, b: Value) -> Result<Value, VmError> {
 }
 
 fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
-    match (&a, &b) {
-        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Bool(*va as f64 == *vb)),
-        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va == *vb as f64)),
-        (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::Null, Value::Null) => Ok(Value::Bool(true)),
-        (Value::Null, other) | (other, Value::Null) => {
-            Ok(Value::Bool(matches!(other, Value::Null)))
-        }
-        (Value::Array(va), Value::Array(vb)) => {
-            if Rc::ptr_eq(va, vb) {
-                return Ok(Value::Bool(true));
-            }
-            Ok(Value::Bool(*va.borrow() == *vb.borrow()))
-        }
-        _ => Err(VmError {
+    match eq_helper(&a, &b) {
+        Ok(v) => Ok(Value::Bool(v)),
+        Err(_) => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is equal to a {}",
                 a.display(),

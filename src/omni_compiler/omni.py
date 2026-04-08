@@ -270,13 +270,11 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
                 if ln == i-2 and col is not None:
                     print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
                 print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
-            #if ln == len(splitted) - 1:
-            #    print(f'[blue dim]{spaces}  | [/]{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
         elif end_col is not None:
             from_lines = max(0, min(ln - 3, len(splitted)))
             to_lines = max(0, min(end_line + 4, len(splitted)))
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-                arr = f'{color}->[/]' if ln == i - 1 else '  '
+                arr = f'{color}->{end_color}' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
                     print('<blue><d>       ... </d></blue>', file=sys.stderr)
                 elif not ln < i-1 < end_line:
