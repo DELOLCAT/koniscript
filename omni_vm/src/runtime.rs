@@ -286,8 +286,14 @@ impl Value {
                 output
             }
             Value::RuntimeValue(_) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
-            Value::Dict(_) => todo!(),                                             //TODO
-            Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
+            Value::Dict(_) => match self.dict_get(&Value::String("_repr".to_string())).unwrap() {
+                Some(v) => match v.as_ref() {
+                    Value::String(v) => v.to_string(),
+                    _ => self.dict_display().unwrap(),
+                },
+                _ => self.dict_display().unwrap()
+            },
+            Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on call
         }
     }
     pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
@@ -306,21 +312,19 @@ impl Value {
                 out.push('{');
                 for (i, (k, v)) in d.iter().enumerate() {
                     out.push_str(&k.repr());
-                    out.push(':');
+                    out.push_str(": ");
                     out.push_str(&v.repr());
-                    if i != d.len()-1 {
+                    if i != d.len() - 1 {
                         out.push_str(", ")
                     }
                 }
                 out.push('}');
-                return Ok(out)
-            },
-            _ => Err(
-                VmError {
-                    msg: format!("Expected a dict, got a(n) {}", self.display()),
-                    errcode: ErrCode::TypeError
-                }
-            )
+                return Ok(out);
+            }
+            _ => Err(VmError {
+                msg: format!("Expected a dict, got a(n) {}", self.display()),
+                errcode: ErrCode::TypeError,
+            }),
         }
     }
 }
@@ -687,28 +691,20 @@ fn vm_len(args: &[Value]) -> Result<Value, VmError> {
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
         Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
-        Value::Dict(_) => {
+        Value::Dict(d) => {
             match args[0]
                 .dict_get(&Value::String("_len".to_string()))
                 .unwrap()
             {
-                None => {
-                    return Err(VmError {
-                        msg: format!("Cannot find the `len()` of a {}", args[0].display()),
-                        errcode: ErrCode::TypeError,
-                    });
-                }
+                None => Ok(Value::Integer(d.len().try_into().unwrap())),
                 Some(v) => match v.as_ref() {
                     Value::Func(v) => Ok(Value::CallRequest(
                         Rc::new(v.clone()),
                         vec![Rc::new(args[0].clone())],
                     )), // TODO: perhaps find out how to not clone this
-                    _ => {
-                        return Err(VmError {
-                            msg: format!("Expected `_len` to be a function, not a {}", v.display()),
-                            errcode: ErrCode::TypeError,
-                        });
-                    }
+                    Value::Integer(v) => Ok(Value::Integer(*v)),
+                    _ => Ok(Value::Integer(d.len().try_into().unwrap()))
+                    
                 },
             }
         }
