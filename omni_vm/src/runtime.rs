@@ -19,6 +19,7 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
         "indexes".to_string(),
         "imports".to_string(),
         "runtime_values".to_string(),
+        "types.dicts".to_string(),
     ]
 });
 #[derive(Debug, Clone, PartialEq)]
@@ -75,6 +76,8 @@ pub enum ValueTag {
     Module = 8,
     Array = 9,
     RuntimeValue = 10,
+    Dict = 11,
+    CallRequest = 12,
 }
 
 impl TryFrom<i8> for ValueTag {
@@ -120,19 +123,59 @@ pub enum Value {
     Array(Rc<RefCell<Vec<ValueRef>>>),
     Null,
     RuntimeValue(RuntimeType),
+    Dict(Vec<(ValueRef, ValueRef)>),
+    CallRequest(Rc<OmniFunc>, Vec<ValueRef>),
+}
+fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
+    match (a, other) {
+        (Value::Integer(va), Value::Integer(vb)) => Ok(va == vb),
+        (Value::Bool(va), Value::Bool(vb)) => Ok(va == vb),
+        (Value::Integer(va), Value::Float(vb)) => Ok(*va as f64 == *vb),
+        (Value::Float(va), Value::Integer(vb)) => Ok(*va == *vb as f64),
+        (Value::Float(va), Value::Float(vb)) => Ok(va == vb),
+        (Value::String(va), Value::String(vb)) => Ok(va == vb),
+        (Value::Null, Value::Null) => Ok(true),
+        (Value::Null, other) | (other, Value::Null) => Ok(matches!(other, Value::Null)),
+        (Value::Array(va), Value::Array(vb)) => {
+            if Rc::ptr_eq(va, vb) {
+                return Ok(true);
+            }
+            Ok(*va.borrow() == *vb.borrow())
+        },
+        (Value::Func(a), Value::Func(b)) => Ok(a == b),
+        _ => Err(()),
+    }
+}
+
+impl PartialEq for OmniFunc {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                OmniFunc::User {
+                    name: a,
+                    module: ma,
+                    ..
+                },
+                OmniFunc::User {
+                    name: b,
+                    module: mb,
+                    ..
+                },
+            ) => a == b && ma == mb,
+            (OmniFunc::Builtin { name: a, .. }, OmniFunc::Builtin { name: b, .. }) => a == b,
+            (OmniFunc::BuiltinMethod { name: a, .. }, OmniFunc::BuiltinMethod { name: b, .. }) => {
+                a == b
+            }
+            _ => false,
+        }
+    }
 }
 
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Value::Integer(a), Value::Integer(b)) => a == b,
-            (Value::String(a), Value::String(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Null, Value::Null) => true,
-            (Value::Module(a), Value::Module(b)) => a == b,
-            (Value::Array(a), Value::Array(b)) => a.borrow().clone() == b.borrow().clone(),
-            _ => false,
+        match eq_helper(self, other) {
+            Ok(v) => v,
+            Err(_) => false,
         }
     }
 }
@@ -178,7 +221,25 @@ impl Value {
             Value::Null => "null".to_string(),
             Value::Module(m) => format!("[module {}]", m.name),
             Value::Array(_) => "array".to_string(),
-            Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()),
+            Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()), // This should never be called
+            Value::Dict(_) => {
+                match self
+                    .dict_get(&Value::String("_display_type".to_string()))
+                    .unwrap()
+                {
+                    None => "dict".to_string(),
+                    Some(v) => match v.as_ref() {
+                        Value::String(s) => s.to_string(),
+                        _ => "dict".to_string(),
+                    },
+                }
+            }
+            Value::CallRequest(r, _) => {
+                format!(
+                    "[call request for {}]",
+                    Value::Func(r.as_ref().clone()).display()
+                )
+            } // This should also never be called
         }
     }
     pub fn get_tag(&self) -> ValueTag {
@@ -192,6 +253,8 @@ impl Value {
             Value::Func(_) => ValueTag::Func,
             Value::Null => ValueTag::Null,
             Value::RuntimeValue(_) => ValueTag::RuntimeValue,
+            Value::Dict(_) => ValueTag::Dict,
+            Value::CallRequest(_, _) => ValueTag::CallRequest,
         }
     }
     pub fn repr(&self) -> String {
@@ -223,7 +286,46 @@ impl Value {
                 output.push(']');
                 output
             }
-            Value::RuntimeValue(_) => panic!("Illegal value recieved for repr()"), // It should've been converted on PUSH_BUILTIN
+            Value::RuntimeValue(_) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
+            Value::Dict(_) => match self.dict_get(&Value::String("_repr".to_string())).unwrap() {
+                Some(v) => match v.as_ref() {
+                    Value::String(v) => v.to_string(),
+                    _ => self.dict_display().unwrap(),
+                },
+                _ => self.dict_display().unwrap()
+            },
+            Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on call
+        }
+    }
+    pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
+        match self {
+            Value::Dict(d) => Ok(d.iter().find(|(k, _)| **k == *key).map(|(_, v)| v.clone())),
+            _ => Err(VmError {
+                msg: format!("Expected a dict, got a(n) {}", self.display()),
+                errcode: ErrCode::TypeError,
+            }),
+        }
+    }
+    pub fn dict_display(&self) -> Result<String, VmError> {
+        match self {
+            Value::Dict(d) => {
+                let mut out = String::new();
+                out.push('{');
+                for (i, (k, v)) in d.iter().enumerate() {
+                    out.push_str(&k.repr());
+                    out.push_str(": ");
+                    out.push_str(&v.repr());
+                    if i != d.len() - 1 {
+                        out.push_str(", ")
+                    }
+                }
+                out.push('}');
+                return Ok(out);
+            }
+            _ => Err(VmError {
+                msg: format!("Expected a dict, got a(n) {}", self.display()),
+                errcode: ErrCode::TypeError,
+            }),
         }
     }
 }
@@ -313,7 +415,14 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             v.name,
             v.exports.len()
         ))),
-        _ => todo!(),
+        Value::Dict(_) => match item.dict_get(&Value::String("_str".to_string())).unwrap() {
+            Some(v) => match v.as_ref() {
+                Value::String(v) => Ok(Value::String(v.to_string())),
+                _ => Ok(Value::String(item.dict_display()?)),
+            },
+            _ => Ok(Value::String(item.dict_display()?)),
+        },
+        _ => todo!("{}", item.display()),
     }
 }
 pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
@@ -418,7 +527,7 @@ fn print_helper(args: &[Value]) -> Result<(), VmError> {
                     rust_args.push(v);
                 } else {
                     return Err(VmError {
-                        msg: "Could not convert to string".to_string(),
+                        msg: format!("Could not convert to string"),
                         errcode: ErrCode::ConversionFailed,
                     });
                 }
@@ -435,7 +544,7 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
         msg: format!("Failed to flush stdout: {}", e),
         errcode: ErrCode::IoError, // Or a specific I/O error code
     })?;
-    
+
     Ok(Value::Null)
 }
 pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
@@ -583,6 +692,23 @@ fn vm_len(args: &[Value]) -> Result<Value, VmError> {
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
         Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
+        Value::Dict(d) => {
+            match args[0]
+                .dict_get(&Value::String("_len".to_string()))
+                .unwrap()
+            {
+                None => Ok(Value::Integer(d.len().try_into().unwrap())),
+                Some(v) => match v.as_ref() {
+                    Value::Func(v) => Ok(Value::CallRequest(
+                        Rc::new(v.clone()),
+                        vec![Rc::new(args[0].clone())],
+                    )), // TODO: perhaps find out how to not clone this
+                    Value::Integer(v) => Ok(Value::Integer(*v)),
+                    _ => Ok(Value::Integer(d.len().try_into().unwrap()))
+                    
+                },
+            }
+        }
         _ => Err(VmError {
             msg: format!("Cannot find the `len()` of a {}", args[0].display()),
             errcode: ErrCode::TypeError,
@@ -787,24 +913,9 @@ fn gte(a: Value, b: Value) -> Result<Value, VmError> {
 }
 
 fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
-    match (&a, &b) {
-        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Bool(*va as f64 == *vb)),
-        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Bool(*va == *vb as f64)),
-        (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::String(va), Value::String(vb)) => Ok(Value::Bool(va == vb)),
-        (Value::Null, Value::Null) => Ok(Value::Bool(true)),
-        (Value::Null, other) | (other, Value::Null) => {
-            Ok(Value::Bool(matches!(other, Value::Null)))
-        }
-        (Value::Array(va), Value::Array(vb)) => {
-            if Rc::ptr_eq(va, vb) {
-                return Ok(Value::Bool(true));
-            }
-            Ok(Value::Bool(*va.borrow() == *vb.borrow()))
-        }
-        _ => Err(VmError {
+    match eq_helper(&a, &b) {
+        Ok(v) => Ok(Value::Bool(v)),
+        Err(_) => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is equal to a {}",
                 a.display(),

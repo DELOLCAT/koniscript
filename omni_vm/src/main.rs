@@ -145,7 +145,96 @@ impl Frame {
         self
     }
 }
-
+enum FncExit {
+    Exit(i32),
+    Continue,
+    None,
+}
+fn run_function(
+    frames: &mut Vec<Frame>,
+    mod_stack: &mut Vec<String>,
+    fnc: Rc<Value>,
+    args: Vec<ValueRef>,
+) -> Result<FncExit, VmError> {
+    let arg_count = args.len();
+    let func = match fnc.as_ref() {
+        Value::Func(f) => f,
+        _ => {
+            return Err(VmError {
+                msg: format!("Expected a function, got a {}", fnc.display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    };
+    match func {
+        OmniFunc::Builtin { name: _, func } => {
+            let dereferenced_args: Vec<Value> =
+                args.iter().map(|arg| arg.as_ref().clone()).collect();
+            match func(dereferenced_args.as_slice()) {
+                Ok(v) => match v {
+                    Value::CallRequest(rec_func, args) => {
+                        return run_function(frames, mod_stack, Rc::new(Value::Func(rec_func.as_ref().clone())), args);
+                    }
+                    _ => frames.last_mut().unwrap().stack.push(Rc::new(v)),
+                },
+                Err(v) => match v.errcode {
+                    ErrCode::ExitSignal(c) => return Ok(FncExit::Exit(c)),
+                    _ => return Err(v),
+                },
+            }
+            Ok(FncExit::None)
+        }
+        OmniFunc::User {
+            entry,
+            local_count,
+            param_count,
+            closure,
+            name,
+            module,
+        } => {
+            mod_stack.push(module.to_string());
+            let mut fenv = Env {
+                values: vec![None; *local_count],
+                parent: Some(closure.clone()),
+                exports: HashMap::new(),
+            };
+            let mut rust_args: Vec<Option<ValueRef>> = vec![];
+            for arg in args {
+                rust_args.push(Some(arg))
+            }
+            if *param_count != arg_count {
+                return Err(VmError {
+                    msg: format!("Expected {} args, got {}", param_count, arg_count),
+                    errcode: ErrCode::InvalidArgCount,
+                });
+            }
+            for i in 0..*param_count {
+                fenv.values[i] = rust_args[i].clone()
+            }
+            let fframe = Frame::new()
+                .env(fenv)
+                .ret_addr(frames.last().unwrap().i)
+                .name(name.clone());
+            frames.push(fframe);
+            frames.last_mut().unwrap().i = *entry;
+            return Ok(FncExit::Continue);
+        }
+        OmniFunc::BuiltinMethod { name: _, func } => {
+            let itm = match frames.last_mut().unwrap().stack.pop() {
+                Some(v) => v,
+                None => {
+                    return Err(VmError {
+                        msg: "StackUnderflow".to_string(),
+                        errcode: ErrCode::StackUnderflow,
+                    });
+                }
+            };
+            let result = func(itm, args.as_slice())?;
+            frames.last_mut().unwrap().stack.push(result);
+            return Ok(FncExit::None);
+        }
+    }
+}
 impl VM {
     fn new(instructions: Vec<String>) -> Result<Self, VmError> {
         let mut const_table: Vec<Value> = vec![];
@@ -504,6 +593,41 @@ impl VM {
                     }
                     self.push_to_stack(Rc::new(Value::Array(Rc::new(RefCell::new(items)))));
                 }
+                "BUILD_DICT" => {
+                    let ops = match operators.get(1) {
+                        Some(v) => v.parse::<usize>().unwrap(),
+                        None => {
+                            return Err(VmError {
+                                msg: "Invalid bytecode".to_string(),
+                                errcode: ErrCode::InvalidBytecode,
+                            });
+                        }
+                    };
+                    let mut map: Vec<(ValueRef, ValueRef)> = vec![];
+
+                    for _ in 0..ops {
+                        let k = match self.frames.last_mut().unwrap().stack.pop() {
+                            Some(v) => v,
+                            None => {
+                                return Err(VmError {
+                                    msg: "Stack Underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow,
+                                });
+                            }
+                        };
+                        let v = match self.frames.last_mut().unwrap().stack.pop() {
+                            Some(v) => v,
+                            None => {
+                                return Err(VmError {
+                                    msg: "Stack Underflow".to_string(),
+                                    errcode: ErrCode::StackUnderflow,
+                                });
+                            }
+                        };
+                        map.push((k, v));
+                    }
+                    self.push_to_stack(Rc::new(Value::Dict(map)));
+                }
                 "PUSH_CONST" => {
                     let item: Value =
                         self.const_pool[operators[1].parse::<usize>().unwrap()].clone();
@@ -514,9 +638,12 @@ impl VM {
                         self.global_env[operators[1].parse::<usize>().unwrap()].clone();
                     let to_push = match item {
                         Value::RuntimeValue(t) => match t {
-                            RuntimeType::Name => {
-                                Value::String(self.mod_stack.last().expect("Module stack underflow").to_string())
-                            }
+                            RuntimeType::Name => Value::String(
+                                self.mod_stack
+                                    .last()
+                                    .expect("Module stack underflow")
+                                    .to_string(),
+                            ),
                         },
                         _ => item,
                     };
@@ -576,6 +703,22 @@ impl VM {
                                     errcode: ErrCode::AttributeError,
                                 });
                             }
+                        },
+                        Value::Dict(_) => match attrl.dict_get(&Value::String(attrand.to_string()))
+                        {
+                            Ok(v) => match v {
+                                Some(vs) => vs,
+                                None => {
+                                    return Err(VmError {
+                                        msg: format!(
+                                            "Could not find an entry {} from the dict.",
+                                            attrand
+                                        ),
+                                        errcode: ErrCode::AttributeError,
+                                    });
+                                }
+                            },
+                            Err(_) => unreachable!(),
                         },
                         _ => {
                             if let Some(methods) = runtime::ATTRMAP.get(&attrl.get_tag()) {
@@ -637,6 +780,18 @@ impl VM {
                                 }
                             }
                         }
+                        Value::Dict(_) => match item.dict_get(&rhs) {
+                            Ok(v) => match v {
+                                Some(v) => self.push_to_stack(v),
+                                None => {
+                                    return Err(VmError {
+                                        msg: format!("Cannot find key {} from dict", rhs.display()),
+                                        errcode: ErrCode::IndexError,
+                                    });
+                                }
+                            },
+                            Err(_) => unreachable!(),
+                        },
                         _ => {
                             return Err(VmError {
                                 msg: format!("Cannot get an index from a {}", item.display()),
@@ -735,78 +890,16 @@ impl VM {
                             });
                         }
                     };
-                    let func = match func.as_ref() {
-                        Value::Func(f) => f,
-                        _ => {
-                            return Err(VmError {
-                                msg: format!("Expected a function, got a {}", func.display()),
-                                errcode: ErrCode::TypeError,
-                            });
-                        }
-                    };
-                    match func {
-                        OmniFunc::Builtin { name: _, func } => {
-                            let dereferenced_args: Vec<Value> =
-                                args.iter().map(|arg| arg.as_ref().clone()).collect();
-                            match func(dereferenced_args.as_slice()) {
-                                Ok(v) => self.push_to_stack(Rc::new(v)),
-                                Err(v) => match v.errcode {
-                                    ErrCode::ExitSignal(c) => return Ok(c),
-                                    _ => return Err(v),
-                                },
-                            }
-                        }
-                        OmniFunc::User {
-                            entry,
-                            local_count,
-                            param_count,
-                            closure,
-                            name,
-                            module
-                        } => {
-                            self.mod_stack.push(module.to_string());
-                            let mut fenv = Env {
-                                values: vec![None; *local_count],
-                                parent: Some(closure.clone()),
-                                exports: HashMap::new(),
-                            };
-                            let mut rust_args: Vec<Option<ValueRef>> = vec![];
-                            for arg in args {
-                                rust_args.push(Some(arg))
-                            }
-                            if *param_count != arg_count {
-                                return Err(VmError {
-                                    msg: format!(
-                                        "Expected {} args, got {}",
-                                        param_count, arg_count
-                                    ),
-                                    errcode: ErrCode::InvalidArgCount,
-                                });
-                            }
-                            for i in 0..*param_count {
-                                fenv.values[i] = rust_args[i].clone()
-                            }
-                            let fframe = Frame::new()
-                                .env(fenv)
-                                .ret_addr(self.get_i())
-                                .name(name.clone());
-                            self.frames.push(fframe);
-                            self.frames.last_mut().unwrap().i = *entry;
-                            continue;
-                        }
-                        OmniFunc::BuiltinMethod { name: _, func } => {
-                            let itm = match self.frames.last_mut().unwrap().stack.pop() {
-                                Some(v) => v,
-                                None => {
-                                    return Err(VmError {
-                                        msg: "StackUnderflow".to_string(),
-                                        errcode: ErrCode::StackUnderflow,
-                                    });
-                                }
-                            };
-                            let result = func(itm, args.as_slice())?;
-                            self.push_to_stack(result);
-                        }
+
+                    match run_function(
+                        &mut self.frames,
+                        &mut self.mod_stack,
+                        func,
+                        args,
+                    )? {
+                        FncExit::Continue => continue,
+                        FncExit::None => {}
+                        FncExit::Exit(e) => return Ok(e),
                     }
                 }
                 "RET" => {
@@ -1028,13 +1121,13 @@ impl VM {
                         name: name.to_string(),
                         module: match self.mod_stack.last() {
                             Some(v) => v.to_string(),
-                            None => return Err(
-                                VmError {
+                            None => {
+                                return Err(VmError {
                                     msg: "Module stack underflow".to_string(),
-                                    errcode: ErrCode::StackUnderflow
-                                }
-                            )
-                        }
+                                    errcode: ErrCode::StackUnderflow,
+                                });
+                            }
+                        },
                     }));
                     self.push_to_stack(item);
                 }

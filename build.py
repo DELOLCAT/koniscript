@@ -52,7 +52,7 @@ async def main():
     except* Exception as e:
         print('[red b]Build failed:')
         for ex in e.exceptions:
-            print(f'    [red b]{e}')
+            print(f'    [red b]{ex}')
 
 
 if __name__ == '__main__':
