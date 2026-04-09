@@ -141,7 +141,8 @@ fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
                 return Ok(true);
             }
             Ok(*va.borrow() == *vb.borrow())
-        }
+        },
+        (Value::Func(a), Value::Func(b)) => Ok(a == b),
         _ => Err(()),
     }
 }
