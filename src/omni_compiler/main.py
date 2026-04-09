@@ -1,6 +1,5 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from tkinter.dialog import DIALOG_ICON
 from typing import Any, Collection, Generator, Literal
 from omni_compiler import base_env
 from omni_compiler.runtime import (
@@ -15,7 +14,7 @@ from omni_compiler.runtime import (
     Builtin,
 )
 
-ADD = 'ADD'  # TODO: refactor this to be better
+ADD = 'ADD'  # TODO: refactor this to be better, perhaps into an enum
 INTEGER = 'INT'
 INT = INTEGER
 IDENTIFIER = 'IDENTIFIER'
@@ -717,6 +716,8 @@ class Parser:
                     self.eat(COLON)
                     v = self.expr()
                     items.append((k, v))
+                self.skip_newline()
+                self.eat(RBRACE)
                 return OmniDict(token.line, token.col, self.current_token.line, self.current_token.col, items)
         elif token.type == LBRACKET:
             self.eat(LBRACKET)
@@ -2035,7 +2036,7 @@ class Compiler:
             broken = False
             if 'types.dicts' in self.reqs:
                 yield self.Warn(
-                    'Dictionaries are enabled, so OmniScript cannot check arguments or weather this attribute exists. This will be fixed once OmniScript releases a proper type checker',
+                    'Dictionaries are enabled, so OmniScript cannot check arguments or whether this attribute exists. This will be fixed once OmniScript releases a proper type checker',
                     node.line,
                     node.col,
                     node.end_line,
