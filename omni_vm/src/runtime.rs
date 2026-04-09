@@ -222,17 +222,22 @@ impl Value {
             Value::Array(_) => "array".to_string(),
             Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()), // This should never be called
             Value::Dict(_) => {
-                match self.dict_get(&Value::String("_display_type".to_string())).unwrap() {
+                match self
+                    .dict_get(&Value::String("_display_type".to_string()))
+                    .unwrap()
+                {
                     None => "dict".to_string(),
                     Some(v) => match v.as_ref() {
                         Value::String(s) => s.to_string(),
-                        _ => "dict".to_string()
-                    }
+                        _ => "dict".to_string(),
+                    },
                 }
-                
-            },
+            }
             Value::CallRequest(r, _) => {
-                format!("[call request for {}]", Value::Func(r.as_ref().clone()).display())
+                format!(
+                    "[call request for {}]",
+                    Value::Func(r.as_ref().clone()).display()
+                )
             } // This should also never be called
         }
     }
@@ -292,6 +297,30 @@ impl Value {
                 msg: format!("Expected a dict, got a(n) {}", self.display()),
                 errcode: ErrCode::TypeError,
             }),
+        }
+    }
+    pub fn dict_display(&self) -> Result<String, VmError> {
+        match self {
+            Value::Dict(d) => {
+                let mut out = String::new();
+                out.push('{');
+                for (i, (k, v)) in d.iter().enumerate() {
+                    out.push_str(&k.repr());
+                    out.push(':');
+                    out.push_str(&v.repr());
+                    if i != d.len()-1 {
+                        out.push_str(", ")
+                    }
+                }
+                out.push('}');
+                return Ok(out)
+            },
+            _ => Err(
+                VmError {
+                    msg: format!("Expected a dict, got a(n) {}", self.display()),
+                    errcode: ErrCode::TypeError
+                }
+            )
         }
     }
 }
@@ -381,6 +410,13 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             v.name,
             v.exports.len()
         ))),
+        Value::Dict(_) => match item.dict_get(&Value::String("_str".to_string())).unwrap() {
+            Some(v) => match v.as_ref() {
+                Value::String(v) => Ok(Value::String(v.to_string())),
+                _ => Ok(Value::String(item.dict_display()?)),
+            },
+            _ => Ok(Value::String(item.dict_display()?)),
+        },
         _ => todo!("{}", item.display()),
     }
 }
@@ -486,7 +522,7 @@ fn print_helper(args: &[Value]) -> Result<(), VmError> {
                     rust_args.push(v);
                 } else {
                     return Err(VmError {
-                        msg: "Could not convert to string".to_string(),
+                        msg: format!("Could not convert to string"),
                         errcode: ErrCode::ConversionFailed,
                     });
                 }
@@ -662,8 +698,11 @@ fn vm_len(args: &[Value]) -> Result<Value, VmError> {
                         errcode: ErrCode::TypeError,
                     });
                 }
-                Some(   v) => match v.as_ref() {
-                    Value::Func(v) => Ok(Value::CallRequest(Rc::new(v.clone()), vec![Rc::new(args[0].clone())])), // TODO: perhaps find out how to not clone this
+                Some(v) => match v.as_ref() {
+                    Value::Func(v) => Ok(Value::CallRequest(
+                        Rc::new(v.clone()),
+                        vec![Rc::new(args[0].clone())],
+                    )), // TODO: perhaps find out how to not clone this
                     _ => {
                         return Err(VmError {
                             msg: format!("Expected `_len` to be a function, not a {}", v.display()),
