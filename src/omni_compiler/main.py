@@ -72,7 +72,7 @@ COLON = 'COLON'
 
 @dataclass
 class CompilationException(Exception):
-    code: int  # TODO: Formalize these
+    code: int
     msg: str
     line: int | None
     col: int | None
@@ -1378,7 +1378,7 @@ class Compiler:
             self.args = args if args is not None else {}
 
     @dataclass
-    class Warn:
+    class Warn: # TODO: make a warning code
         message: str
         line: int
         col: int
