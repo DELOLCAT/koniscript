@@ -241,7 +241,7 @@ fn run_function(
     }
 }
 
-fn into_int(val: &String) -> Result<i64, VmError> {
+fn into_int(val: &str) -> Result<i64, VmError> {
     // TODO: Use this for more readable code
     match val.parse::<i64>() {
         Ok(v) => Ok(v),
@@ -252,7 +252,7 @@ fn into_int(val: &String) -> Result<i64, VmError> {
     }
 }
 
-fn into_usize(val: &String) -> Result<usize, VmError> {
+fn into_usize(val: &str) -> Result<usize, VmError> {
     match val.parse::<usize>() {
         Ok(v) => Ok(v),
         Err(_) => Err(VmError {
