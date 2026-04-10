@@ -50,7 +50,6 @@ pub struct VmError {
     pub errcode: ErrCode,
 }
 impl VmError {
-    // TODO: refactor old TypeErrors into this new one
     pub fn make_type_error(expected: &str, received: &Value) -> Self {
         Self {
             msg: format!("Expected `{}`, got `{}`", expected, received.display()),
@@ -141,7 +140,7 @@ fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
                 return Ok(true);
             }
             Ok(*va.borrow() == *vb.borrow())
-        },
+        }
         (Value::Func(a), Value::Func(b)) => Ok(a == b),
         _ => Err(()),
     }
@@ -264,12 +263,12 @@ impl Value {
             Value::Bool(v) => if *v { "true" } else { "false" }.to_string(),
             Value::Float(v) => v.to_string(),
             Value::Func(v) => match v {
-                OmniFunc::Builtin { name, .. } => format!("<builtin fn {}>", name),
-                OmniFunc::User { entry, name, .. } => format!("<fn {} at {}>", name, entry),
+                OmniFunc::Builtin { name, .. } => format!("<builtin func {}>", name),
+                OmniFunc::User { entry, name, .. } => format!("<func {}() at ins {}>", name, entry),
                 OmniFunc::BuiltinMethod { name, .. } => format!("<builtin method {}>", name),
             },
             Value::Module(v) => {
-                format!("<module {} ({} exports)>", v.name, v.exports.len())
+                format!("<module {} with {} exports>", v.name, v.exports.len())
             }
             Value::Null => "null".to_string(),
             Value::Array(items_rc) => {
@@ -292,7 +291,7 @@ impl Value {
                     Value::String(v) => v.to_string(),
                     _ => self.dict_display().unwrap(),
                 },
-                _ => self.dict_display().unwrap()
+                _ => self.dict_display().unwrap(),
             },
             Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on call
         }
@@ -300,10 +299,7 @@ impl Value {
     pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
         match self {
             Value::Dict(d) => Ok(d.iter().find(|(k, _)| **k == *key).map(|(_, v)| v.clone())),
-            _ => Err(VmError {
-                msg: format!("Expected a dict, got a(n) {}", self.display()),
-                errcode: ErrCode::TypeError,
-            }),
+            _ => Err(VmError::make_type_error("dict", self)),
         }
     }
     pub fn dict_display(&self) -> Result<String, VmError> {
@@ -322,10 +318,7 @@ impl Value {
                 out.push('}');
                 return Ok(out);
             }
-            _ => Err(VmError {
-                msg: format!("Expected a dict, got a(n) {}", self.display()),
-                errcode: ErrCode::TypeError,
-            }),
+            _ => Err(VmError::make_type_error("dict", self)),
         }
     }
 }
@@ -369,6 +362,7 @@ pub enum ErrCode {
     ExitSignal(i32) = 18,
     InvalidOperation = 19,
     IndexError = 20,
+    MathError = 21,
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -393,28 +387,11 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
                 Result::Ok(Value::String("false".to_string()))
             }
         }
-        Value::Func(val) => match val {
-            OmniFunc::Builtin { name, .. } => {
-                let out = format!("[builtin func {}]", name);
-                Result::Ok(Value::String(out))
-            }
-            OmniFunc::User { entry, name, .. } => {
-                let out = format!("[func {} at ins {}]", name, entry);
-                Result::Ok(Value::String(out))
-            }
-            OmniFunc::BuiltinMethod { name, .. } => {
-                let out = format!("[builtin method {}]", name);
-                Ok(Value::String(out))
-            }
-        },
+        Value::Func(_) => Ok(Value::String(item.repr())),
         Value::String(val) => Result::Ok(Value::String(val.to_string())),
         Value::Null => Result::Ok(Value::String("null".to_string())),
         Value::Array(_) => Ok(Value::String(item.repr())),
-        Value::Module(v) => Ok(Value::String(format!(
-            "[module {} with {} exports]",
-            v.name,
-            v.exports.len()
-        ))),
+        Value::Module(_) => Ok(Value::String(item.repr())),
         Value::Dict(_) => match item.dict_get(&Value::String("_str".to_string())).unwrap() {
             Some(v) => match v.as_ref() {
                 Value::String(v) => Ok(Value::String(v.to_string())),
@@ -422,7 +399,12 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
             },
             _ => Ok(Value::String(item.dict_display()?)),
         },
-        _ => todo!("{}", item.display()),
+        _ => {
+            return Err(VmError {
+                msg: format!("Illegal value received for repr(): {}", item.display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
     }
 }
 pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
@@ -704,8 +686,7 @@ fn vm_len(args: &[Value]) -> Result<Value, VmError> {
                         vec![Rc::new(args[0].clone())],
                     )), // TODO: perhaps find out how to not clone this
                     Value::Integer(v) => Ok(Value::Integer(*v)),
-                    _ => Ok(Value::Integer(d.len().try_into().unwrap()))
-                    
+                    _ => Ok(Value::Integer(d.len().try_into().unwrap())),
                 },
             }
         }
@@ -758,11 +739,47 @@ fn sub(a: Value, b: Value) -> Result<Value, VmError> {
 
 fn div(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
-        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va / vb)),
-        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va / *vb as f64)),
+        (Value::Integer(va), Value::Integer(vb)) => {
+            if *vb == 0 {
+                Err(VmError {
+                    msg: "Attempted to divide by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Integer(va / vb))
+            }
+        }
+        (Value::Float(va), Value::Integer(vb)) => {
+            if *vb == 0 {
+                Err(VmError {
+                    msg: "Attempted to divide by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Float(va / *vb as f64))
+            }
+        }
 
-        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Float(*va as f64 / vb)),
-        (Value::Float(va), Value::Float(vb)) => Ok(Value::Float(va / vb)),
+        (Value::Integer(va), Value::Float(vb)) => {
+            if *vb == 0.0 {
+                Err(VmError {
+                    msg: "Attempted to divide by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Float(*va as f64 / vb))
+            }
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            if *vb == 0.0 {
+                Err(VmError {
+                    msg: "Attempted to divide by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Float(va / vb))
+            }
+        }
 
         _ => Err(VmError {
             msg: format!(
@@ -776,15 +793,51 @@ fn div(a: Value, b: Value) -> Result<Value, VmError> {
 }
 fn vm_mod(a: Value, b: Value) -> Result<Value, VmError> {
     match (&a, &b) {
-        (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va % vb)),
-        (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va % *vb as f64)),
+        (Value::Integer(va), Value::Integer(vb)) => {
+            if *vb == 0 {
+                Err(VmError {
+                    msg: "Attempted to modulo by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Integer(va % vb))
+            }
+        }
+        (Value::Float(va), Value::Integer(vb)) => {
+            if *vb == 0 {
+                Err(VmError {
+                    msg: "Attempted to modulo by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Float(va % *vb as f64))
+            }
+        }
 
-        (Value::Integer(va), Value::Float(vb)) => Ok(Value::Float(*va as f64 % vb)),
-        (Value::Float(va), Value::Float(vb)) => Ok(Value::Float(va % vb)),
+        (Value::Integer(va), Value::Float(vb)) => {
+            if *vb == 0.0 {
+                Err(VmError {
+                    msg: "Attempted to modulo by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Float(*va as f64 % vb))
+            }
+        }
+        (Value::Float(va), Value::Float(vb)) => {
+            if *vb == 0.0 {
+                Err(VmError {
+                    msg: "Attempted to modulo by 0".to_string(),
+                    errcode: ErrCode::MathError,
+                })
+            } else {
+                Ok(Value::Float(va % vb))
+            }
+        }
 
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot apply modulo a {} with a {}",
+                "TypeError: Cannot modulo a {} with a {}",
                 a.display(),
                 b.display()
             ),
@@ -1014,10 +1067,7 @@ fn arr_pop(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
                 errcode: ErrCode::InvalidOperation,
             }),
         },
-        _ => Err(VmError {
-            msg: format!("Expected an array, got a {}", item.display()),
-            errcode: ErrCode::TypeError,
-        }),
+        _ => Err(VmError::make_type_error("array", &item)),
     }
 }
 fn arr_contains(item: ValueRef, args: &[ValueRef]) -> Result<ValueRef, VmError> {
@@ -1025,10 +1075,7 @@ fn arr_contains(item: ValueRef, args: &[ValueRef]) -> Result<ValueRef, VmError> 
     let cont = &args[0];
     match item.as_ref() {
         Value::Array(arr) => Ok(Rc::new(Value::Bool(arr.borrow().contains(cont)))),
-        _ => Err(VmError {
-            msg: format!("Expected an array, got a {}", item.display()),
-            errcode: ErrCode::TypeError,
-        }),
+        _ => Err(VmError::make_type_error("array", &item)),
     }
 }
 fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
@@ -1161,39 +1208,27 @@ fn arr_get(val: Rc<Value>, args: MethodArgs) -> MethodReturn {
             Some(v) => Ok(v.clone()),
             None => Ok(def),
         },
-        _ => Err(VmError {
-            msg: format!("Expected an array, not a {}", val.display()),
-            errcode: ErrCode::TypeError,
-        }),
+        _ => Err(VmError::make_type_error("array", &val)),
     }
 }
 
 fn str_strip(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     match val.as_ref() {
         Value::String(v) => Ok(Rc::new(Value::String(v.trim().to_string()))),
-        _ => Err(VmError {
-            msg: format!("Expected a string, not a {}.", val.display()),
-            errcode: ErrCode::TypeError,
-        }),
+        _ => Err(VmError::make_type_error("str", &val)),
     }
 }
 fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     match val.as_ref() {
         Value::String(v) => Ok(Rc::new(Value::String(v.to_uppercase()))),
-        _ => Err(VmError {
-            msg: format!("Expected a string, not a {}.", val.display()),
-            errcode: ErrCode::TypeError,
-        }),
+        _ => Err(VmError::make_type_error("str", &val)),
     }
 }
 
 pub fn str_lower(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     match val.as_ref() {
         Value::String(v) => Ok(Rc::new(Value::String(v.to_lowercase()))),
-        _ => Err(VmError {
-            msg: format!("Expected a string, not a {}.", val.display()),
-            errcode: ErrCode::TypeError,
-        }),
+        _ => Err(VmError::make_type_error("str", &val)),
     }
 }
 

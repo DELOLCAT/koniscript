@@ -173,7 +173,12 @@ fn run_function(
             match func(dereferenced_args.as_slice()) {
                 Ok(v) => match v {
                     Value::CallRequest(rec_func, args) => {
-                        return run_function(frames, mod_stack, Rc::new(Value::Func(rec_func.as_ref().clone())), args);
+                        return run_function(
+                            frames,
+                            mod_stack,
+                            Rc::new(Value::Func(rec_func.as_ref().clone())),
+                            args,
+                        );
                     }
                     _ => frames.last_mut().unwrap().stack.push(Rc::new(v)),
                 },
@@ -235,6 +240,43 @@ fn run_function(
         }
     }
 }
+
+fn into_int(val: &str) -> Result<i64, VmError> {
+    // TODO: Use this for more readable code
+    match val.parse::<i64>() {
+        Ok(v) => Ok(v),
+        Err(_) => Err(VmError {
+            msg: "Invalid bytecode".to_string(),
+            errcode: ErrCode::InvalidBytecode,
+        }),
+    }
+}
+
+fn into_usize(val: &str) -> Result<usize, VmError> {
+    match val.parse::<usize>() {
+        Ok(v) => Ok(v),
+        Err(_) => Err(VmError {
+            msg: "Invalid bytecode".to_string(),
+            errcode: ErrCode::InvalidBytecode,
+        }),
+    }
+}
+fn get_op(operators: &Vec<String>, idx: usize, name: &str) -> Result<String, VmError> {
+    match operators.get(idx) {
+        Some(v) => Ok(v.to_string()),
+        None => Err(VmError {
+            msg: format!("Expected an argument at {idx} for {name}"),
+            errcode: ErrCode::ValueError,
+        }),
+    }
+}
+fn get_op_int(operators: &Vec<String>, idx: usize, name: &str) -> Result<i64, VmError> {
+    return into_int(&get_op(operators, idx, name)?)
+}
+fn get_op_usize(operators: &Vec<String>, idx: usize, name: &str) -> Result<usize, VmError> {
+    return into_usize(&get_op(operators, idx, name)?)
+}
+
 impl VM {
     fn new(instructions: Vec<String>) -> Result<Self, VmError> {
         let mut const_table: Vec<Value> = vec![];
@@ -477,25 +519,6 @@ impl VM {
             }),
         }
     }
-    // fn into_int(&self, val: &String) -> Result<i64, VmError> { // TODO: Use this for more readable code
-    //     match val.parse::<i64>() {
-    //         Ok(v) => Ok(v),
-    //         Err(_) => Err(VmError {
-    //             msg: "Invalid bytecode".to_string(),
-    //             errcode: ErrCode::InvalidBytecode,
-    //         }),
-    //     }
-    // }
-
-    fn into_usize(&self, val: &String) -> Result<usize, VmError> {
-        match val.parse::<usize>() {
-            Ok(v) => Ok(v),
-            Err(_) => Err(VmError {
-                msg: "Invalid bytecode".to_string(),
-                errcode: ErrCode::InvalidBytecode,
-            }),
-        }
-    }
 
     fn run(&mut self) -> Result<i32, VmError> {
         while self.get_i() < self.ins.len() {
@@ -570,15 +593,7 @@ impl VM {
                     }
                 }
                 "BUILD_ARRAY" => {
-                    let ops = match operators.get(1) {
-                        Some(v) => v.parse::<usize>().unwrap(),
-                        None => {
-                            return Err(VmError {
-                                msg: "Expected 1 argument for BUILD_ARRAY".to_string(),
-                                errcode: ErrCode::ValueError,
-                            });
-                        }
-                    };
+                    let ops = get_op_usize(operators, 1, &"BUILD_ARRAY")?;
                     let mut items: Vec<ValueRef> = Vec::new();
                     for _ in 0..ops {
                         match self.frames.last_mut().unwrap().stack.pop() {
@@ -594,15 +609,7 @@ impl VM {
                     self.push_to_stack(Rc::new(Value::Array(Rc::new(RefCell::new(items)))));
                 }
                 "BUILD_DICT" => {
-                    let ops = match operators.get(1) {
-                        Some(v) => v.parse::<usize>().unwrap(),
-                        None => {
-                            return Err(VmError {
-                                msg: "Invalid bytecode".to_string(),
-                                errcode: ErrCode::InvalidBytecode,
-                            });
-                        }
-                    };
+                    let ops = get_op_int(operators, 1, &"BUILD_DICT")?;
                     let mut map: Vec<(ValueRef, ValueRef)> = vec![];
 
                     for _ in 0..ops {
@@ -891,12 +898,7 @@ impl VM {
                         }
                     };
 
-                    match run_function(
-                        &mut self.frames,
-                        &mut self.mod_stack,
-                        func,
-                        args,
-                    )? {
+                    match run_function(&mut self.frames, &mut self.mod_stack, func, args)? {
                         FncExit::Continue => continue,
                         FncExit::None => {}
                         FncExit::Exit(e) => return Ok(e),
@@ -1134,7 +1136,7 @@ impl VM {
                 "REQUIRE" => {
                     let mut broken = false;
                     for item in 1..operators.len() - 1 {
-                        match self.const_pool.get(self.into_usize(&operators[item])?) {
+                        match self.const_pool.get(into_usize(&operators[item])?) {
                             Some(v) => match v {
                                 Value::String(val) => {
                                     if !runtime::SUPPORTED_FEATURES.contains(val) {
@@ -1164,7 +1166,7 @@ impl VM {
                         }
                     }
                     if broken {
-                        let jmp_idx = self.into_usize(operators.last().unwrap())?; // Impossible for `.unwrap()` to panic in this area
+                        let jmp_idx = into_usize(operators.last().unwrap())?; // Impossible for `.unwrap()` to panic in this area
                         self.frames.last_mut().unwrap().i = jmp_idx;
                         continue;
                     }
