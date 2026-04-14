@@ -31,7 +31,7 @@ attr waldo on str # An attribute for strings (syntax tentative)
 
 These rules will be stored in `.omp` files, and imported through `@platform <name>`. Note that these files have no implementation, just definitions.
 
-These can also be imported using a standard import, like `import std::random`, so that you can have FFI libraries that are just defined via platform files.
+These can also be imported using a standard import, like `import std::random`, so that you can have FFI libraries that are just defined via platform files. They would be used as regular modules.
 
 The search paths will be the same as modules.
 
