@@ -28,7 +28,7 @@ async def build_rust():
             os.remove('dist\\vm.exe')
         shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\vm.exe')
     else:
-        shutil.move('omni_vm/target/release/omni_vm', 'dist/vm')
+        shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
 
 
 async def build_py():

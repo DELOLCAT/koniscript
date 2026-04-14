@@ -52,9 +52,9 @@ jobs:
         if: ${{ runner.os == 'Windows'}}
         shell: pwsh
         run: |
-          cp dist\omni.exe omni-windows.exe
-          cp dist\omvm.exe omvm-windows.exe
-          cp dist\omvm.exe src\omni_compiler\omvm.exe
+          cp omni.exe omni-windows.exe
+          cp dist\omvm omvm-windows.exe
+          cp dist\omvm src\omni_compiler\omvm.exe
         
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
