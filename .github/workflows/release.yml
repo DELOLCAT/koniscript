@@ -40,12 +40,13 @@ jobs:
 
       - name: Lint with ruff
         run: uvx ruff check src/omni_compiler/
+      - name: Install C compiler
+        run: sudo apt-get install -y gcc
+        if: ${{runner.os == 'Linux'}}
 
       - name: Build
-        run: uv run build.py
+        run: uv run build-nuitka.py
 
-      - name: Test with pytest
-        run: uv run pytest
         
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
@@ -68,7 +69,7 @@ jobs:
           cp dist/omni omni-macos
           cp dist/omvm omvm-macos
           cp dist/omvm src/omni_compiler/omvm
-
+        
       - name: Test with pytest
         run: uv run pytest
 
