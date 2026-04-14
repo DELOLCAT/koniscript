@@ -45,7 +45,7 @@ jobs:
         if: ${{runner.os == 'Linux'}}
 
       - name: Build
-        run: uv run build-nuitka.py
+        run: uv run build_nuitka.py
 
         
       - name: Copy build artifact per OS (Windows)
