@@ -40,35 +40,43 @@ jobs:
 
       - name: Lint with ruff
         run: uvx ruff check src/omni_compiler/
+      - name: Install C compiler
+        run: sudo apt-get install -y gcc
+        if: ${{runner.os == 'Linux'}}
+
+      - name: Cache Nuitka build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.omni.build
+          key: nuitka-${{ runner.os }}-${{ hashFiles('**/*.py') }}
+          restore-keys: |
+            nuitka-${{ runner.os }}-    
 
       - name: Build
-        run: uv run build.py
-
-      - name: Test with pytest
-        run: uv run pytest
-        
+        run: uv run build_nuitka.py
+      
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
         shell: pwsh
         run: |
-          cp dist\omni.exe omni-windows.exe
+          cp omni.exe omni-windows.exe
           cp dist\omvm.exe omvm-windows.exe
           cp dist\omvm.exe src\omni_compiler\omvm.exe
         
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: |
-          cp dist/omni omni-linux
+          cp omni.bin omni-linux
           cp dist/omvm omvm-linux
           cp dist/omvm src/omni_compiler/omvm
 
       - name: Copy build artifact per OS (macOS)
         if: ${{ runner.os == 'macOS'}}
         run: |
-          cp dist/omni omni-macos
+          cp omni.bin omni-macos
           cp dist/omvm omvm-macos
           cp dist/omvm src/omni_compiler/omvm
-
+        
       - name: Test with pytest
         run: uv run pytest
 

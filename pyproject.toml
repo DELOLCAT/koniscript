@@ -13,7 +13,7 @@ dependencies = [
 ]
 [project.optional-dependencies]
 nuitka = [
-    "nuitka>=4.0.3"
+    "nuitka[onefile]>=4.0.3"
 ]
 dev = [
     "pyperclip>=1.11.0",

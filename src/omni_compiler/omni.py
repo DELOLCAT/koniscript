@@ -268,7 +268,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
                 arr = f'{color}->{end_color}' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
-                    print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}') 
+                    print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}', file=sys.stderr) 
                 print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
         elif end_col is not None:
             from_lines = max(0, min(ln - 3, len(splitted)))

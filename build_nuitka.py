@@ -24,16 +24,16 @@ async def build_rust():
     await run('cd omni_vm && cargo build -r')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
-        if Path('dist\\vm.exe').exists():
-            os.remove('dist\\vm.exe')
-        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\vm.exe')
+        if Path('dist\\omvm.exe').exists():
+            os.remove('dist\\omvm.exe')
+        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\omvm.exe')
     else:
-        shutil.move('omni_vm/target/release/omni_vm', 'dist/vm')
+        shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
 
 
 async def build_py():
     await run('uv sync --extra nuitka')
-    await run('uv run nuitka --follow-imports --mode=onefile src/omni_compiler/omni.py')
+    await run('uv run nuitka --follow-imports --mode=onefile --assume-yes-for-downloads src/omni_compiler/omni.py')
 
 
 async def run_task(task):
