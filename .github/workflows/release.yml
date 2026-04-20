@@ -46,10 +46,7 @@ jobs:
 
       - name: Build
         run: uv run build_nuitka.py
-      - name: List files
-        shell: pwsh
-        run: Get-ChildItem -Recurse
-        
+      
       - name: Copy build artifact per OS (Windows)
         if: ${{ runner.os == 'Windows'}}
         shell: pwsh
