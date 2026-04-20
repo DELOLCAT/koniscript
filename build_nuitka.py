@@ -33,7 +33,7 @@ async def build_rust():
 
 async def build_py():
     await run('uv sync --extra nuitka')
-    await run('uv run nuitka --follow-imports --mode=onefile src/omni_compiler/omni.py')
+    await run('uv run nuitka --follow-imports --mode=onefile --assume-yes-for-downloads src/omni_compiler/omni.py')
 
 
 async def run_task(task):
