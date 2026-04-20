@@ -47,11 +47,11 @@ jobs:
       - name: Cache Nuitka build cache
         uses: actions/cache@v4
         with:
-          path: ~/.nuitka
+          path: ~/.omni.build
           key: nuitka-${{ runner.os }}-${{ hashFiles('**/*.py') }}
           restore-keys: |
             nuitka-${{ runner.os }}-    
-              
+
       - name: Build
         run: uv run build_nuitka.py
       
