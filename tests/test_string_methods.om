@@ -1,2 +1,2 @@
 'hi'.upper()
-print('hi'.upper())
+println('hi'.upper())
