@@ -347,22 +347,21 @@ pub enum ErrCode {
     InvalidArgCount = 1,
     ConversionNotPossible = 2,
     ConversionFailed = 3,
-    IncorrectType = 4,
-    IoError = 5,
-    InvalidBytecode = 6,
-    VariableNotFound = 7,
-    StackUnderflow = 8,
-    TypeError = 9,
-    FuncNameStr = 11,
-    InvalidLocal = 12,
-    CompatibilityError = 13,
-    NoCode = 14,
-    ValueError = 15,
-    AttributeError = 17,
-    ExitSignal(i32) = 18,
-    InvalidOperation = 19,
-    IndexError = 20,
-    MathError = 21,
+    IoError = 4,
+    InvalidBytecode = 5,
+    VariableNotFound = 6,
+    StackUnderflow = 7,
+    TypeError = 8,
+    FuncNameStr = 9,
+    InvalidLocal = 10,
+    CompatibilityError = 11,
+    NoCode = 12,
+    ValueError = 13,
+    AttributeError = 14,
+    ExitSignal(i32) = 15,
+    InvalidOperation = 16,
+    IndexError = 17,
+    MathError = 18,
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -542,7 +541,7 @@ pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
         _ => {
             return Err(VmError {
                 msg: format!("Expected integer or float, got {}", s.display()),
-                errcode: ErrCode::IncorrectType,
+                errcode: ErrCode::TypeError,
             });
         }
     }
