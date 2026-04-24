@@ -136,3 +136,12 @@ Used when you try to use a feature when you explicitly stated you won't:
     print(['foo', 'bar']) # <- Attempted using a(n) Array when it requires `types.arrays` in an illegal area
 }
 ```
+
+### 14. Break outside of loops
+
+Used when you use `break` outside of a loop:
+
+```omniscript
+println('This isn\'t a loop')
+break # <-
+```
