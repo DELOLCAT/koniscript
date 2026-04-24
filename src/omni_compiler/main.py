@@ -2120,7 +2120,7 @@ class Compiler:
         elif isinstance(node, Break):
             if len(self.break_stack) == 0:
                 raise CompilerError(
-                    14,
+                    15,
                     'Cannot break outside of a loop',
                     node.line,
                     node.col,

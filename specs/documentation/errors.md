@@ -5,7 +5,7 @@ This document describes the errors that can be raised by the compiler and VM in 
 
 ## Compiler Errors
 
-There are currently 14 compiler different errors. Each error has an error code, which is an integer from 1 to 14.
+This section is for errors raised by the compiler (`omni`)
 
 ### 1: Unterminated string literal
 
@@ -137,7 +137,7 @@ Used when you try to use a feature when you explicitly stated you won't:
 }
 ```
 
-### 14. Break outside of loops
+### 15. Break outside of loops
 
 Used when you use `break` outside of a loop:
 
