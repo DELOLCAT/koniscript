@@ -69,6 +69,7 @@ MOD = 'MOD'
 NULL = 'NULL'
 DICT_STARTER = 'DICT_STARTER'
 COLON = 'COLON'
+BREAK = 'BREAK'
 
 @dataclass
 class CompilationException(Exception):
@@ -113,7 +114,8 @@ KEYWORDS = {
     'export': EXPORT,
     '@': AT_RATE,
     'not': NOT,
-    'null': NULL
+    'null': NULL,
+    'break': BREAK
 }
 
 
@@ -818,6 +820,11 @@ class Parser:
         self.skip_newline()
         if self.current_token.type == RBRACE:
             return None
+        elif self.current_token.type == BREAK:
+            t = self.eat(BREAK)
+            ln = t.line
+            col = t.col
+            return Break(ln, col, self.current_token.line, self.current_token.col)
         elif self.current_token.type == AT_RATE:
             self.eat(AT_RATE)
             if self.current_token.value == 'require':
@@ -1122,7 +1129,9 @@ class BareRequire(ASTNode):
 @dataclass
 class Null(ASTNode):
     pass
-
+@dataclass
+class Break(ASTNode):
+    pass
 
 @dataclass
 class Import(ASTNode):
@@ -1328,6 +1337,7 @@ class Compiler:
         self.attrs: list[
             tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]
         ] = attrs
+        self.break_stack: list[list[int]] = []
         self.enter_scope()
 
     @dataclass
@@ -1945,10 +1955,14 @@ class Compiler:
         elif isinstance(node, While):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
+            self.break_stack.append([])
             yield from self.compile_ins(node.body)
             yield from self.compile_ins(node.expr)
             self.emit(node.line, 'JMPIF', jmp + 1)
-            self.code[jmp] = ('JMPIFF', len(self.code))
+            end = len(self.code)
+            self.code[jmp] = ('JMPIFF', end)
+            for break_statement in self.break_stack.pop():
+                self.code[break_statement] = ('JMP', end)
         elif isinstance(node, If):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -2103,13 +2117,27 @@ class Compiler:
             )
         elif isinstance(node, self.Module):
             pass
+        elif isinstance(node, Break):
+            if len(self.break_stack) == 0:
+                raise CompilerError(
+                    14,
+                    'Cannot break outside of a loop',
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
+                    self.mod_stack[-1].fp
+                )
+            else:
+                idx = self.emit(node.line, 'JMP', None)
+                self.break_stack[-1].append(idx)
         else:
             raise CompilerError(
                 13,
                 f'Did not implement {node} yet :<',
-                None,
-                None,
-                None,
-                None,
+                node.line,
+                node.col,
+                node.end_line,
+                node.end_col,
                 self.mod_stack[-1].fp,
             )
