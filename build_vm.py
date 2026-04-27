@@ -29,11 +29,11 @@ def build_rust():
             os.remove('dist\\vm.exe')
         shutil.move(
             f'kovm\\target\\{"debug" if debug else "release"}\\kovm.exe',
-            'dist\\omvm.exe',
+            'dist\\kkvm.exe',
         )
     else:
         shutil.move(
-            f'kovm/target/{"debug" if debug else "release"}/kovm', 'dist/omvm'
+            f'kovm/target/{"debug" if debug else "release"}/kovm', 'dist/kkvm'
         )
 
 

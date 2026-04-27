@@ -147,7 +147,7 @@ break # <-
 
 ## Runtime (VM) errors
 
-This section is for errors raised by the runtime (`omvm`)
+This section is for errors raised by the runtime (`kkvm`)
 
 ### 1: InvalidArgCount
 

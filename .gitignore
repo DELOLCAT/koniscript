@@ -14,7 +14,7 @@ wheels/
 /kovm/target/
 
 #Built
-src/koni_compiler/omvm*
+src/koni_compiler/kovm*
 #Other
 *.log
 

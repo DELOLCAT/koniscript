@@ -24,11 +24,11 @@ async def build_rust():
     await run('cd kovm && cargo build -r')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
-        if Path('dist\\omvm.exe').exists():
-            os.remove('dist\\omvm.exe')
-        shutil.move('kovm\\target\\release\\kovm.exe', 'dist\\omvm.exe')
+        if Path('dist\\kovm.exe').exists():
+            os.remove('dist\\kovm.exe')
+        shutil.move('kovm\\target\\release\\kovm.exe', 'dist\\kovm.exe')
     else:
-        shutil.move('kovm/target/release/kovm', 'dist/omvm')
+        shutil.move('kovm/target/release/kovm', 'dist/kovm')
 
 
 async def build_py():

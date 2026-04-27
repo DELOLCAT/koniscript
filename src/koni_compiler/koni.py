@@ -319,9 +319,9 @@ def run(
         f.write('\n'.join([str(x) for x in instructions]))
         # We need to close the file so that the subprocess can open it.
         f.close()
-        vm_path = shutil.which('omvm')
-        if (Path(__file__).parent / exec_name('omvm')).is_file():
-            vm_path = Path(__file__).parent / exec_name('omvm')
+        vm_path = shutil.which('kovm')
+        if (Path(__file__).parent / exec_name('kovm')).is_file():
+            vm_path = Path(__file__).parent / exec_name('kovm')
         elif vm_path is None:
             print(
                 '<red><b>Could not find `kovm` (koniscript VM), which is required to run programs'

@@ -35,14 +35,14 @@ Please note that at the moment, additional debug features such as a copy of the 
 
 #### Rust VM
 
-To run a compiled bytecode file, use the `omvm` executable:
+To run a compiled bytecode file, use the `kovm` executable:
 
 ```bash
 # First, build the VM
 uv run build_vm.py
 
 # Then, run the bytecode
-./dist/omvm run {filepath}.knc
+./dist/kovm run {filepath}.knc
 ```
 
 ### Development Conventions
