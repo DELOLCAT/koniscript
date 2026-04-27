@@ -130,10 +130,10 @@ Compiling with debug (source+line info). See `koni compile --help` for more info
 Wrote to examples/fib.knc
 ```
 
-To run compiled programs, use `omvm run`:
+To run compiled programs, use `kovm run`:
 
 ```bash
-$ omvm run ./examples/fib.knc
+$ kovm run ./examples/fib.knc
 55
 ```
 

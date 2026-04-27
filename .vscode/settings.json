@@ -48,7 +48,7 @@
         "noarchive",
         "nostd",
         "Nuitka",
-        "omvm",
+        "kovm",
         "onefile",
         "pathex",
         "peekable",

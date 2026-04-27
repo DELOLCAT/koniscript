@@ -25,9 +25,9 @@ async def build_rust():
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
-        shutil.move('kovm\\target\\release\\kovm.exe', 'dist\\omvm.exe')
+        shutil.move('kovm\\target\\release\\kovm.exe', 'dist\\kovm.exe')
     else:
-        shutil.move('kovm/target/release/kovm', 'dist/omvm')
+        shutil.move('kovm/target/release/kovm', 'dist/kovm')
 
 
 async def build_py():

@@ -47,7 +47,7 @@ jobs:
       - name: Cache Nuitka build cache
         uses: actions/cache@v4
         with:
-          path: ~/.omni.build
+          path: ~/.koni.build
           key: nuitka-${{ runner.os }}-${{ hashFiles('**/*.py') }}
           restore-keys: |
             nuitka-${{ runner.os }}-    
@@ -59,23 +59,23 @@ jobs:
         if: ${{ runner.os == 'Windows'}}
         shell: pwsh
         run: |
-          cp omni.exe omni-windows.exe
-          cp dist\omvm.exe omvm-windows.exe
-          cp dist\omvm.exe src\koni_compiler\omvm.exe
+          cp koni.exe koni-windows.exe
+          cp dist\kovm.exe kovm-windows.exe
+          cp dist\kovm.exe src\koni_compiler\kovm.exe
         
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: |
-          cp omni.bin omni-linux
-          cp dist/omvm omvm-linux
-          cp dist/omvm src/koni_compiler/omvm
+          cp koni.bin koni-linux
+          cp dist/kovm kovm-linux
+          cp dist/kovm src/koni_compiler/kovm
 
       - name: Copy build artifact per OS (macOS)
         if: ${{ runner.os == 'macOS'}}
         run: |
-          cp omni.bin omni-macos
-          cp dist/omvm omvm-macos
-          cp dist/omvm src/koni_compiler/omvm
+          cp koni.bin koni-macos
+          cp dist/kovm kovm-macos
+          cp dist/kovm src/koni_compiler/kovm
         
       - name: Test with pytest
         run: uv run pytest
@@ -84,12 +84,12 @@ jobs:
       - name: Upload artifact for release
         uses: actions/upload-artifact@v4
         with:
-          name: omni-${{ runner.os }}
+          name: koni-${{ runner.os }}
           path: |
-            ./omni-*.exe
-            ./omni-*
-            ./omvm-*.exe
-            ./omvm-*
+            ./koni-*.exe
+            ./koni-*
+            ./kovm-*.exe
+            ./kovm-*
 
 
   release:
