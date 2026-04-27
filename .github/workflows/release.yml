@@ -39,7 +39,7 @@ jobs:
         uses: MatteoH2O1999/setup-rust@v2.1.1
 
       - name: Lint with ruff
-        run: uvx ruff check src/omni_compiler/
+        run: uvx ruff check src/koni_compiler/
       - name: Install C compiler
         run: sudo apt-get install -y gcc
         if: ${{runner.os == 'Linux'}}
@@ -61,21 +61,21 @@ jobs:
         run: |
           cp omni.exe omni-windows.exe
           cp dist\omvm.exe omvm-windows.exe
-          cp dist\omvm.exe src\omni_compiler\omvm.exe
+          cp dist\omvm.exe src\koni_compiler\omvm.exe
         
       - name: Copy build artifact per OS (Linux)
         if: ${{ runner.os == 'Linux'}}
         run: |
           cp omni.bin omni-linux
           cp dist/omvm omvm-linux
-          cp dist/omvm src/omni_compiler/omvm
+          cp dist/omvm src/koni_compiler/omvm
 
       - name: Copy build artifact per OS (macOS)
         if: ${{ runner.os == 'macOS'}}
         run: |
           cp omni.bin omni-macos
           cp dist/omvm omvm-macos
-          cp dist/omvm src/omni_compiler/omvm
+          cp dist/omvm src/koni_compiler/omvm
         
       - name: Test with pytest
         run: uv run pytest

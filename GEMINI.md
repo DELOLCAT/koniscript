@@ -6,9 +6,9 @@ Please also read `README.md` as well.
 
 ## Project Overview
 
-This project is the implementation of the "OmniScript" programming language, a dynamic language with a simple virtual machine. The project is split into two main parts:
+This project is the implementation of the "koniscript" programming language, a dynamic language with a simple virtual machine. The project is split into two main parts:
 
-1. **Compiler:** Written in Python, it tokenizes, parses, and compiles OmniScript source code (`.om` files) into bytecode (`.omc` files).
+1. **Compiler:** Written in Python, it tokenizes, parses, and compiles koniscript source code (`.kn` files) into bytecode (`.knc` files).
 2. **Virtual Machine (VM):** Written in Rust, it executes the compiled bytecode.
 
 The main technologies used are Python 3.12+ and Rust. The Python part uses `typer` for the CLI, `rich` for formatted output, and `questionary` for interactive prompts. The Rust part uses `clap` for command-line argument parsing.
@@ -17,21 +17,21 @@ The main technologies used are Python 3.12+ and Rust. The Python part uses `type
 
 #### Python Compiler
 
-To compile a OmniScript source file, use the `omni.py` script:
+To compile a koniscript source file, use the `koni.py` script:
 
 ```bash
-uv run omni compile <file.om>
+uv run koni compile <file.kn>
 ```
 
-This will generate a `.omc` file with the same name as the source in the same directory as the source.
+This will generate a `.knc` file with the same name as the source in the same directory as the source.
 
-To run a OmniScript source file directly, which compiles and then executes it with the VM:
+To run a koniscript source file directly, which compiles and then executes it with the VM:
 
 ```bash
-uv run omni run <file.om>
+uv run koni run <file.kn>
 ```
 
-Please note that at the moment, additional debug features such as a copy of the source aren't available to the VM with `omni.py run`.
+Please note that at the moment, additional debug features such as a copy of the source aren't available to the VM with `koni.py run`.
 
 #### Rust VM
 
@@ -42,7 +42,7 @@ To run a compiled bytecode file, use the `omvm` executable:
 uv run build_vm.py
 
 # Then, run the bytecode
-./dist/omvm run {filepath}.omc
+./dist/omvm run {filepath}.knc
 ```
 
 ### Development Conventions

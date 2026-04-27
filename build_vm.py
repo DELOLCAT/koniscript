@@ -22,18 +22,18 @@ def run(cmd):
 
 
 def build_rust():
-    run(f'cd omni_vm && cargo build{" -r" if not debug else ""}')
+    run(f'cd kovm && cargo build{" -r" if not debug else ""}')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
         shutil.move(
-            f'omni_vm\\target\\{"debug" if debug else "release"}\\omni_vm.exe',
+            f'kovm\\target\\{"debug" if debug else "release"}\\kovm.exe',
             'dist\\omvm.exe',
         )
     else:
         shutil.move(
-            f'omni_vm/target/{"debug" if debug else "release"}/omni_vm', 'dist/omvm'
+            f'kovm/target/{"debug" if debug else "release"}/kovm', 'dist/omvm'
         )
 
 

@@ -1,4 +1,4 @@
-# The OmniScript Runtime
+# The koniscript Runtime
 
 ## Note that this spec is NOT stable, and NOT complete
 

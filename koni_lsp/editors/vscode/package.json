@@ -1,0 +1,55 @@
+{
+  "name": "koniscript",
+  "displayName": "koniscript",
+  "description": "koniscript language support",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "koniscript",
+        "aliases": [
+          "KoniScript",
+          "koniscript"
+        ],
+        "extensions": [
+          ".kn"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "icons/mini.svg",
+          "light": "icons/mini.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "koniscript",
+        "scopeName": "source.koniscript",
+        "path": "./syntaxes/koniscript.tmLanguage.json"
+      }
+    ]
+  },
+  "main": "./out/extension.js",
+  "dependencies": {
+    "typescript": "^6.0.2",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@types/vscode": "^1.109.0"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "lint": "eslint",
+    "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+    "test": "sh ./scripts/e2e.sh"
+  }
+}

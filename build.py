@@ -20,14 +20,14 @@ async def run(cmd):
 
 
 async def build_rust():
-    await run('cd omni_vm && cargo build -r')
+    await run('cd kovm && cargo build -r')
     os.makedirs('dist', exist_ok=True)
     if platform.system() == 'Windows':
         if Path('dist\\vm.exe').exists():
             os.remove('dist\\vm.exe')
-        shutil.move('omni_vm\\target\\release\\omni_vm.exe', 'dist\\omvm.exe')
+        shutil.move('kovm\\target\\release\\kovm.exe', 'dist\\omvm.exe')
     else:
-        shutil.move('omni_vm/target/release/omni_vm', 'dist/omvm')
+        shutil.move('kovm/target/release/kovm', 'dist/omvm')
 
 
 async def build_py():
