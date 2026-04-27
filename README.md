@@ -139,7 +139,7 @@ $ omvm run ./examples/fib.knc
 
 ## Roadmap
 
-View GithubMilestones (currently [v0.1.0](https://github.com/DELOLCAT/koniscript/milestone/1)) to see progress
+View GitHub Milestones (currently [v0.1.0](https://github.com/DELOLCAT/koniscript/milestone/1)) to see progress
 
 (completed features will be moved to [Currently Implemented Features](#currently-implemented-features))
 
