@@ -11,10 +11,10 @@ wheels/
 .venv
 
 #Rust
-/omni_vm/target/
+/kovm/target/
 
 #Built
-src/omni_compiler/omvm*
+src/koni_compiler/omvm*
 #Other
 *.log
 
@@ -23,10 +23,10 @@ tmp/
 /bench/
 
 #Nuitka
-omni.dist/
-omni.onefile-build/
-omni.build/
-omni.bin
+koni.dist/
+koni.onefile-build/
+koni.build/
+koni.bin
 
 #Compiled scripts
-*.omc
+*.knc

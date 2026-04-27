@@ -1,12 +1,12 @@
 # The Platform File Specification (tentative)
 
-This document describes how **platform files** will work in a future version of OmniScript (v0.2.0 or v0.3.0).
+This document describes how **platform files** will work in a future version of koniscript (v0.2.0 or v0.3.0).
 
 This is the second revision of this document.
 
 ## What are Platform Files
 
-Platform Files will be a way to port OmniScript to a new runtime. They will describe where functions and runtime values will live, describe macros that can output completely custom bytecode, and also requirements.
+Platform Files will be a way to port koniscript to a new runtime. They will describe where functions and runtime values will live, describe macros that can output completely custom bytecode, and also requirements.
 
 In other words, Platform Files are basically a blueprint for the compiler, or a machine-readable spec.
 
@@ -31,7 +31,7 @@ const TEST = 'any_type' # These get ignored by the version system, as it just re
 # The macro syntax isn't developed yet 
 ```
 
-These rules will be stored in `.omp` files, and imported through `@platform <name>`. Note that these files have no implementation, just definitions.
+These rules will be stored in `.knp` files, and imported through `@platform <name>`. Note that these files have no implementation, just definitions.
 
 These can also be imported using a standard import, like `import std::random`, so that you can have FFI libraries that are just defined via platform files. They would be used as regular modules.
 
@@ -88,7 +88,7 @@ Platform files can be used in 2 ways:
 
 This method allows one to use items directly.
 
-```omniscript
+```koniscript
 @platform arduino
 
 pin_mode(13, HIGH)
@@ -102,12 +102,12 @@ This method allows one to use a symbol as if it is in a library.
 
 This method will be used for certain libraries that should be implemented in a native language.
 
-If a library can be implemented in OmniScript, but could also seek performance gains in native code, there would be 2 suffixes:
+If a library can be implemented in koniscript, but could also seek performance gains in native code, there would be 2 suffixes:
 
-- `_uni`: Implemented in OmniScript. Hence, it is *uni*versal, working on (almost) all runtimes, provided they support any requirements used by it.
+- `_uni`: Implemented in koniscript. Hence, it is *uni*versal, working on (almost) all runtimes, provided they support any requirements used by it.
 - `_native`: Implemented in the runtime's language, so it would only work on platforms that adhere to that platform file.
 
-```omniscript
+```koniscript
 import std::json_native
 json_native::load("{'foo': 'bar'}")
 ```
@@ -116,6 +116,6 @@ json_native::load("{'foo': 'bar'}")
 
 There really is going to be one refactor, and it's for the good, which is replacing the hardcoded indexes for the prelude (`println()`, `input()`, etc.) to a platform file.
 
-In order to disable the `prelude.omp` file, you will add `@nostd` to your script.
+In order to disable the `prelude.knp` file, you will add `@nostd` to your script.
 
 As of now, the `prelude` file will reserve indexes from 0 to 30.

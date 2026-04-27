@@ -2,7 +2,7 @@
 
 
 a = Analysis( # type: ignore
-    ['src\\omni_compiler\\omni.py'],
+    ['src\\koni_compiler\\koni.py'],
     pathex=[],
     binaries=[],
     datas=[],
@@ -22,7 +22,7 @@ exe = EXE( # type: ignore
     a.binaries,
     a.datas,
     [],
-    name='omni',
+    name='koni',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

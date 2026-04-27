@@ -1,15 +1,15 @@
-# OmniScript: Write once, run wherever you want
+# koniscript: Write once, run wherever you want
 
-## NOTICE: OmniScript is still indev, expect breaking changes
+## NOTICE: koniscript is still indev, expect breaking changes
 
 For contributing, see [CONTRIBUTING.md](CONTRIBUTING.md)
 
-OmniScript is a dynamic programming language that focuses on these main features:
+koniscript is a dynamic programming language that focuses on these main features:
 
-- A ridiculously simple stack based VM (OmniVM) that you could implement almost anywhere - even in Scratch mods (currently only 19 instructions)
+- A ridiculously simple stack based VM (konivm, shortened to `kovm`) that you could implement almost anywhere - even in Scratch mods (currently only 19 instructions)
 - Readability of code
-- Ease of packaging (code compiles down to a single .omc bytecode file)
-- Compatibility: Supports @require flags (ex. @require fs, gui) so OmniScript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future. This also means that runtimes can be even smaller, and also on embedded systems.
+- Ease of packaging (code compiles down to a single .knc bytecode file)
+- Compatibility: Supports @require flags (ex. @require fs, gui) so koniscript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future. This also means that runtimes can be even smaller, and also on embedded systems.
 
 ## Currently implemented features
 
@@ -25,7 +25,7 @@ OmniScript is a dynamic programming language that focuses on these main features
 
 ### Writing a program
 
-Since OmniScript is still in early development, there aren't many features.
+Since koniscript is still in early development, there aren't many features.
 
 - Types: `'string'`, integer: `2`, float: `3.14`, and booleans `true`/`false`
 - Functions: `name(args)`
@@ -33,26 +33,26 @@ Since OmniScript is still in early development, there aren't many features.
 
 Example:
 
-```omniscript
+```koniscript
 println('foo, bar', ' baz') # The println function takes multiple arguments, and concatenates them with a space
 ```
 
 - Variables:
 
-```omniscript
+```koniscript
 this_is_a_var = 'foo'
 println(this_is_a_var)
 ```
 
 - Arithmetic:
 
-```omniscript
+```koniscript
 println(5 + 5 / 2)
 ```
 
 - Conditionals:
 
-```omniscript
+```koniscript
 num = input('Enter a number\n>>> ') # The input function prints a message and waits for user input, returning the input given by the user.
 
 println(num == 5)
@@ -67,7 +67,7 @@ if num == 5 {
 
 - Functions (and recursion):
 
-```omniscript
+```koniscript
 func fib(n) {
   if n <= 1 {
     return n
@@ -80,7 +80,7 @@ println(fib(10)) # => 55
 
 - Requirements:
 
-```omniscript
+```koniscript
 @require strings.methods, attributes # A bare require statement will cause the VM to exit when starting to execute.
 println('hi'.upper())
 
@@ -97,16 +97,16 @@ println('hi'.upper())
 
 - Imports:
 
-main.om
+main.kn
 
-```omniscript
+```koniscript
 import some_mod
 println(some_mod.hi())
 ```
 
-some_mod.om
+some_mod.kn
 
-```omniscript
+```koniscript
 export func hi() {
   println('Hello from some_mod!')
   return 'some value'
@@ -115,31 +115,31 @@ export func hi() {
 
 ### CLI
 
-To run a program, use `omni run`:
+To run a program, use `koni run`:
 
 ```bash
-$ omni run examples/fib.om 
+$ koni run examples/fib.kn 
 55
 ```
 
-To compile a program, use `omni compile`:
+To compile a program, use `koni compile`:
 
 ```bash
-$ omni compile examples/fib.om
-Compiling with debug (source+line info). See `omni compile --help` for more info
-Wrote to examples/fib.omc
+$ koni compile examples/fib.kn
+Compiling with debug (source+line info). See `koni compile --help` for more info
+Wrote to examples/fib.knc
 ```
 
 To run compiled programs, use `omvm run`:
 
 ```bash
-$ omvm run ./examples/fib.omc
+$ omvm run ./examples/fib.knc
 55
 ```
 
 ## Roadmap
 
-View GithubMilestones (currently [v0.1.0](https://github.com/DELOLCAT/OmniScript/milestone/1)) to see progress
+View GithubMilestones (currently [v0.1.0](https://github.com/DELOLCAT/koniscript/milestone/1)) to see progress
 
 (completed features will be moved to [Currently Implemented Features](#currently-implemented-features))
 
@@ -175,8 +175,8 @@ v0.3.0
 Clone the repo:
 
 ```bash
-git clone https://github.com/DELOLCAT/OmniScript.git
-cd OmniScript
+git clone https://github.com/DELOLCAT/koniscript.git
+cd koniscript
 ```
 
 Run `build.py` with `uv`:

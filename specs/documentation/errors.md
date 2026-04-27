@@ -1,101 +1,100 @@
-<!-- TODO -->
-# Compiler and VM Errors in OmniScript
+# Compiler and VM Errors in koniscript
 
-This document describes the errors that can be raised by the compiler and VM in OmniScript.
+This document describes the errors that can be raised by the compiler and VM in koniscript.
 
 ## Compiler Errors
 
-This section is for errors raised by the compiler (`omni`)
+This section is for errors raised by the compiler (`koni`)
 
 ### 1: Unterminated string literal
 
 Used when a string doesn't terminate (end)
 
-```omniscript
+```koniscript
 print('this string never ends)
 ```
 
 ### 2: Unexpected Character
 
-Used when the tokenizer reaches a character that isn't even used in OmniScript
+Used when the tokenizer reaches a character that isn't even used in koniscript
 
-```omniscript
+```koniscript
 ifa 5 == 5 {
 # ^
     print('What did you expect?')
 }
 ```
 
-### 3. Unexpected Token
+### 3: Unexpected Token
 
 Used when the parser reaches a token that is unexpected depending on the situation
 
-```omniscript
+```koniscript
 if {
 #  ^ the `LBRACE` token is unexpected
 
 }
 ```
 
-### 4. Expected identifier after `.`
+### 4: Expected identifier after `.`
 
 Used when an identifier isn't used after a `.` (attribute)
 
-```omniscript
+```koniscript
 a = 'hi'
 a.
 ```
 
 or
 
-```omniscript
+```koniscript
 a = 'hi'
 a.2
 ```
 
-### 5. Cannot export anything other than an assignment or function
+### 5: Cannot export anything other than an assignment or function
 
 Used when you attempt to export anything other than an assignment or function:
 
-```omniscript
+```koniscript
 export "foo"
 ```
 
-### 6. Module not found
+### 6: Module not found
 
 Used when the compiler can't find an imported module
 
-```omniscript
+```koniscript
 import foo # But `foo` doesn't exist, or is put in a place where the compiler can't find it
 ```
 
-### 7. Cannot have a non-optional argument after an optional argument
+### 7: Cannot have a non-optional argument after an optional argument
 
 Used when you use a regular argument after an optional argument:
 
-```omniscript
+```koniscript
 func foo(a='bar', b) {
     # ...
 }
 ```
 
-### 8. No source
+### 8: No source
 
 Used when the compiler is told to include source info, but doesn't receive it (internal)
 
-### 9. Variable not declared
+### 9: Variable not declared
 
 Used when you use a variable (or function) before declaring it
 
-```omniscript
+```koniscript
 print(a) # But a was never declared (a='foo' was never ran)
 ```
 
-### 11. Invalid arg count (10 was removed)
+### 11: Invalid arg count (10 was removed)
 
 Used when you provide too less or too many arguments to a function:
 
-```omniscript
+```koniscript
 func foo() { # No arguments
 
 }
@@ -105,7 +104,7 @@ foo('bar') # <- Expected exactly 0 arguments, got 1
 
 or
 
-```omniscript
+```koniscript
 func foo(bar='baz') {
 
 }
@@ -113,23 +112,23 @@ func foo(bar='baz') {
 foo('bar', 'baz') # <- Expected 0 to 1 arguments, got 2
 ```
 
-### 12. Attribute not found
+### 12: Attribute not found
 
 Used when you use an attribute that doesn't exist:
 
-```omniscript
+```koniscript
 'hi'.non_existent() <- Could not find attribute non_existent:
 ```
 
-### 13. Internal Error
+### 13: Internal Error
 
 An internal error. Should not be raised under any circumstance. Report immediately  
 
-### 14. Attempted using a requirement where it isn't allowed
+### 14: Attempted using a requirement where it isn't allowed
 
 Used when you try to use a feature when you explicitly stated you won't:
 
-```omniscript
+```koniscript
 @require types.arrays {
     # ...
 } else {
@@ -137,11 +136,207 @@ Used when you try to use a feature when you explicitly stated you won't:
 }
 ```
 
-### 15. Break outside of loops
+### 15: Break outside of loops
 
 Used when you use `break` outside of a loop:
 
-```omniscript
+```koniscript
 println('This isn\'t a loop')
 break # <-
+```
+
+## Runtime (VM) errors
+
+This section is for errors raised by the runtime (`omvm`)
+
+### 1: InvalidArgCount
+
+Used when you supply an invalid number of arguments to a function:
+
+```koniscript
+func foo(bar) {
+    # ...
+}
+a = foo
+a() # <- 0 arguments, and the compiler cannot catch this as of now
+```
+
+### 2: ConversionNotPossible
+
+Used when types cannot be casted no matter what:
+
+```koniscript
+func foo() {
+    # ...
+}
+println(to_int(foo)) # <- Functions can't be converted to integers
+```
+
+### 3: ConversionFailed
+
+Used when types can be casted, but failed:
+
+```koniscript
+println(to_int('foo')) # <- Strings can be casted, but this isn't a valid int
+```
+
+### 4: IoError
+
+Used when the runtime experiences an error with IO, like failing to flush standard output (note that the runtime hasn't implemented this for regular `println` yet): <!--TODO: add regular `println` support -->
+
+```koniscript
+print('hello') # But this script has been ran in a pipe that has closed
+```
+
+### 5: Invalid Bytecode
+
+Used when the runtime finds an invalid instruction. Should ***NOT*** be raised normally:
+
+(note that the following is compiled):
+
+```omc
+JMP
+```
+
+As you can see above, there is no target to jump to
+
+### 6: Variable Not Found
+
+Used when the runtime reaches a variable that hasn't been declared in the current scope. Note that the compiler would prevent this from happening, except in this edge case, as closures aren't fully implemented yet:
+
+```koniscript
+func make_counter() {
+    x = 0 # <- Could not find a variable at slot `x:x`, where both `x`es are integers
+    func count() {
+        x += 1
+        return x
+    }
+    return count
+}
+
+a = make_counter()
+println(a())
+println(a())
+```
+
+### 7: StackUnderflow
+
+Used when the runtime attempts to pop the stack, but it is empty. This should ***NOT*** be raised in normal circumstances, so this example is for compiled code:
+
+```omc
+PUSH_CONST 0
+ADD
+```
+
+Above, the `ADD` instruction will attempt to pop 2 values, but only 1 was pushed
+
+### 8: TypeError
+
+Used when something expects a certain type, but got something else:
+
+```koniscript
+println(len(2)) # You cannot find the `len` of an `int`
+```
+
+### 9: FuncNameStr
+
+Used when a function with a non-string name is found. This should ***NOT*** be raised in normal circumstances. For instance, if the name is stored in the constant pool at `2` and the runtime finds an `int` instead of a `str`, this error would be raised.
+
+### 10: InvalidLocal
+
+Used when a variable is fetched with an invalid local index. This should ***NOT*** be raised in normal circumstances (although there is a known edge case, discussed [in this error](#6-variable-not-found)).
+
+For instance, let's say that we have this variable table:
+
+```none
+Frame 0:
+    0: string 'foo'
+    1: int '5'
+Frame 1:
+    0: string 'bar'
+```
+
+And you attempt to fetch `1:1`. The second number is the local index, which, as you can see, there is only 1 local at `0`.
+
+### 11: CompatibilityError
+
+Used when the VM attempts to run code that requires a feature which it doesn't support, or uses a platform file (future, see the [Platform Files Specification](../future/platform_files.md)) that it doesn't support.
+
+For instance, let's say that we have a program with this:
+
+```koniscript
+@require arrays
+
+a = [
+    'foo',
+    'bar',
+    'baz'
+]
+```
+
+But, we're running on a very limited runtime. When the runtime opens the file, it will see
+
+```omc
+.reqs arrays
+```
+
+And completely stop, not even beginning the program
+
+### 12: NoCode
+
+Used when the runtime opens a file with no `.code` segment. This error should ***NOT*** be raised under normal circumstances, so this example is compiled:
+
+```omc
+.version
+ENV 1
+ISA 1
+.frame 0 
+.const
+2;foo;
+```
+
+As you can see, above the `.code` segment was never started, which it usually would after `.const`.
+
+### 13: ValueError (will be replaced by more descriptive errors)
+
+Used when the runtime cannot find a value.
+
+There is no example, as when this error code is raised is quite scattered and generic
+
+### 14: AttributeError
+
+Used when an attribute cannot be found for an item:
+
+```koniscript
+'foo'.bar() # <- The attribute `bar` doesn't exist
+```
+
+### 15: ExitSignal
+
+Internal. Used when a builtin wants to exit the VM. This may not exist in other implementations
+
+### 16: InvalidOperation
+
+Used when you do an operation that cannot be done:
+
+```koniscript
+[].pop() # <- Cannot `pop()` from an empty array
+```
+
+### 17: IndexError
+
+Used when an index is out of range or doesn't exist:
+
+```koniscript
+a = []
+
+a[0] # <- Index 0 out of range
+```
+
+### 18: MathError
+
+Used during certain calculations when they are mathematically impossible or undefined:
+
+```koniscript
+println(5/0) # <- Attempted to divide by 0
 ```

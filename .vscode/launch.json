@@ -4,7 +4,7 @@
           "name": "Debug Rust (CodeLLDB)",
           "type": "lldb",
           "request": "launch",
-          "program": "${workspaceFolder}/omni_vm/target/debug/omni_vm",
+          "program": "${workspaceFolder}/kovm/target/debug/kovm",
           "args": [
             "run",
             "${workspaceFolder}/test.rvm"
@@ -16,11 +16,11 @@
             "name": "Compiler",
             "type": "debugpy",
             "request": "launch",
-            "program": "./src/omni_compiler/omni.py",
+            "program": "./src/koni_compiler/koni.py",
             "console": "integratedTerminal",
             "args": [
                 "compile",
-                "tmp/new.om"
+                "tmp/new.kn"
             ],
         },
     ]

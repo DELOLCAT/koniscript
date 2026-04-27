@@ -4,8 +4,8 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
-    "omni-compiler",
-    "omni-script",
+    "koni-compiler",
+    "koni-script",
 ]
 
 [[package]]
@@ -91,6 +91,57 @@ wheels = [
 ]
 
 [[package]]
+name = "koni-compiler"
+version = "0.1.0"
+source = { virtual = "src/koni_compiler" }
+dependencies = [
+    { name = "ansimarkup" },
+    { name = "pyinstaller" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ansimarkup", specifier = ">=2.2.0" },
+    { name = "pyinstaller", specifier = ">=6.19.0" },
+    { name = "typer", specifier = ">=0.24.1" },
+]
+
+[[package]]
+name = "koni-script"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "ansimarkup" },
+    { name = "pygls" },
+    { name = "pyinstaller" },
+    { name = "pytest" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pyperclip" },
+    { name = "questionary" },
+]
+nuitka = [
+    { name = "nuitka", extra = ["onefile"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ansimarkup", specifier = ">=2.2.0" },
+    { name = "nuitka", extras = ["onefile"], marker = "extra == 'nuitka'", specifier = ">=4.0.3" },
+    { name = "pygls", specifier = ">=2.0.1" },
+    { name = "pyinstaller", specifier = ">=6.19.0" },
+    { name = "pyperclip", marker = "extra == 'dev'", specifier = ">=1.11.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "questionary", marker = "extra == 'dev'", specifier = ">=2.1.1" },
+    { name = "typer", specifier = ">=0.24.1" },
+]
+provides-extras = ["nuitka", "dev"]
+
+[[package]]
 name = "lsprotocol"
 version = "2025.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -146,57 +197,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/ba/f1/ef78e6915c025d2c4
 onefile = [
     { name = "zstandard" },
 ]
-
-[[package]]
-name = "omni-compiler"
-version = "0.1.0"
-source = { virtual = "src/omni_compiler" }
-dependencies = [
-    { name = "ansimarkup" },
-    { name = "pyinstaller" },
-    { name = "typer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ansimarkup", specifier = ">=2.2.0" },
-    { name = "pyinstaller", specifier = ">=6.19.0" },
-    { name = "typer", specifier = ">=0.24.1" },
-]
-
-[[package]]
-name = "omni-script"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "ansimarkup" },
-    { name = "pygls" },
-    { name = "pyinstaller" },
-    { name = "pytest" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pyperclip" },
-    { name = "questionary" },
-]
-nuitka = [
-    { name = "nuitka", extra = ["onefile"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ansimarkup", specifier = ">=2.2.0" },
-    { name = "nuitka", extras = ["onefile"], marker = "extra == 'nuitka'", specifier = ">=4.0.3" },
-    { name = "pygls", specifier = ">=2.0.1" },
-    { name = "pyinstaller", specifier = ">=6.19.0" },
-    { name = "pyperclip", marker = "extra == 'dev'", specifier = ">=1.11.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "questionary", marker = "extra == 'dev'", specifier = ">=2.1.1" },
-    { name = "typer", specifier = ">=0.24.1" },
-]
-provides-extras = ["nuitka", "dev"]
 
 [[package]]
 name = "packaging"
