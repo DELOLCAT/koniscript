@@ -1,40 +1,46 @@
-# koniscript: Write once, run wherever you want
+   <!-- markdownlint-disable MD033 MD041 -->
+<div style='text-align: center;'>
+<img src='icons/full.svg' alt='koniscript logo'><br/>
+Simple · Readable · Cross-Platform · Dynamic
+</div>
 
-## NOTICE: koniscript is still indev, expect breaking changes
+---
 
-For contributing, see [CONTRIBUTING.md](CONTRIBUTING.md)
+⚠️ **NOTICE: koniscript is still in early development, expect breaking changes**
+
+---
+
+## AI Policy
+
+If you don't plan on contributing, continue to the [next heading](#about).
+
+I am quite strict about AI use in programming. I have supplied a `GEMINI.md` file (you can rename to `agents.md`) for agents, as they can be quite useful for finding the origin of a bug, reviewing code, suggesting enhancements, and also writing tests. I've also added `sourcery-ai` to this repo, as it's code reviews can also be nice.
+
+However, I do NOT like using AI for anything more than above. If a PR is LLM generated, or violates any of the guidelines above, it would get discarded (although any ideas it created may be considered).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more info
+
+## About
 
 koniscript is a dynamic programming language that focuses on these main features:
 
-- A ridiculously simple stack based VM (konivm, shortened to `kovm`) that you could implement almost anywhere - even in Scratch mods (currently only 19 instructions)
+- A ridiculously simple stack based VM (konivm, shortened to `kovm`) that you could implement almost anywhere - even in Scratch mods. The instruction set only has 14 required instructions, and 7 optional ones (managed through [`@require` flags](#compat))
 - Readability of code
-- Ease of packaging (code compiles down to a single .knc bytecode file)
-- Compatibility: Supports @require flags (ex. @require fs, gui) so koniscript can work smoothly across multiple runtime environments. This system is indev, so expect better features in the near future. This also means that runtimes can be even smaller, and also on embedded systems.
-
-## Currently implemented features
-
-- Variables
-- Functions
-- Basic builtins (print, println, input, to_(type))
-- Arrays (methods indev)
-- The requirements syntax
-- Stack traces
-- Optional function arguments
+- Single file packaging - code compiles down to a single .knc bytecode file
+- <a id='compat'>@require flags (ex. `@require fs, gui`, see the [syntax example](#writing-a-program) for more) so koniscript can work smoothly across multiple runtime environments. This also means that runtimes can be even smaller, and also on embedded systems.
 
 ## Usage
 
 ### Writing a program
 
-Since koniscript is still in early development, there aren't many features.
-
 - Types: `'string'`, integer: `2`, float: `3.14`, and booleans `true`/`false`
-- Functions: `name(args)`
+- Function calls: `name(args)`
 - Comments (multi-line soon): `# I am a comment`
 
-Example:
+For example, using the above:
 
 ```koniscript
-println('foo, bar', ' baz') # The println function takes multiple arguments, and concatenates them with a space
+println('foo, bar', 'baz') # The println function takes multiple arguments, and concatenates them with a space
 ```
 
 - Variables:
@@ -65,6 +71,18 @@ if num == 5 {
 }
 ```
 
+- While loops
+
+```koniscript
+i = 0
+while i < 5 {
+  println(i)
+  i+=1
+}
+```
+
+The `break` keyword is also supported
+
 - Functions (and recursion):
 
 ```koniscript
@@ -76,6 +94,23 @@ func fib(n) {
 }
 
 println(fib(10)) # => 55
+```
+
+Functions are also first class
+
+```koniscript
+func run_with_message(f) {
+  println('Running...')
+  val = f() # Note that this will raise a warning, as the compiler can't check the number of arguments. This will be fixed when the type checker is released.
+  println('Completed!')
+  return val
+}
+
+func some_callback() {
+  print('Hello from the inner callback!')
+}
+
+run_with_message(some_callback)
 ```
 
 - Requirements:
@@ -93,6 +128,42 @@ println('hi'.upper())
 
 @require indexes # All bare require statements are collected. This whole program will fail on launch if the runtime doesn't support indexes
 # ...
+```
+
+Note that using a feature that is under a requirement will implicitly add the requirement and raise a warning, telling you to make it explicit.
+
+- Arrays:
+
+```koniscript
+@require types.arrays
+
+a = [
+  'foo',
+  'bar'
+]
+
+println(a[0]) # => foo
+
+a.push('baz')
+
+println(a) # => ['foo', 'bar', 'baz']
+```
+
+- Dictionaries (indev)
+
+```koniscript
+@require types.dicts
+
+a = %{
+  'foo': 'bar',
+  'baz': 5,
+  5: 'boo'
+}
+
+println(a['foo']) # => bar
+println(a.foo) # => bar
+
+println(a.baz) # => 5
 ```
 
 - Imports:
@@ -113,6 +184,19 @@ export func hi() {
 }
 ```
 
+- Runtime values:
+
+```koniscript
+@require runtime_values # Note that runtime values can change during runtime, thus they may be too complex for some runtimes to implement
+func main() {
+  println('Hello from my program')
+}
+
+if _name == '[main]' {
+  main()
+}
+```
+
 ### CLI
 
 To run a program, use `koni run`:
@@ -130,38 +214,30 @@ Compiling with debug (source+line info). See `koni compile --help` for more info
 Wrote to examples/fib.knc
 ```
 
-To run compiled programs, use `kkvm run`:
+To run compiled programs, use `kvm run`:
 
 ```bash
-$ kkvm run ./examples/fib.knc
+$ kvm run ./examples/fib.knc
 55
 ```
 
 ## Roadmap
 
-View GitHub Milestones (currently [v0.1.0](https://github.com/DELOLCAT/koniscript/milestone/1)) to see progress
+View GitHub Milestones (currently [v0.1.0](https://github.com/DELOLCAT/koniscript/milestone/1)) to see the full roadmap with versions and progress.
 
-(completed features will be moved to [Currently Implemented Features](#currently-implemented-features))
+Here are some features that are planned in the future:
 
-v0.1.0
+### Platform Files
 
-- A Better requirements system
-- Better compiler error messages
-- More advanced imports
-- For loops
+A cross-platform, language agnostic, simple way for FFI, with a smart but simple versioning system (yes, I'm proud of that); see the [full spec](specs/future/platform_files.md) for more.
 
-v0.2.0
+### A type checker
 
-- Dynamic modules
-- Dictionaries
-- A better standard library (though certain imports, like fs, would need an @require flag)
-- An (optional for max compatibility) binary bytecode format
+Not much to write here, it'll just be a type checker similar to TypeScript.
 
-v0.3.0
+### Airport
 
-- Classes (via prototypes)
-- A REPL
-- Async support (through an @require flag)
+A platform manager focusing on DX. Full spec to be written
 
 ## Build
 
