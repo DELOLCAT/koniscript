@@ -24,10 +24,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more info
 
 koniscript is a dynamic programming language that focuses on these main features:
 
-- A ridiculously simple stack based VM (konivm, shortened to `kovm`) that you could implement almost anywhere - even in Scratch mods. The instruction set only has 14 required instructions, and 7 optional ones (managed through [`@require` flags](#compat))
+- A ridiculously simple stack based VM (konivm, shortened to `kovm`) that you could implement almost anywhere - even in Scratch mods. The instruction set only has 14 required instructions, and 7 optional ones (managed through `@require` flags)
 - Readability of code
 - Single file packaging - code compiles down to a single .knc bytecode file
-- <a id='compat'>@require flags (ex. `@require fs, gui`, see the [syntax example](#writing-a-program) for more) so koniscript can work smoothly across multiple runtime environments. This also means that runtimes can be even smaller, and also on embedded systems.
+- Compatibility, with @require flags (ex. `@require fs, gui`, see the [syntax example](#writing-a-program) for more) so koniscript can work smoothly across multiple runtime environments. This also means that runtimes can be even smaller, and also on embedded systems.
 
 ## Usage
 
@@ -223,7 +223,7 @@ $ kvm run ./examples/fib.knc
 
 ## Roadmap
 
-View GitHub Milestones (currently [v0.1.0](https://github.com/DELOLCAT/koniscript/milestone/1)) to see the full roadmap with versions and progress.
+View [GitHub Milestones](https://github.com/DELOLCAT/koniscript/milestones/) to see the full roadmap with versions and progress.
 
 Here are some features that are planned in the future:
 
