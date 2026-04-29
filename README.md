@@ -229,7 +229,7 @@ Here are some features that are planned in the future:
 
 ### Platform Files
 
-A cross-platform, language agonistic, simple way for FFI, with a smart but simple versioning system (yes, I'm proud of that) See the [full spec](specs/future/platform_files.md) for more.
+A cross-platform, language agnostic, simple way for FFI, with a smart but simple versioning system (yes, I'm proud of that); see the [full spec](specs/future/platform_files.md) for more.
 
 ### A type checker
 
