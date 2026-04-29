@@ -1,5 +1,5 @@
    <!-- markdownlint-disable MD033 MD041 -->
-<div style='text-align: center;'>
+<div align='center'>
 <img src='icons/full.svg' alt='koniscript logo'><br/>
 Simple · Readable · Cross-Platform · Dynamic
 </div>
