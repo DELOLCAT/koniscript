@@ -187,7 +187,7 @@ export func hi() {
 - Runtime values:
 
 ```koniscript
-@require runtime_values # Note that runtime values can change during runtime, thus they may be to complex for some runtimes to implement
+@require runtime_values # Note that runtime values can change during runtime, thus they may be too complex for some runtimes to implement
 func main() {
   println('Hello from my program')
 }
