@@ -101,7 +101,7 @@ Functions are also first class
 ```koniscript
 func run_with_message(f) {
   println('Running...')
-  val = f() # Note that this will raise a warning, as the compiler can't check the amount of arguments. This will be fixed when the type checker will release
+  val = f() # Note that this will raise a warning, as the compiler can't check the number of arguments. This will be fixed when the type checker is released.
   println('Completed!')
   return val
 }
