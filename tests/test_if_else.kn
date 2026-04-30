@@ -1,5 +1,3 @@
-# Note: bare if without else currently has issues in the VM
-# Testing if/else and if/elif/else chains
 x = 5
 if x == 5 {
     println('equal')
@@ -13,4 +11,8 @@ if x > 10 {
     println('medium')
 } else {
     println('small')
+}
+
+if false {
+    println('nope')
 }
