@@ -1,0 +1,15 @@
+x = 5
+x += 3
+println(x)
+
+y = 10
+y -= 4
+println(y)
+
+z = 2
+z *= 3
+println(z)
+
+w = 12
+w /= 4
+println(w)

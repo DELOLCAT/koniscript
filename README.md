@@ -14,9 +14,11 @@ Simple · Readable · Cross-Platform · Dynamic
 
 If you don't plan on contributing, continue to the [next heading](#about).
 
-I am quite strict about AI use in programming. I have supplied a `GEMINI.md` file (you can rename to `agents.md`) for agents, as they can be quite useful for finding the origin of a bug, reviewing code, suggesting enhancements, and also writing tests. I've also added `sourcery-ai` to this repo, as it's code reviews can also be nice.
+<!-- NOTE: if you update this, don't forget to update the rules in CONTRIBUTING.md -->
 
-However, I do NOT like using AI for anything more than above. If a PR is LLM generated, or violates any of the guidelines above, it would get discarded (although any ideas it created may be considered).
+I am quite strict about AI use in programming. I have supplied a `GEMINI.md` file (you can rename to `agents.md` for support with other tools) for agents, as they can be quite useful for finding the origin of a bug, reviewing code, suggesting enhancements, and also writing tests. I've also added `sourcery-ai` to this repo, as its code reviews can also be nice.
+
+However, I do NOT like using AI for anything more than above. If a PR is LLM generated, or violates any of the guidelines above, it would get discarded, although any ideas it created may be considered. Anybody can type out prompts - that's not useful, but everybody can't review code that clearly has low quality, not aligned with goals, or are created by people that don't even know how the code works.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more info
 
@@ -101,7 +103,7 @@ Functions are also first class
 ```koniscript
 func run_with_message(f) {
   println('Running...')
-  val = f() # Note that this will raise a warning, as the compiler can't check the number of arguments. This will be fixed when the type checker is released.
+val = f() # Note that this will raise a warning, as the compiler can't check the number of arguments. This will be fixed when the type checker is released.
   println('Completed!')
   return val
 }

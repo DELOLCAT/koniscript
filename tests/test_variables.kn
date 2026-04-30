@@ -1,0 +1,12 @@
+x = 5
+println(x)
+
+y = 'hello'
+println(y)
+
+x = 10
+println(x)
+
+a = 2
+b = 3
+println(a + b)
