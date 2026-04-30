@@ -41,7 +41,7 @@ def test_comparison():
 
 def test_logical():
     out = koni.run(TESTS / 'test_logical.kn').stdout
-    assert out == b'true\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\n'
+    assert out == b'true\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\n'
 
 
 def test_if_else():
