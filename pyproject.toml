@@ -33,6 +33,7 @@ testpaths = [
 pythonpath = ["src"]
 [project.scripts]
 koni = "koni_compiler.koni:app"
+test = "koni_compiler.run_tests:main"
 [tool.ruff.format]
 quote-style = "single"
 

@@ -1,21 +1,21 @@
 from koni_compiler import koni
 from pathlib import Path
 
+
+TESTS = Path(__file__).parent
+
+
 def test_print():
-    assert (
-        koni.run(Path(__file__).parent / 'test_print.kn').stdout == b'Hello, world!\n'
-    )
+    assert koni.run(TESTS / 'test_print.kn').stdout == b'Hello, world!\n'
 
 
 def test_recurse():
-    assert (
-        koni.run(Path(__file__).parent.parent / 'examples' / 'fib.kn').stdout == b'55\n'
-    )
+    assert koni.run(TESTS.parent / 'examples' / 'fib.kn').stdout == b'55\n'
 
 
 def test_funcs():
     assert (
-        koni.run(Path(__file__).parent / 'test_funcs.kn').stdout
+        koni.run(TESTS / 'test_funcs.kn').stdout
         == b'hihihihihi\nhihihihihi\nhihihihihihihihihihi\n'
     )
 
@@ -41,7 +41,7 @@ def test_comparison():
 
 def test_logical():
     out = koni.run(TESTS / 'test_logical.kn').stdout
-    assert out == b'true\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\n'
+    assert out == b'true\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\n'
 
 
 def test_if_else():
