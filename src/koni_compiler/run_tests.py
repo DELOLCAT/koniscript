@@ -47,11 +47,15 @@ def main():
     else:
         success[1] = True
         ansiprint('<green><b>Python tests succeeded!</b></green>')
+        
     if all(success):
         ansiprint('<green><b>All tests passed!')
     elif success[0]:
         ansiprint('<yellow><b>Python tests failed, Rust succeeded')
+        exit(1)
     elif success[1]:
         ansiprint('<yellow><b>Rust tests failed, Python succeeded')
+        exit(1)
     else:
         ansiprint('<red><b>All tests failed')
+        exit(2)
