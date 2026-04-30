@@ -41,9 +41,9 @@ README.md          -> The README document that appears on the repo's homepage
 RELEASE_BODY.md    -| A file that is used to change the body of a release created by the GitHub action. Not used anymore, instead the draft
 RELEASE_TITLE.txt  -| that the action creates is edited
 to_llm.py          -> A script that appends line numbers to a file so you can paste it into an LLM
-unix.spec          -> The Pyinstaller spec file that is used for UNIX-like environments, like Linux or MacOS.
+unix.spec          -> The Pyinstaller spec file that is used for UNIX-like environments, like Linux or macOS.
 uv.lock            -> uv's lock file, you don't have to edit this
-win.spec           -> The Pyinstaller spec file that is used for Windows
+win.spec           -> The PyInstaller spec file that is used for Windows
 ```
 
 Also the directories are listed below:
@@ -61,7 +61,7 @@ tests/             -> Contains `pytest` tests
 
 Whenever you are editing Python files, remember to use `uv` instead of `python3` or `conda`, as this project is designed to be used with uv.
 
-This project also has `tmp/` in it's gitignore, so you can put temporary testing scripts into any folder named `tmp/`, and they won't be included in Git
+This project also has `tmp/` in its `.gitignore` file, so you can put temporary testing scripts into any folder named `tmp/`, and they won't be included in Git  
 
 Use `uv run test` to run tests
 
@@ -72,7 +72,7 @@ Issues can be submitted with [GitHub Issues](https://github.com/DELOLCAT/koniscr
 I haven't made any templates, but here is one you can use:
 
 Title: A short but informative title about ***what*** you want/plan on adding/removing/updating.
-Body: A body paragraph that has all of the information. If it is a bug request, try to include any relevant information. If its a feature, try to tell how you imagine it should work
+Body: A body paragraph that has all of the information. If it's a bug request, try to include any relevant information. If it's a feature, try to tell how you imagine it should work
 
 For instance, a good issue would be:
 
@@ -104,7 +104,7 @@ Pull requests (shortened to PRs) are how you submit code that you have made or a
 
 Draft PRs should be made for code that you are still working on.
 
-Regular PRs should be made for code you have already completed (although if would take more than 30 minutes to make the changes, draft PRs are recommended)
+Regular PRs should be made for code you have already completed (although if it would take more than 30 minutes to make the changes, draft PRs are recommended)
 
 PRs should be made for an issue. If you haven't made an issue for the change you are going to make, make an issue, unless if it is anything trivial, like a typo.
 
