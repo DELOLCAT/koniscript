@@ -1,3 +1,4 @@
+use crate::vm::{FncExit, VM};
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -5,10 +6,8 @@ use std::fmt;
 use std::io::{self, Write};
 use std::rc::Rc;
 use std::thread::sleep;
-
-pub type ValueRef = Rc<Value>;
-pub type MethodArgs<'a> = &'a [Rc<Value>];
-pub type MethodReturn = Result<ValueRef, VmError>;
+pub type MethodArgs<'a> = &'a [Value];
+pub type MethodReturn = Result<Value, VmError>;
 
 pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
     vec![
@@ -25,11 +24,11 @@ pub static SUPPORTED_FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Export {
     pub name: String,
-    pub val: ValueRef,
+    pub val: Value,
 }
 #[derive(Debug, Clone)]
 pub struct Env {
-    pub values: Vec<Option<ValueRef>>,
+    pub values: Vec<Option<Value>>,
     pub parent: Option<Rc<RefCell<Env>>>,
     pub exports: HashMap<String, Export>,
 }
@@ -114,16 +113,16 @@ impl RuntimeType {
 #[derive(Debug, Clone)]
 pub enum Value {
     Integer(i64),
-    String(String),
+    String(Rc<String>),
     Bool(bool),
-    Func(KoniFunc),
+    Func(Rc<KoniFunc>),
     Float(f64),
-    Module(Module),
-    Array(Rc<RefCell<Vec<ValueRef>>>),
+    Module(Rc<Module>),
+    Array(Rc<RefCell<Vec<Value>>>),
     Null,
     RuntimeValue(RuntimeType),
-    Dict(Vec<(ValueRef, ValueRef)>),
-    CallRequest(Rc<KoniFunc>, Vec<ValueRef>),
+    Dict(Rc<Vec<(Value, Value)>>),
+    CallRequest(Rc<KoniFunc>, Rc<Vec<Value>>),
 }
 fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
     match (a, other) {
@@ -183,7 +182,7 @@ impl Value {
     pub fn new(tag: i8, payload: &str) -> Result<Self, VmError> {
         match ValueTag::try_from(tag)? {
             ValueTag::Integer => {
-                let out = vm_to_int(std::slice::from_ref(&Value::String(payload.to_string())))?;
+                let out = vm_to_int_basic(&Value::String(Rc::new(payload.to_string())))?;
                 Ok(out)
             }
             ValueTag::Bool => {
@@ -196,9 +195,9 @@ impl Value {
                 Ok(out)
             }
             ValueTag::Null => Ok(Value::Null),
-            ValueTag::String => Ok(Value::String(payload.to_string())),
+            ValueTag::String => Ok(Value::String(Rc::new(payload.to_string()))),
             ValueTag::Float => {
-                let out = vm_to_float(std::slice::from_ref(&Value::String(payload.to_string())))?;
+                let out = vm_to_float_basic(&Value::String(Rc::new(payload.to_string())))?;
                 Ok(out)
             }
 
@@ -217,7 +216,7 @@ impl Value {
             Value::String(_) => "string".to_string(),
             Value::Bool(_) => "boolean".to_string(),
             Value::Float(_) => "float".to_string(),
-            Value::Func(f) => match f {
+            Value::Func(f) => match &**f {
                 KoniFunc::User { entry, name, .. } => format!("[function {} at {}]", name, entry),
                 KoniFunc::Builtin { name, .. } => format!("[builtin function {}]", name),
                 KoniFunc::BuiltinMethod { name, .. } => format!("builtin method {}]", name),
@@ -228,11 +227,11 @@ impl Value {
             Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()), // This should never be called
             Value::Dict(_) => {
                 match self
-                    .dict_get(&Value::String("_display_type".to_string()))
+                    .dict_get(&Value::String(Rc::new("_display_type".to_string())))
                     .unwrap()
                 {
                     None => "dict".to_string(),
-                    Some(v) => match v.as_ref() {
+                    Some(v) => match v {
                         Value::String(s) => s.to_string(),
                         _ => "dict".to_string(),
                     },
@@ -241,7 +240,7 @@ impl Value {
             Value::CallRequest(r, _) => {
                 format!(
                     "[call request for {}]",
-                    Value::Func(r.as_ref().clone()).display()
+                    Value::Func(Rc::new(r.as_ref().clone())).display()
                 )
             } // This should also never be called
         }
@@ -267,7 +266,7 @@ impl Value {
             Value::Integer(v) => v.to_string(),
             Value::Bool(v) => if *v { "true" } else { "false" }.to_string(),
             Value::Float(v) => v.to_string(),
-            Value::Func(v) => match v {
+            Value::Func(v) => match &**v {
                 KoniFunc::Builtin { name, .. } => format!("<builtin func {}>", name),
                 KoniFunc::User { entry, name, .. } => format!("<func {}() at ins {}>", name, entry),
                 KoniFunc::BuiltinMethod { name, .. } => format!("<builtin method {}>", name),
@@ -291,8 +290,11 @@ impl Value {
                 output
             }
             Value::RuntimeValue(_) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
-            Value::Dict(_) => match self.dict_get(&Value::String("_repr".to_string())).unwrap() {
-                Some(v) => match v.as_ref() {
+            Value::Dict(_) => match self
+                .dict_get(&Value::String(Rc::new("_repr".to_string())))
+                .unwrap()
+            {
+                Some(v) => match v {
                     Value::String(v) => v.to_string(),
                     _ => self.dict_display().unwrap(),
                 },
@@ -301,9 +303,16 @@ impl Value {
             Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on call
         }
     }
-    pub fn dict_get(&self, key: &Value) -> Result<Option<ValueRef>, VmError> {
+    pub fn dict_get(&self, key: &Value) -> Result<Option<Value>, VmError> {
         match self {
-            Value::Dict(d) => Ok(d.iter().find(|(k, _)| **k == *key).map(|(_, v)| v.clone())),
+            Value::Dict(d) => {
+                for (k, v) in d.iter() {
+                    if k == key {
+                        return Ok(Some(v.clone()));
+                    }
+                }
+                Ok(None)
+            }
             _ => Err(VmError::make_type_error("dict", self)),
         }
     }
@@ -339,11 +348,11 @@ pub enum KoniFunc {
     },
     Builtin {
         name: String,
-        func: fn(&[Value]) -> Result<Value, VmError>,
+        func: fn(run_func: &mut VM, &[Value]) -> Result<Value, VmError>,
     },
     BuiltinMethod {
         name: String,
-        func: fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>,
+        func: fn(Value, &[Value]) -> Result<Value, VmError>,
     },
 }
 #[repr(i32)]
@@ -374,34 +383,58 @@ impl fmt::Display for ErrCode {
     }
 }
 
-pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_to_str(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
             errcode: ErrCode::InvalidArgCount,
         });
     };
+    match vm_to_str_basic(item) {
+        Ok(v) => Ok(v),
+        Err(e) => match item {
+            Value::Dict(d) => match item.dict_get(&Value::String(Rc::new("_str".to_string())))? {
+                Some(v) => match &v {
+                    Value::Func(f) => match _vm.run_function(v, vec![item.clone()])? {
+                        FncExit::Exit(v) => {
+                            return Err(VmError {
+                                msg: "".to_string(),
+                                errcode: ErrCode::ExitSignal(v),
+                            });
+                        }
+                        FncExit::Returned(f) => return Ok(f.clone()),
+                        FncExit::None => todo!(),
+                    },
+                    _ => todo!(),
+                },
+                _ => todo!(),
+            },
+            _ => todo!(),
+        },
+    }
+}
+fn vm_to_str_basic(item: &Value) -> Result<Value, VmError> {
     match item {
-        Value::Integer(val) => Result::Ok(Value::String(val.to_string())),
-        Value::Float(val) => Result::Ok(Value::String(val.to_string())),
+        Value::Integer(val) => Result::Ok(Value::String(Rc::new(val.to_string()))),
+        Value::Float(val) => Result::Ok(Value::String(Rc::new(val.to_string()))),
         Value::Bool(val) => {
             if *val {
-                Result::Ok(Value::String("true".to_string()))
+                Result::Ok(Value::String(Rc::new("true".to_string())))
             } else {
-                Result::Ok(Value::String("false".to_string()))
+                Result::Ok(Value::String(Rc::new("false".to_string())))
             }
         }
-        Value::Func(_) => Ok(Value::String(item.repr())),
-        Value::String(val) => Result::Ok(Value::String(val.to_string())),
-        Value::Null => Result::Ok(Value::String("null".to_string())),
-        Value::Array(_) => Ok(Value::String(item.repr())),
-        Value::Module(_) => Ok(Value::String(item.repr())),
-        Value::Dict(_) => match item.dict_get(&Value::String("_str".to_string())).unwrap() {
-            Some(v) => match v.as_ref() {
-                Value::String(v) => Ok(Value::String(v.to_string())),
-                _ => Ok(Value::String(item.dict_display()?)),
+        Value::Func(_) => Ok(Value::String(Rc::new(item.repr()))),
+        Value::String(val) => Result::Ok(Value::String(Rc::new(val.to_string()))),
+        Value::Null => Result::Ok(Value::String(Rc::new("null".to_string()))),
+        Value::Array(_) => Ok(Value::String(Rc::new(item.repr()))),
+        Value::Module(_) => Ok(Value::String(Rc::new(item.repr()))),
+        Value::Dict(_) => match item.dict_get(&Value::String(Rc::new("_str".to_string()))).unwrap() {
+            Some(v) => match v {
+                Value::String(v) => Ok(Value::String(Rc::new(v.to_string()))),
+                _ => Ok(Value::String(Rc::new(item.dict_display()?))),
             },
-            _ => Ok(Value::String(item.dict_display()?)),
+            _ => Ok(Value::String(Rc::new(item.dict_display()?))),
         },
         _ => {
             return Err(VmError {
@@ -411,13 +444,17 @@ pub fn vm_to_str(args: &[Value]) -> Result<Value, VmError> {
         }
     }
 }
-pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_to_float(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
             errcode: ErrCode::InvalidArgCount,
         });
     };
+    vm_to_float_basic(item)
+}
+
+fn vm_to_float_basic(item: &Value) -> Result<Value, VmError> {
     match item {
         Value::Integer(val) => Result::Ok(Value::Float(*val as f64)),
         Value::Float(val) => Result::Ok(Value::Float(*val)),
@@ -450,8 +487,7 @@ pub fn vm_to_float(args: &[Value]) -> Result<Value, VmError> {
         }
     }
 }
-
-pub fn vm_to_int(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_to_int(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -459,6 +495,9 @@ pub fn vm_to_int(args: &[Value]) -> Result<Value, VmError> {
         });
     };
 
+    vm_to_int_basic(item)
+}
+fn vm_to_int_basic(item: &Value) -> Result<Value, VmError> {
     match item {
         Value::Integer(v) => Ok(Value::Integer(*v)),
         Value::Float(v) => Ok(Value::Integer(*v as i64)),
@@ -474,14 +513,16 @@ pub fn vm_to_int(args: &[Value]) -> Result<Value, VmError> {
     }
 }
 
-pub fn vm_to_bool(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_to_bool(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
             errcode: ErrCode::InvalidArgCount,
         });
     };
-
+    vm_to_bool_basic(item)
+}
+pub fn vm_to_bool_basic(item: &Value) -> Result<Value, VmError> {
     let b = match item {
         Value::Bool(v) => *v,
         Value::Integer(v) => *v != 0,
@@ -498,19 +539,19 @@ pub fn vm_to_bool(args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::Bool(b))
 }
-pub fn vm_println(args: &[Value]) -> Result<Value, VmError> {
-    print_helper(args)?;
+pub fn vm_println(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+    print_helper(_vm, args)?;
     println!();
     Ok(Value::Null)
 }
-fn print_helper(args: &[Value]) -> Result<(), VmError> {
+fn print_helper(_vm: &mut VM, args: &[Value]) -> Result<(), VmError> {
     let mut rust_args: Vec<String> = Vec::new();
     for item in args {
-        let out = vm_to_str(std::slice::from_ref(item));
+        let out = vm_to_str(_vm, std::slice::from_ref(item));
         match out {
             Ok(val) => {
                 if let Value::String(v) = val {
-                    rust_args.push(v);
+                    rust_args.push(v.to_string());
                 } else {
                     return Err(VmError {
                         msg: format!("Could not convert to string"),
@@ -524,8 +565,8 @@ fn print_helper(args: &[Value]) -> Result<(), VmError> {
     print!("{}", rust_args.join(" "));
     Ok(())
 }
-pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
-    print_helper(args)?;
+pub fn vm_print(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+    print_helper(_vm, args)?;
     io::stdout().flush().map_err(|e| VmError {
         msg: format!("Failed to flush stdout: {}", e),
         errcode: ErrCode::IoError, // Or a specific I/O error code
@@ -533,7 +574,7 @@ pub fn vm_print(args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::Null)
 }
-pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_sleep(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [s] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -553,7 +594,7 @@ pub fn vm_sleep(args: &[Value]) -> Result<Value, VmError> {
     Ok(Value::Null)
 }
 
-pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_input(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [_prompt] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -561,7 +602,7 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
         });
     };
 
-    let prompt = match vm_to_str(args)? {
+    let prompt = match vm_to_str(_vm, args)? {
         Value::String(s) => s,
         _ => unreachable!("vm_to_str must return a string"),
     };
@@ -585,72 +626,72 @@ pub fn vm_input(args: &[Value]) -> Result<Value, VmError> {
         }
     }
 
-    Ok(Value::String(buf))
+    Ok(Value::String(Rc::new(buf)))
 }
-pub fn vm_hi(_args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_hi(_vm: &mut VM, _args: &[Value]) -> Result<Value, VmError> {
     println!("hi from math");
     Ok(Value::Null)
 }
 pub fn vmenv() -> Vec<Value> {
     vec![
-        Value::Func(KoniFunc::Builtin {
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "print".to_string(),
             func: vm_print,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "println".to_string(),
             func: vm_println,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "sleep".to_string(),
             func: vm_sleep,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "input".to_string(),
             func: vm_input,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "to_str".to_string(),
             func: vm_to_str,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "to_int".to_string(),
             func: vm_to_int,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "to_bool".to_string(),
             func: vm_to_bool,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "to_float".to_string(),
             func: vm_to_float,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "exit".to_string(),
             func: vm_exit,
-        }),
-        Value::Func(KoniFunc::Builtin {
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
             name: "len".to_string(),
             func: vm_len,
-        }),
-        Value::Module(Module {
+        })),
+        Value::Module(Rc::new(Module {
             exports: HashMap::from([(
                 "hi".to_string(),
                 Export {
                     name: "math".to_string(),
-                    val: Rc::new(Value::Func(KoniFunc::Builtin {
+                    val: Value::Func(Rc::new(KoniFunc::Builtin {
                         name: "hi".to_string(),
                         func: vm_hi,
                     })),
                 },
             )]),
             name: "math".to_string(),
-        }),
+        })),
         Value::RuntimeValue(RuntimeType::Name),
     ]
 }
 
-fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
+fn vm_exit(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     if args.len() > 1 {
         return Err(VmError {
             msg: format!("Expected 0 to 1 argument, got {}.", args.len()),
@@ -673,23 +714,23 @@ fn vm_exit(args: &[Value]) -> Result<Value, VmError> {
     })
 }
 
-fn vm_len(args: &[Value]) -> Result<Value, VmError> {
+fn vm_len(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     expect_args(args, 1)?;
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
         Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
         Value::Dict(d) => {
             match args[0]
-                .dict_get(&Value::String("_len".to_string()))
+                .dict_get(&Value::String(Rc::new("_len".to_string())))
                 .unwrap()
             {
                 None => Ok(Value::Integer(d.len().try_into().unwrap())),
-                Some(v) => match v.as_ref() {
+                Some(v) => match v {
                     Value::Func(v) => Ok(Value::CallRequest(
-                        Rc::new(v.clone()),
-                        vec![Rc::new(args[0].clone())],
+                        v.clone(),
+                        Rc::new(vec![args[0].clone()]),
                     )), // TODO: perhaps find out how to not clone this
-                    Value::Integer(v) => Ok(Value::Integer(*v)),
+                    Value::Integer(v) => Ok(Value::Integer(v)),
                     _ => Ok(Value::Integer(d.len().try_into().unwrap())),
                 },
             }
@@ -710,7 +751,7 @@ fn add(a: Value, b: Value) -> Result<Value, VmError> {
 
         (Value::String(va), Value::String(vb)) => {
             let out = format!("{}{}", va, vb);
-            Ok(Value::String(out))
+            Ok(Value::String(out.into()))
         }
         _ => Err(VmError {
             msg: format!(
@@ -869,7 +910,7 @@ fn mul(a: Value, b: Value) -> Result<Value, VmError> {
             for _ in 0..(*n as usize) {
                 out.push_str(s);
             }
-            Ok(Value::String(out))
+            Ok(Value::String(Rc::new(out)))
         }
 
         _ => Err(VmError {
@@ -1061,11 +1102,11 @@ fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
         Ok(())
     }
 }
-fn arr_pop(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+fn arr_pop(item: Value, args: &[Value]) -> Result<Value, VmError> {
     expect_args(args, 0)?;
-    match item.as_ref() {
+    match item {
         Value::Array(ar) => match ar.borrow_mut().pop() {
-            Some(v) => Ok(v),
+            Some(v) => Ok(v.into()),
             None => Err(VmError {
                 msg: "Cannot `pop()` from an empty array".to_string(),
                 errcode: ErrCode::InvalidOperation,
@@ -1074,18 +1115,18 @@ fn arr_pop(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
         _ => Err(VmError::make_type_error("array", &item)),
     }
 }
-fn arr_contains(item: ValueRef, args: &[ValueRef]) -> Result<ValueRef, VmError> {
+fn arr_contains(item: Value, args: &[Value]) -> Result<Value, VmError> {
     expect_args(args, 1)?;
     let cont = &args[0];
-    match item.as_ref() {
-        Value::Array(arr) => Ok(Rc::new(Value::Bool(arr.borrow().contains(cont)))),
+    match item {
+        Value::Array(arr) => Ok(Value::Bool(arr.borrow().contains(cont))),
         _ => Err(VmError::make_type_error("array", &item)),
     }
 }
-fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
+fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
     expect_args(args, 1)?;
 
-    match item.as_ref() {
+    match &item {
         Value::Array(ar) => {
             ar.borrow_mut().push(args[0].clone());
             Ok(item.clone())
@@ -1098,15 +1139,15 @@ fn arr_push(item: Rc<Value>, args: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
     }
 }
 pub static ATTRMAP: Lazy<
-    HashMap<ValueTag, HashMap<String, fn(Rc<Value>, &[Rc<Value>]) -> Result<Rc<Value>, VmError>>>,
+    HashMap<ValueTag, HashMap<String, fn(Value, &[Value]) -> Result<Value, VmError>>>,
 > = Lazy::new(|| {
     let mut attramp = HashMap::new(); // Initialize properly
 
     // 1. Create the inner map
-    let mut array_methods: HashMap<String, fn(ValueRef, MethodArgs) -> MethodReturn> =
+    let mut array_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> =
         HashMap::new();
 
-    let mut str_methods: HashMap<String, fn(ValueRef, MethodArgs) -> MethodReturn> = HashMap::new();
+    let mut str_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> = HashMap::new();
 
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
@@ -1127,20 +1168,20 @@ pub static ATTRMAP: Lazy<
     attramp
 });
 
-fn arr_empty(item: ValueRef, args: MethodArgs) -> MethodReturn {
+fn arr_empty(item: Value, args: MethodArgs) -> MethodReturn {
     check_method_args(args, 0, 0)?;
-    match item.as_ref() {
+    match &item {
         Value::Array(arr) => {
             arr.borrow_mut().clear();
-            Ok(item.clone())
+            Ok(item)
         }
         _ => Err(VmError::make_type_error("array", &item)),
     }
 }
 
-fn arr_insert(item: ValueRef, args: MethodArgs) -> MethodReturn {
+fn arr_insert(item: Value, args: MethodArgs) -> MethodReturn {
     check_method_args(args, 2, 2)?;
-    let idx = match args[0].as_ref() {
+    let idx = match args[0] {
         Value::Integer(v) => v,
         _ => {
             return Err(VmError {
@@ -1149,9 +1190,9 @@ fn arr_insert(item: ValueRef, args: MethodArgs) -> MethodReturn {
             });
         }
     };
-    match item.as_ref() {
+    match item {
         Value::Array(v) => {
-            v.borrow_mut().insert(*idx as usize, args[1].clone());
+            v.borrow_mut().insert(idx as usize, args[1].clone());
             Ok(args[1].clone())
         }
         _ => Err(VmError::make_type_error("array", &item)),
@@ -1180,11 +1221,11 @@ fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmE
     Ok(())
 }
 
-fn arr_str_is_empty(val: ValueRef, args: MethodArgs) -> MethodReturn {
+fn arr_str_is_empty(val: Value, args: MethodArgs) -> MethodReturn {
     check_method_args(args, 0, 0)?;
-    match val.as_ref() {
-        Value::String(v) => Ok(Rc::new(Value::Bool(v.is_empty()))),
-        Value::Array(v) => Ok(Rc::new(Value::Bool(v.borrow().is_empty()))),
+    match val {
+        Value::String(v) => Ok(Value::Bool(v.is_empty())),
+        Value::Array(v) => Ok(Value::Bool(v.borrow().is_empty())),
         _ => Err(VmError {
             msg: format!("Expected a string or array, got a {}", val.display()),
             errcode: ErrCode::TypeError,
@@ -1192,9 +1233,9 @@ fn arr_str_is_empty(val: ValueRef, args: MethodArgs) -> MethodReturn {
     }
 }
 
-fn arr_get(val: Rc<Value>, args: MethodArgs) -> MethodReturn {
+fn arr_get(val: Value, args: MethodArgs) -> MethodReturn {
     check_method_args(args, 1, 2)?;
-    let idx = match args[0].as_ref() {
+    let idx = match args[0] {
         Value::Integer(v) => v,
         _ => {
             return Err(VmError {
@@ -1205,10 +1246,10 @@ fn arr_get(val: Rc<Value>, args: MethodArgs) -> MethodReturn {
     };
     let def = match args.get(1) {
         Some(v) => v.clone(),
-        None => Rc::new(Value::Null),
+        None => Value::Null,
     };
-    match val.as_ref() {
-        Value::Array(v) => match v.borrow().get(*idx as usize) {
+    match val {
+        Value::Array(v) => match v.borrow().get(idx as usize) {
             Some(v) => Ok(v.clone()),
             None => Ok(def),
         },
@@ -1216,22 +1257,22 @@ fn arr_get(val: Rc<Value>, args: MethodArgs) -> MethodReturn {
     }
 }
 
-fn str_strip(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
-    match val.as_ref() {
-        Value::String(v) => Ok(Rc::new(Value::String(v.trim().to_string()))),
+fn str_strip(val: Value, _: &[Value]) -> Result<Value, VmError> {
+    match val {
+        Value::String(v) => Ok(Value::String(Rc::new(v.trim().to_string()))),
         _ => Err(VmError::make_type_error("str", &val)),
     }
 }
-fn str_upper(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
-    match val.as_ref() {
-        Value::String(v) => Ok(Rc::new(Value::String(v.to_uppercase()))),
+fn str_upper(val: Value, _: &[Value]) -> Result<Value, VmError> {
+    match val {
+        Value::String(v) => Ok(Value::String(Rc::new(v.to_uppercase()))),
         _ => Err(VmError::make_type_error("str", &val)),
     }
 }
 
-pub fn str_lower(val: Rc<Value>, _: &[Rc<Value>]) -> Result<Rc<Value>, VmError> {
-    match val.as_ref() {
-        Value::String(v) => Ok(Rc::new(Value::String(v.to_lowercase()))),
+pub fn str_lower(val: Value, _: &[Value]) -> Result<Value, VmError> {
+    match val {
+        Value::String(v) => Ok(Value::String(Rc::new(v.to_lowercase()))),
         _ => Err(VmError::make_type_error("str", &val)),
     }
 }
@@ -1244,16 +1285,16 @@ mod tests {
 
     #[test]
     fn type_checks_panic() {
-        add(Value::String("hi".to_string()), Value::Float(5.0)).unwrap_err();
+        add(Value::String(Rc::new("hi".to_string())), Value::Float(5.0)).unwrap_err();
         add(
-            Value::Func(KoniFunc::Builtin {
+            Value::Func(Rc::new(KoniFunc::Builtin {
                 name: "print".to_string(),
                 func: vm_print,
-            }),
+            })),
             Value::Float(5.0),
         )
         .unwrap_err();
-        sub(Value::String("hi".to_string()), Value::Float(5.0)).unwrap_err();
+        sub(Value::String(Rc::new("hi".to_string())), Value::Float(5.0)).unwrap_err();
         let ltt = lt(Value::Integer(5), Value::Integer(7)).unwrap();
         match ltt {
             Value::Bool(v) => assert_eq!(v, true),
@@ -1269,100 +1310,100 @@ mod tests {
     #[test]
     fn test_vm_to_str() {
         let val = Value::Integer(123);
-        let res = vm_to_str(&[val]).unwrap();
+        let res = vm_to_str_basic(&val).unwrap();
         match res {
-            Value::String(s) => assert_eq!(s, "123"),
+            Value::String(s) => assert_eq!(*s, "123"),
             _ => panic!("Expected string"),
         }
 
         let val = Value::Bool(true);
-        let res = vm_to_str(&[val]).unwrap();
+        let res = vm_to_str_basic(&val).unwrap();
         match res {
-            Value::String(s) => assert_eq!(s, "true"),
+            Value::String(s) => assert_eq!(*s, "true"),
             _ => panic!("Expected string"),
         }
 
         let val = Value::Null;
-        let res = vm_to_str(&[val]).unwrap();
+        let res = vm_to_str_basic(&val).unwrap();
         match res {
-            Value::String(s) => assert_eq!(s, "null"),
+            Value::String(s) => assert_eq!(*s, "null"),
             _ => panic!("Expected string"),
         }
 
-        let val = Value::String("hello".to_string());
-        let res = vm_to_str(&[val]).unwrap();
+        let val = Value::String(Rc::new("hello".to_string()));
+        let res = vm_to_str_basic(&val).unwrap();
         match res {
-            Value::String(s) => assert_eq!(s, "hello"),
+            Value::String(s) => assert_eq!(*s, "hello"),
             _ => panic!("Expected string"),
         }
     }
 
     #[test]
     fn test_vm_to_int() {
-        let val = Value::String("123".to_string());
-        let res = vm_to_int(&[val]).unwrap();
+        let val = Value::String(Rc::new("123".to_string()));
+        let res = vm_to_int_basic(&val).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 123),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::Bool(true);
-        let res = vm_to_int(&[val]).unwrap();
+        let res = vm_to_int_basic(&val).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 1),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::Bool(false);
-        let res = vm_to_int(&[val]).unwrap();
+        let res = vm_to_int_basic(&val).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 0),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::Integer(42);
-        let res = vm_to_int(&[val]).unwrap();
+        let res = vm_to_int_basic(&val).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 42),
             _ => panic!("Expected integer"),
         }
 
-        let val = Value::String("not a number".to_string());
-        assert!(vm_to_int(&[val]).is_err());
+        let val = Value::String(Rc::new("not a number".to_string()));
+        assert!(vm_to_int_basic(&val).is_err());
     }
 
     #[test]
     fn test_vm_to_bool() {
         let val = Value::Integer(1);
-        let res = vm_to_bool(&[val]).unwrap();
+        let res = vm_to_bool_basic(&val).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
 
         let val = Value::Integer(0);
-        let res = vm_to_bool(&[val]).unwrap();
+        let res = vm_to_bool_basic(&val).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),
         }
 
-        let val = Value::String("hello".to_string());
-        let res = vm_to_bool(&[val]).unwrap();
+        let val = Value::String(Rc::new("hello".to_string()));
+        let res = vm_to_bool_basic(&val).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
 
-        let val = Value::String("".to_string());
-        let res = vm_to_bool(&[val]).unwrap();
+        let val = Value::String(Rc::new("".to_string()));
+        let res = vm_to_bool_basic(&val).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),
         }
 
         let val = Value::Null;
-        let res = vm_to_bool(&[val]).unwrap();
+        let res = vm_to_bool_basic(&val).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),
@@ -1372,28 +1413,28 @@ mod tests {
     #[test]
     fn test_vm_to_float() {
         let val = Value::Integer(123);
-        let res = vm_to_float(&[val]).unwrap();
+        let res = vm_to_float_basic(&val).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 123.0),
             _ => panic!("Expected float"),
         }
 
-        let val = Value::String("123.45".to_string());
-        let res = vm_to_float(&[val]).unwrap();
+        let val = Value::String(Rc::new("123.45".to_string()));
+        let res = vm_to_float_basic(&val).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 123.45),
             _ => panic!("Expected float"),
         }
 
         let val = Value::Bool(true);
-        let res = vm_to_float(&[val]).unwrap();
+        let res = vm_to_float_basic(&val).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 1.0),
             _ => panic!("Expected float"),
         }
 
         let val = Value::Null;
-        let res = vm_to_float(&[val]).unwrap();
+        let res = vm_to_float_basic(&val).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 0.0),
             _ => panic!("Expected float"),
@@ -1415,12 +1456,12 @@ mod tests {
         }
 
         let res = add(
-            Value::String("a".to_string()),
-            Value::String("b".to_string()),
+            Value::String(Rc::new("a".to_string())),
+            Value::String(Rc::new("b".to_string())),
         )
         .unwrap();
         match res {
-            Value::String(s) => assert_eq!(s, "ab"),
+            Value::String(s) => assert_eq!(*s, "ab"),
             _ => panic!("Expected string"),
         }
     }
@@ -1448,9 +1489,9 @@ mod tests {
             _ => panic!("Expected integer"),
         }
 
-        let res = mul(Value::String("a".to_string()), Value::Integer(3)).unwrap();
+        let res = mul(Value::String(Rc::new("a".to_string())), Value::Integer(3)).unwrap();
         match res {
-            Value::String(s) => assert_eq!(s, "aaa"),
+            Value::String(s) => assert_eq!(s, Rc::new("aaa".to_string())),
             _ => panic!("Expected string"),
         }
     }
