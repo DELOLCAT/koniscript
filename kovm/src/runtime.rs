@@ -187,7 +187,12 @@ impl Value {
                 Ok(out)
             }
             ValueTag::Bool => {
-                let out = vm_to_bool(std::slice::from_ref(&Value::String(payload.to_string())))?;
+                let out: Value;
+                if payload == "1" || payload == "true" {
+                    out = Value::Bool(true)
+                } else {
+                    out = Value::Bool(false);
+                }
                 Ok(out)
             }
             ValueTag::Null => Ok(Value::Null),

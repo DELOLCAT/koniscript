@@ -1,0 +1,18 @@
+x = 5
+if x == 5 {
+    println('equal')
+} else {
+    println('not equal')
+}
+
+if x > 10 {
+    println('greater')
+} else if x > 3 {
+    println('medium')
+} else {
+    println('small')
+}
+
+if false {
+    println('nope')
+}
