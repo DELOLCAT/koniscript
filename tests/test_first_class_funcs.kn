@@ -1,0 +1,10 @@
+func run_with_message(f) {
+    println('Running...')
+    f()
+}
+
+func callback() {
+    println('callback called')
+}
+
+run_with_message(callback)

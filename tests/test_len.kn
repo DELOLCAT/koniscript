@@ -1,0 +1,6 @@
+println(len('hello'))
+println(len(''))
+
+@require types.arrays
+println(len([1, 2, 3]))
+println(len([]))
