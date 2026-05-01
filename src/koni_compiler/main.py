@@ -718,8 +718,8 @@ class Parser:
                     self.eat(COLON)
                     v = self.expr()
                     items.append((k, v))
-                self.skip_newline()
-                self.eat(RBRACE)
+            self.skip_newline()
+            self.eat(RBRACE)
             return KoniDict(token.line, token.col, self.current_token.line, self.current_token.col, items)
         elif token.type == LBRACKET:
             self.eat(LBRACKET)
