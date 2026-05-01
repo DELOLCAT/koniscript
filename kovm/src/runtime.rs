@@ -320,7 +320,7 @@ impl Value {
         match self {
             Value::Dict(d) => {
                 let mut out = String::new();
-                out.push('{');
+                out.push_str("%{");
                 for (i, (k, v)) in d.iter().enumerate() {
                     out.push_str(&k.repr());
                     out.push_str(": ");
@@ -390,27 +390,24 @@ pub fn vm_to_str(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
             errcode: ErrCode::InvalidArgCount,
         });
     };
-    match vm_to_str_basic(item) {
-        Ok(v) => Ok(v),
-        Err(e) => match item {
-            Value::Dict(d) => match item.dict_get(&Value::String(Rc::new("_str".to_string())))? {
-                Some(v) => match &v {
-                    Value::Func(f) => match _vm.run_function(v, vec![item.clone()])? {
-                        FncExit::Exit(v) => {
-                            return Err(VmError {
-                                msg: "".to_string(),
-                                errcode: ErrCode::ExitSignal(v),
-                            });
-                        }
-                        FncExit::Returned(f) => return Ok(f.clone()),
-                        FncExit::None => todo!(),
-                    },
-                    _ => todo!(),
+    match item {
+        Value::Dict(_) => match item.dict_get(&Value::String(Rc::new("_str".to_string())))? {
+            Some(v) => match &v {
+                Value::Func(_) => match _vm.run_function(v, vec![item.clone()])? {
+                    FncExit::Exit(v) => {
+                        return Err(VmError {
+                            msg: "".to_string(),
+                            errcode: ErrCode::ExitSignal(v),
+                        });
+                    }
+                    FncExit::Returned(f) => return Ok(f.clone()),
                 },
-                _ => todo!(),
+                Value::String(_) => Ok(item.clone()),
+                _ => Err(VmError::make_type_error("func` or `str", item)),
             },
-            _ => todo!(),
+            None => vm_to_str_basic(item),
         },
+        _ => vm_to_str_basic(item),
     }
 }
 fn vm_to_str_basic(item: &Value) -> Result<Value, VmError> {
@@ -429,7 +426,10 @@ fn vm_to_str_basic(item: &Value) -> Result<Value, VmError> {
         Value::Null => Result::Ok(Value::String(Rc::new("null".to_string()))),
         Value::Array(_) => Ok(Value::String(Rc::new(item.repr()))),
         Value::Module(_) => Ok(Value::String(Rc::new(item.repr()))),
-        Value::Dict(_) => match item.dict_get(&Value::String(Rc::new("_str".to_string()))).unwrap() {
+        Value::Dict(_) => match item
+            .dict_get(&Value::String(Rc::new("_str".to_string())))
+            .unwrap()
+        {
             Some(v) => match v {
                 Value::String(v) => Ok(Value::String(Rc::new(v.to_string()))),
                 _ => Ok(Value::String(Rc::new(item.dict_display()?))),
@@ -1144,8 +1144,7 @@ pub static ATTRMAP: Lazy<
     let mut attramp = HashMap::new(); // Initialize properly
 
     // 1. Create the inner map
-    let mut array_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> =
-        HashMap::new();
+    let mut array_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> = HashMap::new();
 
     let mut str_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> = HashMap::new();
 

@@ -148,8 +148,7 @@ impl Frame {
 }
 pub enum FncExit {
     Exit(i32),
-    Returned(Value),
-    None
+    Returned(Value)
 }
 
 pub enum StepReturn {
@@ -504,7 +503,7 @@ impl VM {
     }
     pub fn step(&mut self) -> Result<StepReturn, VmError> {
         let operators = &self.ins[self.get_i()];
-        let mut returned= true;
+        let mut returned= false;
         match operators[0].as_str() {
             "JMP" => {
                 self.frames.last_mut().unwrap().i = operators[1].parse().expect("Invalid byecode.");
@@ -874,7 +873,6 @@ impl VM {
                 };
 
                 match self.run_function(func, args)? {
-                    FncExit::None => {}
                     FncExit::Exit(e) => return Ok(StepReturn::Exited(e)),
                     FncExit::Returned(_) => {}
                 }
@@ -1199,7 +1197,10 @@ impl VM {
         }
         self.frames.last_mut().unwrap().i += 1;
         if returned {
+            println!("{:?}", self.ins[self.frames.last().unwrap().i]);
             Ok(StepReturn::Returned(self.frames.last().unwrap().stack.last().unwrap().clone()))
+        } else if !(self.get_i() < self.ins.len()) {
+            Ok(StepReturn::Exited(0))
         } else {
             Ok(StepReturn::None)
         }
