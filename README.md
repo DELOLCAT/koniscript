@@ -109,7 +109,7 @@ val = f() # Note that this will raise a warning, as the compiler can't check the
 }
 
 func some_callback() {
-  print('Hello from the inner callback!')
+  println('Hello from the inner callback!')
 }
 
 run_with_message(some_callback)
@@ -239,7 +239,7 @@ Not much to write here, it'll just be a type checker similar to TypeScript.
 
 ### Airport
 
-A platform manager focusing on DX. Full spec to be written
+A package manager focusing on DX. Full spec to be written
 
 ## Build
 
