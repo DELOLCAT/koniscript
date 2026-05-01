@@ -16,7 +16,7 @@
             },
             "args": [
                 "run",
-                "../tmp/tmp.knc"
+                "../tmp/breaks.knc"
             ],
             "sourceLanguages": ["Rust"]
         },

@@ -396,7 +396,7 @@ impl VM {
             Value::Func(f) => f,
             _ => {
                 return Err(VmError {
-                    msg: format!("Expected a function, got a {}", fnc.display(self)),
+                    msg: format!("Expected a function, got a {}", fnc.display()),
                     errcode: ErrCode::TypeError,
                 });
             }
@@ -501,6 +501,9 @@ impl VM {
         }
     }
     pub fn step(&mut self) -> Result<StepReturn, VmError> {
+        if self.get_i() > self.ins.len() {
+            panic!("Invalid i")
+        }
         let operators = &self.ins[self.get_i()];
         let mut returned = false;
         match operators[0].as_str() {
@@ -527,7 +530,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Type error: expected a boolean but got a {}",
-                                condv.display(self)
+                                condv.display()
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -558,7 +561,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Type error: expected a boolean but got a {}",
-                                condv.display(self)
+                                condv.display()
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -661,7 +664,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Expected attrand for GET_ATTR to be a string, found a {}",
-                                attrand.display(self)
+                                attrand.display()
                             ),
                             errcode: ErrCode::InvalidBytecode,
                         });
@@ -690,7 +693,7 @@ impl VM {
                         }
                     },
                     Value::Dict(_) => {
-                        match attrl.dict_get(&Value::String(Rc::new(attrand.to_string())), self) {
+                        match attrl.dict_get(&Value::String(Rc::new(attrand.to_string()))) {
                             Ok(v) => match v {
                                 Some(vs) => vs,
                                 None => {
@@ -720,7 +723,7 @@ impl VM {
                                     msg: format!(
                                         "No attribute `{}` for type {}",
                                         attrand,
-                                        attrl.display(self)
+                                        attrl.display()
                                     ),
                                     errcode: ErrCode::AttributeError,
                                 });
@@ -729,7 +732,7 @@ impl VM {
                             return Err(VmError {
                                 msg: format!(
                                     "Cannot get an attribute from a type of {}",
-                                    attrl.display(self)
+                                    attrl.display()
                                 ),
                                 errcode: ErrCode::AttributeError,
                             });
@@ -750,7 +753,7 @@ impl VM {
                                 return Err(VmError {
                                     msg: format!(
                                         "Cannot index an array with type `{}`",
-                                        rhs.display(self)
+                                        rhs.display()
                                     ),
                                     errcode: ErrCode::TypeError,
                                 });
@@ -766,12 +769,12 @@ impl VM {
                             }
                         }
                     }
-                    Value::Dict(_) => match item.dict_get(&rhs, self) {
+                    Value::Dict(_) => match item.dict_get(&rhs) {
                         Ok(v) => match v {
                             Some(v) => self.push_to_stack(v),
                             None => {
                                 return Err(VmError {
-                                    msg: format!("Cannot find key {} from dict", rhs.display(self)),
+                                    msg: format!("Cannot find key {} from dict", rhs.display()),
                                     errcode: ErrCode::IndexError,
                                 });
                             }
@@ -780,7 +783,7 @@ impl VM {
                     },
                     _ => {
                         return Err(VmError {
-                            msg: format!("Cannot get an index from a {}", item.display(self)),
+                            msg: format!("Cannot get an index from a {}", item.display()),
                             errcode: ErrCode::TypeError,
                         });
                     }
@@ -897,8 +900,8 @@ impl VM {
                     }
                 };
                 let return_addr: usize = self.frames.last().unwrap().ret_addr.unwrap();
-                self.frames.last_mut().unwrap().i = return_addr;
                 self.frames.pop();
+                self.frames.last_mut().unwrap().i = return_addr;
                 self.mod_stack.pop();
                 self.push_to_stack(to_ret);
                 returned = true;
@@ -919,7 +922,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Cannot convert a {} to a negative value",
-                                v.display(self)
+                                v.display()
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -966,7 +969,7 @@ impl VM {
                             return Err(VmError {
                                 msg: format!(
                                     "Expected ENTER_MODULE to reference a string, not a {}",
-                                    v.display(self)
+                                    v.display()
                                 ),
                                 errcode: ErrCode::TypeError,
                             });
@@ -996,7 +999,7 @@ impl VM {
                             return Err(VmError {
                                 msg: format!(
                                     "Expected `MAKE_MODULE` to reference a string, not a {}",
-                                    v.display(self)
+                                    v.display()
                                 ),
                                 errcode: ErrCode::TypeError,
                             });
@@ -1040,7 +1043,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Expected EXPORT to reference to a string, not a {}",
-                                name.display(self)
+                                name.display()
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -1126,7 +1129,7 @@ impl VM {
                                 return Err(VmError {
                                     msg: format!(
                                         "Expected `REQUIRE` to reference to a string, not a {}.",
-                                        v.display(self)
+                                        v.display()
                                     ),
                                     errcode: ErrCode::TypeError,
                                 });
