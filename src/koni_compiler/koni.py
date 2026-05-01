@@ -253,7 +253,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         filepath = e.fp
         file_content = e.compiler.sources[e.fp]
 
-    print()
+    print(file=sys.stderr)
     print(f'{tag}: {msg}:', file=sys.stderr)
     
     print(
@@ -324,7 +324,7 @@ def run(
             vm_path = Path(__file__).parent / exec_name('kovm')
         elif vm_path is None:
             print(
-                '<red><b>Could not find `kovm` (koniscript VM), which is required to run programs'
+                '<red><b>Could not find `kovm` (koniscript VM), which is required to run programs', file=sys.stderr
             )
             sys.exit(127)
         # run the VM and capture its output for tests, but also echo to user

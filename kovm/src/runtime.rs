@@ -49,9 +49,9 @@ pub struct VmError {
     pub errcode: ErrCode,
 }
 impl VmError {
-    pub fn make_type_error(expected: &str, received: &Value) -> Self {
+    pub fn make_type_error(expected: &str, received: &Value, _vm: &mut VM) -> Self {
         Self {
-            msg: format!("Expected `{}`, got `{}`", expected, received.display()),
+            msg: format!("Expected `{}`, got `{}`", expected, received.display(_vm)),
             errcode: ErrCode::TypeError,
         }
     }
@@ -182,8 +182,16 @@ impl Value {
     pub fn new(tag: i8, payload: &str) -> Result<Self, VmError> {
         match ValueTag::try_from(tag)? {
             ValueTag::Integer => {
-                let out = vm_to_int_basic(&Value::String(Rc::new(payload.to_string())))?;
-                Ok(out)
+                let out = match payload.parse::<i64>() {
+                    Ok(v) => v,
+                    Err(_) => return Err(
+                        VmError {
+                            msg: format!("Invalid int `{}`", payload),
+                            errcode: ErrCode::TypeError
+                        }
+                    )
+                };
+                Ok(Value::Integer(out))
             }
             ValueTag::Bool => {
                 let out: Value;
@@ -197,8 +205,16 @@ impl Value {
             ValueTag::Null => Ok(Value::Null),
             ValueTag::String => Ok(Value::String(Rc::new(payload.to_string()))),
             ValueTag::Float => {
-                let out = vm_to_float_basic(&Value::String(Rc::new(payload.to_string())))?;
-                Ok(out)
+                let out = match payload.parse::<f64>() {
+                    Ok(v) => v,
+                    Err(_) => return Err(
+                        VmError {
+                            msg: format!("Invalid float `{}`", payload),
+                            errcode: ErrCode::TypeError
+                        }
+                    )
+                };
+                Ok(Value::Float(out))
             }
 
             _ => Err(VmError {
@@ -210,7 +226,7 @@ impl Value {
             }),
         }
     }
-    pub fn display(&self) -> String {
+    pub fn display(&self, vm: &mut VM) -> String {
         match self {
             Value::Integer(_) => "integer".to_string(),
             Value::String(_) => "string".to_string(),
@@ -226,13 +242,29 @@ impl Value {
             Value::Array(_) => "array".to_string(),
             Value::RuntimeValue(r) => format!("[runtime value '{}']", r.name()), // This should never be called
             Value::Dict(_) => {
-                match self
-                    .dict_get(&Value::String(Rc::new("_display_type".to_string())))
-                    .unwrap()
-                {
+                let val = self
+                    .dict_get(&Value::String(Rc::new("_display_type".to_string())), vm)
+                    .unwrap();
+                match val {
                     None => "dict".to_string(),
                     Some(v) => match v {
                         Value::String(s) => s.to_string(),
+                        Value::Func(_) => match vm.run_function(v.clone(), vec![v]) {
+                            Ok(v) => match v {
+                                FncExit::Exit(_) => "<dict (func attempted to exit)>".to_string(),
+                                FncExit::Returned(v) => match vm_to_str(vm, &[v]) {
+                                    Ok(v) => {
+                                        if let Value::String(v) = v {
+                                            v.to_string()
+                                        } else {
+                                            "<dict (func returned invalid str)>".to_string()
+                                        }
+                                    }
+                                    Err(_) => "<dict (func returned invalid str)>".to_string(),
+                                },
+                            },
+                            Err(_) => "<dict (func errored)>".to_string(),
+                        },
                         _ => "dict".to_string(),
                     },
                 }
@@ -240,7 +272,7 @@ impl Value {
             Value::CallRequest(r, _) => {
                 format!(
                     "[call request for {}]",
-                    Value::Func(Rc::new(r.as_ref().clone())).display()
+                    Value::Func(Rc::new(r.as_ref().clone())).display(vm)
                 )
             } // This should also never be called
         }
@@ -260,7 +292,7 @@ impl Value {
             Value::CallRequest(_, _) => ValueTag::CallRequest,
         }
     }
-    pub fn repr(&self) -> String {
+    pub fn repr(&self, vm: &mut VM) -> String {
         match self {
             Value::String(v) => format!("'{v}'"),
             Value::Integer(v) => v.to_string(),
@@ -283,7 +315,7 @@ impl Value {
                     if !first {
                         output.push_str(", ");
                     }
-                    output.push_str(&item.repr());
+                    output.push_str(&item.repr(vm));
                     first = false;
                 }
                 output.push(']');
@@ -291,19 +323,35 @@ impl Value {
             }
             Value::RuntimeValue(_) => panic!("Illegal value received for repr()"), // It should've been converted on PUSH_BUILTIN
             Value::Dict(_) => match self
-                .dict_get(&Value::String(Rc::new("_repr".to_string())))
+                .dict_get(&Value::String(Rc::new("_repr".to_string())), vm)
                 .unwrap()
             {
                 Some(v) => match v {
                     Value::String(v) => v.to_string(),
-                    _ => self.dict_display().unwrap(),
+                    Value::Func(_) => match vm.run_function(v, vec![self.clone()]) {
+                        Ok(v) => match v {
+                            FncExit::Exit(_) => "<dict (func attempted to exit)>".to_string(),
+                            FncExit::Returned(v) => match vm_to_str(vm, &[v]) {
+                                Ok(v) => {
+                                    if let Value::String(v) = v {
+                                        v.clone().to_string()
+                                    } else {
+                                        unreachable!()
+                                    }
+                                }
+                                Err(_) => "<dict (func returned invalid str)>".to_string(),
+                            },
+                        },
+                        Err(e) => format!("<dict (func errored with code {}>)", e.errcode),
+                    },
+                    _ => self.dict_display(vm).unwrap(),
                 },
-                _ => self.dict_display().unwrap(),
+                _ => self.dict_display(vm).unwrap(),
             },
             Value::CallRequest(_, _) => panic!("Illegal value received for repr()"), // It should've been converted on call
         }
     }
-    pub fn dict_get(&self, key: &Value) -> Result<Option<Value>, VmError> {
+    pub fn dict_get(&self, key: &Value, _vm: &mut VM) -> Result<Option<Value>, VmError> {
         match self {
             Value::Dict(d) => {
                 for (k, v) in d.iter() {
@@ -313,18 +361,18 @@ impl Value {
                 }
                 Ok(None)
             }
-            _ => Err(VmError::make_type_error("dict", self)),
+            _ => Err(VmError::make_type_error("dict", self, _vm)),
         }
     }
-    pub fn dict_display(&self) -> Result<String, VmError> {
+    pub fn dict_display(&self, vm: &mut VM) -> Result<String, VmError> {
         match self {
             Value::Dict(d) => {
                 let mut out = String::new();
                 out.push_str("%{");
                 for (i, (k, v)) in d.iter().enumerate() {
-                    out.push_str(&k.repr());
+                    out.push_str(&k.repr(vm));
                     out.push_str(": ");
-                    out.push_str(&v.repr());
+                    out.push_str(&v.repr(vm));
                     if i != d.len() - 1 {
                         out.push_str(", ")
                     }
@@ -332,7 +380,7 @@ impl Value {
                 out.push('}');
                 return Ok(out);
             }
-            _ => Err(VmError::make_type_error("dict", self)),
+            _ => Err(VmError::make_type_error("dict", self, vm)),
         }
     }
 }
@@ -348,11 +396,11 @@ pub enum KoniFunc {
     },
     Builtin {
         name: String,
-        func: fn(run_func: &mut VM, &[Value]) -> Result<Value, VmError>,
+        func: fn(vm: &mut VM, &[Value]) -> Result<Value, VmError>,
     },
     BuiltinMethod {
         name: String,
-        func: fn(Value, &[Value]) -> Result<Value, VmError>,
+        func: fn(Value, &[Value], &mut VM) -> Result<Value, VmError>,
     },
 }
 #[repr(i32)]
@@ -383,7 +431,7 @@ impl fmt::Display for ErrCode {
     }
 }
 
-pub fn vm_to_str(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_to_str(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -391,9 +439,9 @@ pub fn vm_to_str(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
         });
     };
     match item {
-        Value::Dict(_) => match item.dict_get(&Value::String(Rc::new("_str".to_string())))? {
+        Value::Dict(_) => match item.dict_get(&Value::String(Rc::new("_str".to_string())), vm)? {
             Some(v) => match &v {
-                Value::Func(_) => match _vm.run_function(v, vec![item.clone()])? {
+                Value::Func(_) => match vm.run_function(v, vec![item.clone()])? {
                     FncExit::Exit(v) => {
                         return Err(VmError {
                             msg: "".to_string(),
@@ -403,14 +451,14 @@ pub fn vm_to_str(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
                     FncExit::Returned(f) => return Ok(f.clone()),
                 },
                 Value::String(_) => Ok(item.clone()),
-                _ => Err(VmError::make_type_error("func` or `str", item)),
+                _ => Err(VmError::make_type_error("func` or `str", item, vm)),
             },
-            None => vm_to_str_basic(item),
+            None => vm_to_str_basic(item, vm),
         },
-        _ => vm_to_str_basic(item),
+        _ => vm_to_str_basic(item, vm),
     }
 }
-fn vm_to_str_basic(item: &Value) -> Result<Value, VmError> {
+fn vm_to_str_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
     match item {
         Value::Integer(val) => Result::Ok(Value::String(Rc::new(val.to_string()))),
         Value::Float(val) => Result::Ok(Value::String(Rc::new(val.to_string()))),
@@ -421,24 +469,24 @@ fn vm_to_str_basic(item: &Value) -> Result<Value, VmError> {
                 Result::Ok(Value::String(Rc::new("false".to_string())))
             }
         }
-        Value::Func(_) => Ok(Value::String(Rc::new(item.repr()))),
+        Value::Func(_) => Ok(Value::String(Rc::new(item.repr(vm)))),
         Value::String(val) => Result::Ok(Value::String(Rc::new(val.to_string()))),
         Value::Null => Result::Ok(Value::String(Rc::new("null".to_string()))),
-        Value::Array(_) => Ok(Value::String(Rc::new(item.repr()))),
-        Value::Module(_) => Ok(Value::String(Rc::new(item.repr()))),
+        Value::Array(_) => Ok(Value::String(Rc::new(item.repr(vm)))),
+        Value::Module(_) => Ok(Value::String(Rc::new(item.repr(vm)))),
         Value::Dict(_) => match item
-            .dict_get(&Value::String(Rc::new("_str".to_string())))
+            .dict_get(&Value::String(Rc::new("_str".to_string())), vm)
             .unwrap()
         {
             Some(v) => match v {
                 Value::String(v) => Ok(Value::String(Rc::new(v.to_string()))),
-                _ => Ok(Value::String(Rc::new(item.dict_display()?))),
+                _ => Ok(Value::String(Rc::new(item.dict_display(vm)?))),
             },
-            _ => Ok(Value::String(Rc::new(item.dict_display()?))),
+            _ => Ok(Value::String(Rc::new(item.dict_display(vm)?))),
         },
         _ => {
             return Err(VmError {
-                msg: format!("Illegal value received for repr(): {}", item.display()),
+                msg: format!("Illegal value received for repr(): {}", item.display(vm)),
                 errcode: ErrCode::TypeError,
             });
         }
@@ -451,10 +499,10 @@ pub fn vm_to_float(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
             errcode: ErrCode::InvalidArgCount,
         });
     };
-    vm_to_float_basic(item)
+    vm_to_float_basic(item, _vm)
 }
 
-fn vm_to_float_basic(item: &Value) -> Result<Value, VmError> {
+fn vm_to_float_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
     match item {
         Value::Integer(val) => Result::Ok(Value::Float(*val as f64)),
         Value::Float(val) => Result::Ok(Value::Float(*val)),
@@ -479,7 +527,7 @@ fn vm_to_float_basic(item: &Value) -> Result<Value, VmError> {
         }
         Value::Null => Result::Ok(Value::Float(0.0)),
         _ => {
-            let out = format!("Cannot convert a {} to a float", item.display());
+            let out = format!("Cannot convert a {} to a float", item.display(vm));
             Result::Err(VmError {
                 msg: out,
                 errcode: ErrCode::ConversionNotPossible,
@@ -487,7 +535,7 @@ fn vm_to_float_basic(item: &Value) -> Result<Value, VmError> {
         }
     }
 }
-pub fn vm_to_int(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_to_int(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [item] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -495,9 +543,9 @@ pub fn vm_to_int(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
         });
     };
 
-    vm_to_int_basic(item)
+    vm_to_int_basic(item, vm)
 }
-fn vm_to_int_basic(item: &Value) -> Result<Value, VmError> {
+fn vm_to_int_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
     match item {
         Value::Integer(v) => Ok(Value::Integer(*v)),
         Value::Float(v) => Ok(Value::Integer(*v as i64)),
@@ -507,7 +555,7 @@ fn vm_to_int_basic(item: &Value) -> Result<Value, VmError> {
             errcode: ErrCode::ConversionNotPossible,
         }),
         _ => Err(VmError {
-            msg: format!("Cannot convert a {} to an integer", item.display()),
+            msg: format!("Cannot convert a {} to an integer", item.display(vm)),
             errcode: ErrCode::ConversionNotPossible,
         }),
     }
@@ -520,9 +568,9 @@ pub fn vm_to_bool(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
             errcode: ErrCode::InvalidArgCount,
         });
     };
-    vm_to_bool_basic(item)
+    vm_to_bool_basic(item, _vm)
 }
-pub fn vm_to_bool_basic(item: &Value) -> Result<Value, VmError> {
+pub fn vm_to_bool_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
     let b = match item {
         Value::Bool(v) => *v,
         Value::Integer(v) => *v != 0,
@@ -531,7 +579,7 @@ pub fn vm_to_bool_basic(item: &Value) -> Result<Value, VmError> {
         Value::Null => false,
         _ => {
             return Err(VmError {
-                msg: format!("Cannot convert {} to bool", item.display()),
+                msg: format!("Cannot convert {} to bool", item.display(vm)),
                 errcode: ErrCode::ConversionNotPossible,
             });
         }
@@ -574,7 +622,7 @@ pub fn vm_print(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::Null)
 }
-pub fn vm_sleep(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_sleep(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [s] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -586,7 +634,7 @@ pub fn vm_sleep(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
         Value::Float(secs) => sleep(std::time::Duration::from_secs_f64(*secs)),
         _ => {
             return Err(VmError {
-                msg: format!("Expected integer or float, got {}", s.display()),
+                msg: format!("Expected integer or float, got {}", s.display(vm)),
                 errcode: ErrCode::TypeError,
             });
         }
@@ -691,7 +739,7 @@ pub fn vmenv() -> Vec<Value> {
     ]
 }
 
-fn vm_exit(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+fn vm_exit(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     if args.len() > 1 {
         return Err(VmError {
             msg: format!("Expected 0 to 1 argument, got {}.", args.len()),
@@ -705,7 +753,7 @@ fn vm_exit(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let code = match item {
         Value::Integer(v) => v,
         _ => {
-            return Err(VmError::make_type_error("integer", item));
+            return Err(VmError::make_type_error("integer", item, vm));
         }
     };
     Err(VmError {
@@ -714,14 +762,14 @@ fn vm_exit(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     })
 }
 
-fn vm_len(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+fn vm_len(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     expect_args(args, 1)?;
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
         Value::Array(v) => Ok(Value::Integer(v.borrow().len().try_into().unwrap())),
         Value::Dict(d) => {
             match args[0]
-                .dict_get(&Value::String(Rc::new("_len".to_string())))
+                .dict_get(&Value::String(Rc::new("_len".to_string())), vm)
                 .unwrap()
             {
                 None => Ok(Value::Integer(d.len().try_into().unwrap())),
@@ -736,12 +784,12 @@ fn vm_len(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
             }
         }
         _ => Err(VmError {
-            msg: format!("Cannot find the `len()` of a {}", args[0].display()),
+            msg: format!("Cannot find the `len()` of a {}", args[0].display(vm)),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn add(a: Value, b: Value) -> Result<Value, VmError> {
+fn add(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va + vb)),
         (Value::Integer(va), Value::Float(vb)) => Ok(Value::Float(*va as f64 + vb)),
@@ -756,14 +804,14 @@ fn add(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot add a {} with a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn sub(a: Value, b: Value) -> Result<Value, VmError> {
+fn sub(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va - vb)),
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va - *vb as f64)),
@@ -774,15 +822,15 @@ fn sub(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot subtract a {} with a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
 
-fn div(a: Value, b: Value) -> Result<Value, VmError> {
+fn div(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => {
             if *vb == 0 {
@@ -829,14 +877,14 @@ fn div(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot divide a {} with a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn vm_mod(a: Value, b: Value) -> Result<Value, VmError> {
+fn vm_mod(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => {
             if *vb == 0 {
@@ -883,14 +931,14 @@ fn vm_mod(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot modulo a {} with a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn mul(a: Value, b: Value) -> Result<Value, VmError> {
+fn mul(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va * vb)),
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va * *vb as f64)),
@@ -916,14 +964,14 @@ fn mul(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "Type Error: Cannot multiply a {} with a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn pow(a: Value, b: Value) -> Result<Value, VmError> {
+fn pow(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va.pow(*vb as u32))),
         (Value::Integer(va), Value::Float(vb)) => Ok(Value::Integer(va.pow(*vb as u32))),
@@ -934,14 +982,14 @@ fn pow(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot raise a {} to a power of a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn lt(a: Value, b: Value) -> Result<Value, VmError> {
+fn lt(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va < vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va < vb)),
@@ -951,14 +999,14 @@ fn lt(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is less than a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn gt(a: Value, b: Value) -> Result<Value, VmError> {
+fn gt(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va > vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va > vb)),
@@ -968,14 +1016,14 @@ fn gt(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is greater than a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn lte(a: Value, b: Value) -> Result<Value, VmError> {
+fn lte(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va <= vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va <= vb)),
@@ -985,14 +1033,14 @@ fn lte(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is less than or equal to a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn gte(a: Value, b: Value) -> Result<Value, VmError> {
+fn gte(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va >= vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va >= vb)),
@@ -1002,32 +1050,32 @@ fn gte(a: Value, b: Value) -> Result<Value, VmError> {
         _ => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is greater than or equal to a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
 
-fn equal_to(a: Value, b: Value) -> Result<Value, VmError> {
+fn equal_to(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match eq_helper(&a, &b) {
         Ok(v) => Ok(Value::Bool(v)),
         Err(_) => Err(VmError {
             msg: format!(
                 "TypeError: Cannot check if a {} is equal to a {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
 
-fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
-    let a_display = a.display();
-    let b_display = b.display();
-    match equal_to(a, b) {
+fn not_equal_to(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+    let a_display = a.display(vm);
+    let b_display = b.display(vm);
+    match equal_to(a, b, vm) {
         Ok(v) => match v {
             Value::Bool(vb) => Ok(Value::Bool(!vb)),
             _ => unreachable!(),
@@ -1044,52 +1092,54 @@ fn not_equal_to(a: Value, b: Value) -> Result<Value, VmError> {
     }
 }
 
-fn or(a: Value, b: Value) -> Result<Value, VmError> {
+fn or(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va || *vb)),
         _ => Err(VmError {
             msg: format!(
                 "TypeError: OR cannot have types of {} and {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
-fn and(a: Value, b: Value) -> Result<Value, VmError> {
+fn and(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va && *vb)),
         _ => Err(VmError {
             msg: format!(
                 "TypeError: AND cannot have types of {} and {}",
-                a.display(),
-                b.display()
+                a.display(vm),
+                b.display(vm)
             ),
             errcode: ErrCode::TypeError,
         }),
     }
 }
 
-static FUNCS: Lazy<HashMap<String, fn(Value, Value) -> Result<Value, VmError>>> = Lazy::new(|| {
-    let mut fs: HashMap<String, fn(Value, Value) -> Result<Value, VmError>> = HashMap::new();
-    fs.insert("ADD".to_string(), add);
-    fs.insert("MUL".to_string(), mul);
-    fs.insert("DIV".to_string(), div);
-    fs.insert("MOD".to_string(), vm_mod);
-    fs.insert("SUB".to_string(), sub);
-    fs.insert("POW".to_string(), pow);
-    fs.insert("LT".to_string(), lt);
-    fs.insert("GT".to_string(), gt);
-    fs.insert("GTE".to_string(), gte);
-    fs.insert("LTE".to_string(), lte);
-    fs.insert("EQ".to_string(), equal_to);
-    fs.insert("NEQ".to_string(), not_equal_to);
-    fs.insert("OR".to_string(), or);
-    fs.insert("AND".to_string(), and);
-    fs
-});
-pub fn funcs() -> &'static HashMap<String, fn(Value, Value) -> Result<Value, VmError>> {
+static FUNCS: Lazy<HashMap<String, fn(Value, Value, &mut VM) -> Result<Value, VmError>>> =
+    Lazy::new(|| {
+        let mut fs: HashMap<String, fn(Value, Value, &mut VM) -> Result<Value, VmError>> =
+            HashMap::new();
+        fs.insert("ADD".to_string(), add);
+        fs.insert("MUL".to_string(), mul);
+        fs.insert("DIV".to_string(), div);
+        fs.insert("MOD".to_string(), vm_mod);
+        fs.insert("SUB".to_string(), sub);
+        fs.insert("POW".to_string(), pow);
+        fs.insert("LT".to_string(), lt);
+        fs.insert("GT".to_string(), gt);
+        fs.insert("GTE".to_string(), gte);
+        fs.insert("LTE".to_string(), lte);
+        fs.insert("EQ".to_string(), equal_to);
+        fs.insert("NEQ".to_string(), not_equal_to);
+        fs.insert("OR".to_string(), or);
+        fs.insert("AND".to_string(), and);
+        fs
+    });
+pub fn funcs() -> &'static HashMap<String, fn(Value, Value, &mut VM) -> Result<Value, VmError>> {
     &FUNCS
 }
 fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
@@ -1102,7 +1152,7 @@ fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
         Ok(())
     }
 }
-fn arr_pop(item: Value, args: &[Value]) -> Result<Value, VmError> {
+fn arr_pop(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
     expect_args(args, 0)?;
     match item {
         Value::Array(ar) => match ar.borrow_mut().pop() {
@@ -1112,18 +1162,18 @@ fn arr_pop(item: Value, args: &[Value]) -> Result<Value, VmError> {
                 errcode: ErrCode::InvalidOperation,
             }),
         },
-        _ => Err(VmError::make_type_error("array", &item)),
+        _ => Err(VmError::make_type_error("array", &item, vm)),
     }
 }
-fn arr_contains(item: Value, args: &[Value]) -> Result<Value, VmError> {
+fn arr_contains(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
     expect_args(args, 1)?;
     let cont = &args[0];
     match item {
         Value::Array(arr) => Ok(Value::Bool(arr.borrow().contains(cont))),
-        _ => Err(VmError::make_type_error("array", &item)),
+        _ => Err(VmError::make_type_error("array", &item, vm)),
     }
 }
-fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
+fn arr_push(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
     expect_args(args, 1)?;
 
     match &item {
@@ -1133,20 +1183,22 @@ fn arr_push(item: Value, args: &[Value]) -> Result<Value, VmError> {
         }
 
         other => Err(VmError {
-            msg: format!("`push` only works on arrays, not {}", other.display()),
+            msg: format!("`push` only works on arrays, not {}", other.display(vm)),
             errcode: ErrCode::TypeError,
         }),
     }
 }
 pub static ATTRMAP: Lazy<
-    HashMap<ValueTag, HashMap<String, fn(Value, &[Value]) -> Result<Value, VmError>>>,
+    HashMap<ValueTag, HashMap<String, fn(Value, &[Value], &mut VM) -> Result<Value, VmError>>>,
 > = Lazy::new(|| {
     let mut attramp = HashMap::new(); // Initialize properly
 
     // 1. Create the inner map
-    let mut array_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> = HashMap::new();
+    let mut array_methods: HashMap<String, fn(Value, MethodArgs, &mut VM) -> MethodReturn> =
+        HashMap::new();
 
-    let mut str_methods: HashMap<String, fn(Value, MethodArgs) -> MethodReturn> = HashMap::new();
+    let mut str_methods: HashMap<String, fn(Value, MethodArgs, &mut VM) -> MethodReturn> =
+        HashMap::new();
 
     // 2. Explicitly cast the function to the signature type
     array_methods.insert("push".to_string(), arr_push);
@@ -1167,24 +1219,24 @@ pub static ATTRMAP: Lazy<
     attramp
 });
 
-fn arr_empty(item: Value, args: MethodArgs) -> MethodReturn {
+fn arr_empty(item: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     check_method_args(args, 0, 0)?;
     match &item {
         Value::Array(arr) => {
             arr.borrow_mut().clear();
             Ok(item)
         }
-        _ => Err(VmError::make_type_error("array", &item)),
+        _ => Err(VmError::make_type_error("array", &item, vm)),
     }
 }
 
-fn arr_insert(item: Value, args: MethodArgs) -> MethodReturn {
+fn arr_insert(item: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     check_method_args(args, 2, 2)?;
     let idx = match args[0] {
         Value::Integer(v) => v,
         _ => {
             return Err(VmError {
-                msg: format!("Expected an integer index, got a {}", args[0].display()),
+                msg: format!("Expected an integer index, got a {}", args[0].display(vm)),
                 errcode: ErrCode::TypeError,
             });
         }
@@ -1194,7 +1246,7 @@ fn arr_insert(item: Value, args: MethodArgs) -> MethodReturn {
             v.borrow_mut().insert(idx as usize, args[1].clone());
             Ok(args[1].clone())
         }
-        _ => Err(VmError::make_type_error("array", &item)),
+        _ => Err(VmError::make_type_error("array", &item, vm)),
     }
 }
 fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmError> {
@@ -1220,25 +1272,25 @@ fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmE
     Ok(())
 }
 
-fn arr_str_is_empty(val: Value, args: MethodArgs) -> MethodReturn {
+fn arr_str_is_empty(val: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     check_method_args(args, 0, 0)?;
     match val {
         Value::String(v) => Ok(Value::Bool(v.is_empty())),
         Value::Array(v) => Ok(Value::Bool(v.borrow().is_empty())),
         _ => Err(VmError {
-            msg: format!("Expected a string or array, got a {}", val.display()),
+            msg: format!("Expected a string or array, got a {}", val.display(vm)),
             errcode: ErrCode::TypeError,
         }),
     }
 }
 
-fn arr_get(val: Value, args: MethodArgs) -> MethodReturn {
+fn arr_get(val: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     check_method_args(args, 1, 2)?;
     let idx = match args[0] {
         Value::Integer(v) => v,
         _ => {
             return Err(VmError {
-                msg: format!("Expected an integer, not a {}", args[0].display()),
+                msg: format!("Expected an integer, not a {}", args[0].display(vm)),
                 errcode: ErrCode::TypeError,
             });
         }
@@ -1252,27 +1304,27 @@ fn arr_get(val: Value, args: MethodArgs) -> MethodReturn {
             Some(v) => Ok(v.clone()),
             None => Ok(def),
         },
-        _ => Err(VmError::make_type_error("array", &val)),
+        _ => Err(VmError::make_type_error("array", &val, vm)),
     }
 }
 
-fn str_strip(val: Value, _: &[Value]) -> Result<Value, VmError> {
+fn str_strip(val: Value, _: &[Value], vm: &mut VM) -> Result<Value, VmError> {
     match val {
         Value::String(v) => Ok(Value::String(Rc::new(v.trim().to_string()))),
-        _ => Err(VmError::make_type_error("str", &val)),
+        _ => Err(VmError::make_type_error("str", &val, vm)),
     }
 }
-fn str_upper(val: Value, _: &[Value]) -> Result<Value, VmError> {
+fn str_upper(val: Value, _: &[Value], vm: &mut VM) -> Result<Value, VmError> {
     match val {
         Value::String(v) => Ok(Value::String(Rc::new(v.to_uppercase()))),
-        _ => Err(VmError::make_type_error("str", &val)),
+        _ => Err(VmError::make_type_error("str", &val, vm)),
     }
 }
 
-pub fn str_lower(val: Value, _: &[Value]) -> Result<Value, VmError> {
+pub fn str_lower(val: Value, _: &[Value], vm: &mut VM) -> Result<Value, VmError> {
     match val {
         Value::String(v) => Ok(Value::String(Rc::new(v.to_lowercase()))),
-        _ => Err(VmError::make_type_error("str", &val)),
+        _ => Err(VmError::make_type_error("str", &val, vm)),
     }
 }
 
@@ -1284,22 +1336,35 @@ mod tests {
 
     #[test]
     fn type_checks_panic() {
-        add(Value::String(Rc::new("hi".to_string())), Value::Float(5.0)).unwrap_err();
+        let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+        add(Value::String(Rc::new("hi".to_string())), Value::Float(5.0), &mut vm).unwrap_err();
         add(
             Value::Func(Rc::new(KoniFunc::Builtin {
                 name: "print".to_string(),
                 func: vm_print,
             })),
-            Value::Float(5.0),
+            Value::Float(5.0), &mut vm
         )
         .unwrap_err();
-        sub(Value::String(Rc::new("hi".to_string())), Value::Float(5.0)).unwrap_err();
-        let ltt = lt(Value::Integer(5), Value::Integer(7)).unwrap();
+        sub(Value::String(Rc::new("hi".to_string())), Value::Float(5.0), &mut vm).unwrap_err();
+        let ltt = lt(Value::Integer(5), Value::Integer(7), &mut vm).unwrap();
         match ltt {
             Value::Bool(v) => assert_eq!(v, true),
             _ => panic!("Expected the output of LT to be a boolean"),
         }
-        let ltt = lt(Value::Integer(7), Value::Integer(5)).unwrap();
+        let ltt = lt(Value::Integer(7), Value::Integer(5), &mut vm).unwrap();
         match ltt {
             Value::Bool(v) => assert_eq!(v, false),
             _ => panic!("Expected the output of LT to be a boolean"),
@@ -1308,29 +1373,43 @@ mod tests {
 
     #[test]
     fn test_vm_to_str() {
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
         let val = Value::Integer(123);
-        let res = vm_to_str_basic(&val).unwrap();
+        let res = vm_to_str_basic(&val, &mut vm).unwrap();
         match res {
             Value::String(s) => assert_eq!(*s, "123"),
             _ => panic!("Expected string"),
         }
 
         let val = Value::Bool(true);
-        let res = vm_to_str_basic(&val).unwrap();
+        let res = vm_to_str_basic(&val, &mut vm).unwrap();
         match res {
             Value::String(s) => assert_eq!(*s, "true"),
             _ => panic!("Expected string"),
         }
 
         let val = Value::Null;
-        let res = vm_to_str_basic(&val).unwrap();
+        let res = vm_to_str_basic(&val, &mut vm).unwrap();
         match res {
             Value::String(s) => assert_eq!(*s, "null"),
             _ => panic!("Expected string"),
         }
 
         let val = Value::String(Rc::new("hello".to_string()));
-        let res = vm_to_str_basic(&val).unwrap();
+        let res = vm_to_str_basic(&val, &mut vm).unwrap();
         match res {
             Value::String(s) => assert_eq!(*s, "hello"),
             _ => panic!("Expected string"),
@@ -1339,70 +1418,98 @@ mod tests {
 
     #[test]
     fn test_vm_to_int() {
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
         let val = Value::String(Rc::new("123".to_string()));
-        let res = vm_to_int_basic(&val).unwrap();
+        let res = vm_to_int_basic(&val, &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 123),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::Bool(true);
-        let res = vm_to_int_basic(&val).unwrap();
+        let res = vm_to_int_basic(&val, &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 1),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::Bool(false);
-        let res = vm_to_int_basic(&val).unwrap();
+        let res = vm_to_int_basic(&val, &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 0),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::Integer(42);
-        let res = vm_to_int_basic(&val).unwrap();
+        let res = vm_to_int_basic(&val, &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 42),
             _ => panic!("Expected integer"),
         }
 
         let val = Value::String(Rc::new("not a number".to_string()));
-        assert!(vm_to_int_basic(&val).is_err());
+        assert!(vm_to_int_basic(&val, &mut vm).is_err());
     }
 
     #[test]
     fn test_vm_to_bool() {
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
         let val = Value::Integer(1);
-        let res = vm_to_bool_basic(&val).unwrap();
+        let res = vm_to_bool_basic(&val, &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
 
         let val = Value::Integer(0);
-        let res = vm_to_bool_basic(&val).unwrap();
+        let res = vm_to_bool_basic(&val, &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),
         }
 
         let val = Value::String(Rc::new("hello".to_string()));
-        let res = vm_to_bool_basic(&val).unwrap();
+        let res = vm_to_bool_basic(&val, &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
 
         let val = Value::String(Rc::new("".to_string()));
-        let res = vm_to_bool_basic(&val).unwrap();
+        let res = vm_to_bool_basic(&val, &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),
         }
 
         let val = Value::Null;
-        let res = vm_to_bool_basic(&val).unwrap();
+        let res = vm_to_bool_basic(&val, &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),
@@ -1411,29 +1518,43 @@ mod tests {
 
     #[test]
     fn test_vm_to_float() {
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
         let val = Value::Integer(123);
-        let res = vm_to_float_basic(&val).unwrap();
+        let res = vm_to_float_basic(&val, &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 123.0),
             _ => panic!("Expected float"),
         }
 
         let val = Value::String(Rc::new("123.45".to_string()));
-        let res = vm_to_float_basic(&val).unwrap();
+        let res = vm_to_float_basic(&val, &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 123.45),
             _ => panic!("Expected float"),
         }
 
         let val = Value::Bool(true);
-        let res = vm_to_float_basic(&val).unwrap();
+        let res = vm_to_float_basic(&val, &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 1.0),
             _ => panic!("Expected float"),
         }
 
         let val = Value::Null;
-        let res = vm_to_float_basic(&val).unwrap();
+        let res = vm_to_float_basic(&val, &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 0.0),
             _ => panic!("Expected float"),
@@ -1442,13 +1563,27 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let res = add(Value::Integer(1), Value::Integer(2)).unwrap();
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
+        let res = add(Value::Integer(1), Value::Integer(2), &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 3),
             _ => panic!("Expected integer"),
         }
 
-        let res = add(Value::Float(1.5), Value::Integer(2)).unwrap();
+        let res = add(Value::Float(1.5), Value::Integer(2), &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 3.5),
             _ => panic!("Expected float"),
@@ -1456,7 +1591,7 @@ mod tests {
 
         let res = add(
             Value::String(Rc::new("a".to_string())),
-            Value::String(Rc::new("b".to_string())),
+            Value::String(Rc::new("b".to_string())), &mut vm
         )
         .unwrap();
         match res {
@@ -1467,13 +1602,27 @@ mod tests {
 
     #[test]
     fn test_sub() {
-        let res = sub(Value::Integer(5), Value::Integer(2)).unwrap();
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
+        let res = sub(Value::Integer(5), Value::Integer(2), &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 3),
             _ => panic!("Expected integer"),
         }
 
-        let res = sub(Value::Float(5.5), Value::Integer(2)).unwrap();
+        let res = sub(Value::Float(5.5), Value::Integer(2), &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 3.5),
             _ => panic!("Expected float"),
@@ -1482,87 +1631,87 @@ mod tests {
 
     #[test]
     fn test_mul() {
-        let res = mul(Value::Integer(2), Value::Integer(3)).unwrap();
+                let mut vm = VM::new(vec![
+            ".version".to_string(),
+            "ENV 1".to_string(),
+            "ISA 1".to_string(),
+            ".frame 1".to_string(),
+            ".const".to_string(),
+            "1;1;".to_string(),
+            "1;2;".to_string(),
+            "6;None;".to_string(),
+            "2;fib;".to_string(),
+            "1;10;".to_string(),
+            ".code".to_string()
+        ]).unwrap();
+
+        let res = mul(Value::Integer(2), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 6),
             _ => panic!("Expected integer"),
         }
 
-        let res = mul(Value::String(Rc::new("a".to_string())), Value::Integer(3)).unwrap();
+        let res = mul(Value::String(Rc::new("a".to_string())), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::String(s) => assert_eq!(s, Rc::new("aaa".to_string())),
             _ => panic!("Expected string"),
         }
-    }
-
-    #[test]
-    fn test_div() {
-        let res = div(Value::Integer(6), Value::Integer(3)).unwrap();
+    
+        let res = div(Value::Integer(6), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 2),
             _ => panic!("Expected integer"),
         }
 
-        let res = div(Value::Float(7.0), Value::Float(2.0)).unwrap();
+        let res = div(Value::Float(7.0), Value::Float(2.0), &mut vm).unwrap();
         match res {
             Value::Float(f) => assert_eq!(f, 3.5),
             _ => panic!("Expected float"),
         }
-    }
-
-    #[test]
-    fn test_pow() {
-        let res = pow(Value::Integer(2), Value::Integer(3)).unwrap();
+        let res = pow(Value::Integer(2), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::Integer(i) => assert_eq!(i, 8),
             _ => panic!("Expected integer"),
         }
-    }
-
-    #[test]
-    fn test_comparisons() {
         // LT
-        let res = lt(Value::Integer(2), Value::Integer(3)).unwrap();
+        let res = lt(Value::Integer(2), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
         // GT
-        let res = gt(Value::Integer(3), Value::Integer(2)).unwrap();
+        let res = gt(Value::Integer(3), Value::Integer(2), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
         // LTE
-        let res = lte(Value::Integer(2), Value::Integer(2)).unwrap();
+        let res = lte(Value::Integer(2), Value::Integer(2), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
         // GTE
-        let res = gte(Value::Integer(3), Value::Integer(3)).unwrap();
+        let res = gte(Value::Integer(3), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
         // EQ
-        let res = equal_to(Value::Integer(3), Value::Integer(3)).unwrap();
+        let res = equal_to(Value::Integer(3), Value::Integer(3), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
-    }
-
-    #[test]
-    fn test_logical() {
+    
         // OR
-        let res = or(Value::Bool(true), Value::Bool(false)).unwrap();
+        let res = or(Value::Bool(true), Value::Bool(false), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, true),
             _ => panic!("Expected bool"),
         }
         // AND
-        let res = and(Value::Bool(true), Value::Bool(false)).unwrap();
+        let res = and(Value::Bool(true), Value::Bool(false), &mut vm).unwrap();
         match res {
             Value::Bool(b) => assert_eq!(b, false),
             _ => panic!("Expected bool"),

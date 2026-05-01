@@ -148,13 +148,13 @@ impl Frame {
 }
 pub enum FncExit {
     Exit(i32),
-    Returned(Value)
+    Returned(Value),
 }
 
 pub enum StepReturn {
     Exited(i32),
     None,
-    Returned(Value)
+    Returned(Value),
 }
 
 impl VM {
@@ -390,25 +390,20 @@ impl VM {
     fn push_to_stack(&mut self, item: Value) {
         self.frames.last_mut().unwrap().stack.push(item);
     }
-    pub fn run_function(
-        &mut self,
-        fnc: Value,
-        args: Vec<Value>,
-    ) -> Result<FncExit, VmError> {
+    pub fn run_function(&mut self, fnc: Value, args: Vec<Value>) -> Result<FncExit, VmError> {
         let arg_count = args.len();
         let func = match fnc {
             Value::Func(f) => f,
             _ => {
                 return Err(VmError {
-                    msg: format!("Expected a function, got a {}", fnc.display()),
+                    msg: format!("Expected a function, got a {}", fnc.display(self)),
                     errcode: ErrCode::TypeError,
                 });
             }
         };
         match &*func {
             KoniFunc::Builtin { name: _, func } => {
-                let dereferenced_args: Vec<Value> =
-                    args.iter().map(|arg| arg.clone()).collect();
+                let dereferenced_args: Vec<Value> = args.iter().map(|arg| arg.clone()).collect();
                 match func(self, dereferenced_args.as_slice()) {
                     Ok(v) => match v {
                         Value::CallRequest(rec_func, args) => {
@@ -424,7 +419,9 @@ impl VM {
                         _ => return Err(v),
                     },
                 }
-                Ok(FncExit::Returned(self.frames.last().unwrap().stack.last().unwrap().clone()))
+                Ok(FncExit::Returned(
+                    self.frames.last().unwrap().stack.last().unwrap().clone(),
+                ))
             }
             KoniFunc::User {
                 entry,
@@ -464,11 +461,11 @@ impl VM {
                 loop {
                     match self.step()? {
                         StepReturn::Exited(v) => return Ok(FncExit::Exit(v)),
-                        StepReturn::None => {},
+                        StepReturn::None => {}
                         StepReturn::Returned(v) => {
                             if self.frames.len() == stack_len {
                                 returned = v;
-                                break
+                                break;
                             }
                         }
                     }
@@ -485,9 +482,11 @@ impl VM {
                         });
                     }
                 };
-                let result = func(itm, args.as_slice())?;
+                let result = func(itm, args.as_slice(), self)?;
                 self.frames.last_mut().unwrap().stack.push(result);
-                return Ok(FncExit::Returned(self.frames.last().unwrap().stack.last().unwrap().clone()));
+                return Ok(FncExit::Returned(
+                    self.frames.last().unwrap().stack.last().unwrap().clone(),
+                ));
             }
         }
     }
@@ -503,7 +502,7 @@ impl VM {
     }
     pub fn step(&mut self) -> Result<StepReturn, VmError> {
         let operators = &self.ins[self.get_i()];
-        let mut returned= false;
+        let mut returned = false;
         match operators[0].as_str() {
             "JMP" => {
                 self.frames.last_mut().unwrap().i = operators[1].parse().expect("Invalid byecode.");
@@ -528,7 +527,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Type error: expected a boolean but got a {}",
-                                condv.display()
+                                condv.display(self)
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -559,7 +558,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Type error: expected a boolean but got a {}",
-                                condv.display()
+                                condv.display(self)
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -641,26 +640,28 @@ impl VM {
                 let _ = std::io::stdin().read_line(&mut b);
             }
             "GETATTR" => {
-                let attrand: usize = operators[1].parse().expect("Invalid bytecode");
-                let attrand = match self.const_pool.get(attrand) {
-                    Some(v) => v,
+                let attrand_unparsed: usize = operators[1].parse().expect("Invalid bytecode");
+
+                let attrand = match self.const_pool.get(attrand_unparsed).cloned() {
+                    Some(v) => &v.clone(),
                     None => {
                         return Err(VmError {
                             msg: format!(
                                 "Cannot find a value from the constant pool at index {}",
-                                attrand
+                                attrand_unparsed
                             ),
                             errcode: ErrCode::InvalidBytecode,
                         });
                     }
                 };
+
                 let attrand = match attrand {
                     Value::String(v) => v,
                     _ => {
                         return Err(VmError {
                             msg: format!(
                                 "Expected attrand for GET_ATTR to be a string, found a {}",
-                                attrand.display()
+                                attrand.display(self)
                             ),
                             errcode: ErrCode::InvalidBytecode,
                         });
@@ -688,21 +689,23 @@ impl VM {
                             });
                         }
                     },
-                    Value::Dict(_) => match attrl.dict_get(&Value::String(Rc::new(attrand.to_string()))) {
-                        Ok(v) => match v {
-                            Some(vs) => vs,
-                            None => {
-                                return Err(VmError {
-                                    msg: format!(
-                                        "Could not find an entry {} from the dict.",
-                                        attrand
-                                    ),
-                                    errcode: ErrCode::AttributeError,
-                                });
-                            }
-                        },
-                        Err(_) => unreachable!(),
-                    },
+                    Value::Dict(_) => {
+                        match attrl.dict_get(&Value::String(Rc::new(attrand.to_string())), self) {
+                            Ok(v) => match v {
+                                Some(vs) => vs,
+                                None => {
+                                    return Err(VmError {
+                                        msg: format!(
+                                            "Could not find an entry {} from the dict.",
+                                            attrand
+                                        ),
+                                        errcode: ErrCode::AttributeError,
+                                    });
+                                }
+                            },
+                            Err(_) => unreachable!(),
+                        }
+                    }
                     _ => {
                         if let Some(methods) = crate::runtime::ATTRMAP.get(&attrl.get_tag()) {
                             self.frames.last_mut().unwrap().stack.push(attrl.clone());
@@ -717,7 +720,7 @@ impl VM {
                                     msg: format!(
                                         "No attribute `{}` for type {}",
                                         attrand,
-                                        attrl.display()
+                                        attrl.display(self)
                                     ),
                                     errcode: ErrCode::AttributeError,
                                 });
@@ -726,7 +729,7 @@ impl VM {
                             return Err(VmError {
                                 msg: format!(
                                     "Cannot get an attribute from a type of {}",
-                                    attrl.display()
+                                    attrl.display(self)
                                 ),
                                 errcode: ErrCode::AttributeError,
                             });
@@ -747,7 +750,7 @@ impl VM {
                                 return Err(VmError {
                                     msg: format!(
                                         "Cannot index an array with type `{}`",
-                                        rhs.display()
+                                        rhs.display(self)
                                     ),
                                     errcode: ErrCode::TypeError,
                                 });
@@ -763,12 +766,12 @@ impl VM {
                             }
                         }
                     }
-                    Value::Dict(_) => match item.dict_get(&rhs) {
+                    Value::Dict(_) => match item.dict_get(&rhs, self) {
                         Ok(v) => match v {
                             Some(v) => self.push_to_stack(v),
                             None => {
                                 return Err(VmError {
-                                    msg: format!("Cannot find key {} from dict", rhs.display()),
+                                    msg: format!("Cannot find key {} from dict", rhs.display(self)),
                                     errcode: ErrCode::IndexError,
                                 });
                             }
@@ -777,7 +780,7 @@ impl VM {
                     },
                     _ => {
                         return Err(VmError {
-                            msg: format!("Cannot get an index from a {}", item.display()),
+                            msg: format!("Cannot get an index from a {}", item.display(self)),
                             errcode: ErrCode::TypeError,
                         });
                     }
@@ -914,7 +917,10 @@ impl VM {
                     Value::Integer(val) => Value::Integer(0 - val),
                     _ => {
                         return Err(VmError {
-                            msg: format!("Cannot convert a {} to a negative value", v.display()),
+                            msg: format!(
+                                "Cannot convert a {} to a negative value",
+                                v.display(self)
+                            ),
                             errcode: ErrCode::TypeError,
                         });
                     }
@@ -936,7 +942,7 @@ impl VM {
                         });
                     }
                 };
-                let out = match crate::runtime::vm_to_bool_basic(&v)? {
+                let out = match crate::runtime::vm_to_bool_basic(&v, self)? {
                     Value::Bool(b) => Value::Bool(!b),
                     _ => panic!("Extreme VM edge case on NOT"),
                 };
@@ -944,7 +950,7 @@ impl VM {
             }
             "ENTER_MODULE" => {
                 let mod_name_idx = operators[1].parse::<usize>().expect("Invalid Bytecode");
-                let mod_name = match self.const_pool.get(mod_name_idx) {
+                let mod_name = match self.const_pool.get(mod_name_idx).cloned() {
                     None => {
                         return Err(VmError {
                             msg: format!(
@@ -960,7 +966,7 @@ impl VM {
                             return Err(VmError {
                                 msg: format!(
                                     "Expected ENTER_MODULE to reference a string, not a {}",
-                                    v.display()
+                                    v.display(self)
                                 ),
                                 errcode: ErrCode::TypeError,
                             });
@@ -972,7 +978,8 @@ impl VM {
             "MAKE_MODULE" => {
                 let mod_name_tmp = self
                     .const_pool
-                    .get(operators[1].parse::<usize>().expect("Invalid Bytecode"));
+                    .get(operators[1].parse::<usize>().expect("Invalid Bytecode"))
+                    .cloned();
                 let mod_name = match mod_name_tmp {
                     None => {
                         return Err(VmError {
@@ -989,7 +996,7 @@ impl VM {
                             return Err(VmError {
                                 msg: format!(
                                     "Expected `MAKE_MODULE` to reference a string, not a {}",
-                                    v.display()
+                                    v.display(self)
                                 ),
                                 errcode: ErrCode::TypeError,
                             });
@@ -1015,7 +1022,7 @@ impl VM {
                     }
                 };
                 let name: usize = name.parse().expect("Invalid bytecode");
-                let name = match self.const_pool.get(name) {
+                let name = match self.const_pool.get(name).cloned() {
                     Some(v) => v,
                     None => {
                         return Err(VmError {
@@ -1033,7 +1040,7 @@ impl VM {
                         return Err(VmError {
                             msg: format!(
                                 "Expected EXPORT to reference to a string, not a {}",
-                                name.display()
+                                name.display(self)
                             ),
                             errcode: ErrCode::TypeError,
                         });
@@ -1107,10 +1114,10 @@ impl VM {
             "REQUIRE" => {
                 let mut broken = false;
                 for item in 1..operators.len() - 1 {
-                    match self.const_pool.get(into_usize(&operators[item])?) {
+                    match self.const_pool.get(into_usize(&operators[item])?).cloned() {
                         Some(v) => match v {
                             Value::String(val) => {
-                                if !crate::runtime::SUPPORTED_FEATURES.contains(val) {
+                                if !crate::runtime::SUPPORTED_FEATURES.contains(&val) {
                                     broken = true;
                                     break;
                                 }
@@ -1119,7 +1126,7 @@ impl VM {
                                 return Err(VmError {
                                     msg: format!(
                                         "Expected `REQUIRE` to reference to a string, not a {}.",
-                                        v.display()
+                                        v.display(self)
                                     ),
                                     errcode: ErrCode::TypeError,
                                 });
@@ -1183,7 +1190,7 @@ impl VM {
                             };
                         }
                     };
-                    match op(lhs, rhs) {
+                    match op(lhs, rhs, self) {
                         Ok(v) => self.push_to_stack(v),
                         Err(e) => return Err(e),
                     }
@@ -1197,8 +1204,9 @@ impl VM {
         }
         self.frames.last_mut().unwrap().i += 1;
         if returned {
-            println!("{:?}", self.ins[self.frames.last().unwrap().i]);
-            Ok(StepReturn::Returned(self.frames.last().unwrap().stack.last().unwrap().clone()))
+            Ok(StepReturn::Returned(
+                self.frames.last().unwrap().stack.last().unwrap().clone(),
+            ))
         } else if !(self.get_i() < self.ins.len()) {
             Ok(StepReturn::Exited(0))
         } else {
@@ -1209,7 +1217,7 @@ impl VM {
         while self.get_i() < self.ins.len() {
             match self.step()? {
                 StepReturn::Exited(v) => return Ok(v),
-                StepReturn::None => {},
+                StepReturn::None => {}
                 StepReturn::Returned(_) => {}
             }
         }
