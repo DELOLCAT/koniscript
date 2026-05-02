@@ -13,63 +13,75 @@ from koni_compiler.runtime import (
     Program,
     Builtin,
 )
+from enum import Enum
 
-ADD = 'ADD'  # TODO: refactor this to be better, perhaps into an enum
-INTEGER = 'INT'
-INT = INTEGER
-IDENTIFIER = 'IDENTIFIER'
-ASSIGN = 'ASSIGN'
-NEWLINE = 'NEWLINE'
-EOF = 'EOF'
-DIVIDE = 'DIV'
-DIV = DIVIDE
-MULTIPLY = 'MUL'
-MUL = MULTIPLY
-POWER = 'POW'
-POW = POWER
-SUBTRACT = 'SUB'
-SUB = SUBTRACT
-RPAREN = 'RPAREN'
-LPAREN = 'LPAREN'
-STRING = 'STRING'
-COMMA = 'COMMA'
-PRECEDENCE = {ADD: 1, SUB: 1, MUL: 2, DIV: 2, POW: 3}
-LBRACE = 'LBRACE'
-RBRACE = 'RBRACE'
-FUNC = 'FUNC'
-RETURN = 'RETURN'
-BOOLEAN = 'BOOLEAN'
-BOOL = BOOLEAN
-GREATER_THAN = 'GT'
-GT = GREATER_THAN
-LESS_THAN = 'LT'
-LT = LESS_THAN
-LTE = 'LTE'
-GTE = 'GTE'
-EQUAL_TO = 'EQ'
-NOT_EQUAL_TO = 'NEQ'
-IF = 'IF'
-ELSE = 'ELSE'
-OR = 'OR'
-AND = 'AND'
-FLOAT = 'FLOAT'
-WHILE = 'WHILE'
-DOT = 'DOT'
-IMPORT = 'IMPORT'
-EXPORT = 'EXPORT'
-LBRACKET = 'LBRACKET'
-RBRACKET = 'RBRACKET'
-AT_RATE = 'AT_RATE'
-NOT = 'NOT'
-PLUS_ASSIGN = 'PLUS_ASSIGN'
-SUB_ASSIGN = 'SUB_ASSIGN'
-MUL_ASSIGN = 'MUL_ASSIGN'
-DIV_ASSIGN = 'DIV_ASSIGN'
-MOD = 'MOD'
-NULL = 'NULL'
-DICT_STARTER = 'DICT_STARTER'
-COLON = 'COLON'
-BREAK = 'BREAK'
+
+class TokenType(Enum):
+    ADD = 'ADD'
+    INTEGER = 'INT'
+    INT = INTEGER
+    IDENTIFIER = 'IDENTIFIER'
+    ASSIGN = 'ASSIGN'
+    NEWLINE = 'NEWLINE'
+    EOF = 'EOF'
+    DIVIDE = 'DIV'
+    DIV = DIVIDE
+    MULTIPLY = 'MUL'
+    MUL = MULTIPLY
+    POWER = 'POW'
+    POW = POWER
+    SUBTRACT = 'SUB'
+    SUB = SUBTRACT
+    RPAREN = 'RPAREN'
+    LPAREN = 'LPAREN'
+    STRING = 'STRING'
+    COMMA = 'COMMA'
+    LBRACE = 'LBRACE'
+    RBRACE = 'RBRACE'
+    FUNC = 'FUNC'
+    RETURN = 'RETURN'
+    BOOLEAN = 'BOOLEAN'
+    BOOL = BOOLEAN
+    GREATER_THAN = 'GT'
+    GT = GREATER_THAN
+    LESS_THAN = 'LT'
+    LT = LESS_THAN
+    LTE = 'LTE'
+    GTE = 'GTE'
+    EQUAL_TO = 'EQ'
+    NOT_EQUAL_TO = 'NEQ'
+    IF = 'IF'
+    ELSE = 'ELSE'
+    OR = 'OR'
+    AND = 'AND'
+    FLOAT = 'FLOAT'
+    WHILE = 'WHILE'
+    DOT = 'DOT'
+    IMPORT = 'IMPORT'
+    EXPORT = 'EXPORT'
+    LBRACKET = 'LBRACKET'
+    RBRACKET = 'RBRACKET'
+    AT_RATE = 'AT_RATE'
+    NOT = 'NOT'
+    PLUS_ASSIGN = 'PLUS_ASSIGN'
+    SUB_ASSIGN = 'SUB_ASSIGN'
+    MUL_ASSIGN = 'MUL_ASSIGN'
+    DIV_ASSIGN = 'DIV_ASSIGN'
+    MOD = 'MOD'
+    NULL = 'NULL'
+    DICT_STARTER = 'DICT_STARTER'
+    COLON = 'COLON'
+    BREAK = 'BREAK'
+
+
+PRECEDENCE = {
+    TokenType.ADD: 1,
+    TokenType.SUB: 1,
+    TokenType.MUL: 2,
+    TokenType.DIV: 2,
+    TokenType.POW: 3,
+}
+
 
 @dataclass
 class CompilationException(Exception):
@@ -103,19 +115,19 @@ class TokenizerError(CompilationException):
 
 
 KEYWORDS = {
-    'func': FUNC,
-    'return': RETURN,
-    'if': IF,
-    'else': ELSE,
-    'or': OR,
-    'and': AND,
-    'while': WHILE,
-    'import': IMPORT,
-    'export': EXPORT,
-    '@': AT_RATE,
-    'not': NOT,
-    'null': NULL,
-    'break': BREAK
+    'func': TokenType.FUNC,
+    'return': TokenType.RETURN,
+    'if': TokenType.IF,
+    'else': TokenType.ELSE,
+    'or': TokenType.OR,
+    'and': TokenType.AND,
+    'while': TokenType.WHILE,
+    'import': TokenType.IMPORT,
+    'export': TokenType.EXPORT,
+    '@': TokenType.AT_RATE,
+    'not': TokenType.NOT,
+    'null': TokenType.NULL,
+    'break': TokenType.BREAK,
 }
 
 
@@ -129,7 +141,7 @@ class IncompleteInput(Exception):
 
 @dataclass
 class Token:
-    type: str
+    type: TokenType
     value: Any
     line: int
     col: int
@@ -189,7 +201,7 @@ class Tokenizer:
         current_char = self.get_current_char()
         if current_char is None:
             return Token(
-                EOF, None, start_line, start_col, self.line, self.col
+                TokenType.EOF, None, start_line, start_col, self.line, self.col
             )  # End of input
 
         if current_char.isdigit():
@@ -206,21 +218,37 @@ class Tokenizer:
                 self.advance(1)
             if fl:
                 return Token(
-                    FLOAT, float(value), start_line, start_col, self.line, self.col
+                    TokenType.FLOAT,
+                    float(value),
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col,
                 )
             else:
                 return Token(
-                    INT, int(value), start_line, start_col, self.line, self.col
+                    TokenType.INT,
+                    int(value),
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col,
                 )
         elif current_char == '[':
             self.advance(1)
-            return Token(LBRACKET, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LBRACKET, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ']':
             self.advance(1)
-            return Token(RBRACKET, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.RBRACKET, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '@':
             self.advance(1)
-            return Token(AT_RATE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.AT_RATE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '#':
             while (
                 self.get_current_char() is not None and self.get_current_char() != '\n'
@@ -229,88 +257,144 @@ class Tokenizer:
             return self.get_next_token()
         elif self.check('+='):
             self.advance(2)
-            return Token(PLUS_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.PLUS_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('-='):
             self.advance(2)
-            return Token(SUB_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.SUB_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('/='):
             self.advance(2)
-            return Token(DIV_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DIV_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('*='):
             self.advance(2)
-            return Token(MUL_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.MUL_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('%{'):
             self.advance(2)
-            return Token(DICT_STARTER, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DICT_STARTER, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '+':
             self.advance(1)
-            return Token(ADD, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.ADD, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '.':
             self.advance(1)
-            return Token(DOT, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DOT, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('true'):
             self.advance(4)
-            return Token(BOOL, True, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.BOOL, True, start_line, start_col, self.line, self.col
+            )
         elif self.check('false'):
             self.advance(5)
-            return Token(BOOL, False, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.BOOL, False, start_line, start_col, self.line, self.col
+            )
         elif self.check('=='):
             self.advance(2)
-            return Token(EQUAL_TO, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.EQUAL_TO, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '=':
             self.advance(1)
-            return Token(ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ':':
             self.advance(1)
-            return(Token(COLON, None, start_line, start_col, self.line, self.col))
+            return Token(
+                TokenType.COLON, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '-':
             self.advance(1)
-            return Token(SUB, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.SUB, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('**'):
             self.advance(2)
-            return Token(POW, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.POW, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '*':
             self.advance(1)
-            return Token(MUL, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.MUL, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('!='):
             self.advance(2)
-            return Token(NOT_EQUAL_TO, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.NOT_EQUAL_TO, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('<='):
             self.advance(2)
-            return Token(LTE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LTE, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('>='):
             self.advance(2)
-            return Token(GTE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.GTE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '\n':
             self.advance(1)
-            return Token(NEWLINE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.NEWLINE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '(':
             self.advance(1)
-            return Token(LPAREN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LPAREN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ')':
             self.advance(1)
-            return Token(RPAREN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.RPAREN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '{':
             self.advance(1)
-            return Token(LBRACE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LBRACE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '}':
             self.advance(1)
-            return Token(RBRACE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.RBRACE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '/':
             self.advance(1)
-            return Token(DIV, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DIV, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ',':
             self.advance(1)
-            return Token(COMMA, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.COMMA, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '<':
             self.advance(1)
-            return Token(LESS_THAN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LESS_THAN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '%':
             self.advance(1)
-            return Token(MOD, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.MOD, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '>':
             self.advance(1)
-            return Token(GREATER_THAN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.GREATER_THAN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '"':
             self.advance(1)
             value = ''
@@ -339,7 +423,9 @@ class Tokenizer:
                     self.col + 1,
                 )
             self.advance()
-            return Token(STRING, value, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.STRING, value, start_line, start_col, self.line, self.col
+            )
         elif current_char == "'":
             self.advance(1)
             value = ''
@@ -368,7 +454,9 @@ class Tokenizer:
                     self.col + 1,
                 )
             self.advance()
-            return Token(STRING, value, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.STRING, value, start_line, start_col, self.line, self.col
+            )
 
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
@@ -380,7 +468,7 @@ class Tokenizer:
             ):  # pyright: ignore[reportOptionalMemberAccess]
                 to_return += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                 self.advance()
-            tok_type = KEYWORDS.get(to_return, IDENTIFIER)
+            tok_type = KEYWORDS.get(to_return, TokenType.IDENTIFIER)
             return Token(
                 tok_type, to_return, start_line, start_col, self.line, self.col
             )
@@ -451,6 +539,28 @@ class KoniNull(KoniType):
         self.display = 'null'
 
 
+class BinOpType(Enum):
+    ADD = TokenType.ADD
+    SUB = TokenType.SUBTRACT
+    OR = TokenType.OR
+    AND = TokenType.AND
+    LT = TokenType.LT
+    LTE = TokenType.LTE
+    GT = TokenType.GT
+    GTE = TokenType.GTE
+    MUL = TokenType.MUL
+    DIV = TokenType.DIV
+    POW = TokenType.POW
+    EQ = TokenType.EQUAL_TO
+    NEQ = TokenType.NOT_EQUAL_TO
+    MOD = TokenType.MOD
+
+
+class UnaryOpType(Enum):
+    NEG = 'NEG'
+    NOT = TokenType.NOT
+
+
 class Parser:
     def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool = False):
         self.base_env = base_env
@@ -458,14 +568,14 @@ class Parser:
         self.pos = 0
         self.repl = repl
         self.current_token = (
-            self.tokens[0] if self.tokens else Token(EOF, None, 0, 0, 0, 0)
+            self.tokens[0] if self.tokens else Token(TokenType.EOF, None, 0, 0, 0, 0)
         )
 
     def incomplete_input(self):
         if self.repl:
             raise IncompleteInput
 
-    def eat(self, token_type):
+    def eat(self, token_type: TokenType):
         out = self.current_token
         if self.current_token.type != token_type:
             raise ParserError(
@@ -484,11 +594,14 @@ class Parser:
         if self.pos < len(self.tokens):
             self.current_token = self.tokens[self.pos]
         else:
-            self.current_token = Token(EOF, None, 0, 0, 0, 0)
+            self.current_token = Token(TokenType.EOF, None, 0, 0, 0, 0)
 
     def arithmetic_expr(self):
         node = self.term()
-        while self.current_token and self.current_token.type in (ADD, SUB):
+        while self.current_token and self.current_token.type in (
+            TokenType.ADD,
+            TokenType.SUB,
+        ):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -497,14 +610,14 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.term(),
             )
         return node
 
     def expr(self):
         node = self.logical_and()
-        while self.current_token.type == OR:
+        while self.current_token.type == TokenType.OR:
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -513,28 +626,28 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.logical_and(),
             )
 
         return node
 
     def logical_not(self):
-        if self.current_token.type == NOT:
-            self.eat(NOT)
+        if self.current_token.type == TokenType.NOT:
+            self.eat(TokenType.NOT)
             return UnaryOp(
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
-                NOT,
+                UnaryOpType.NOT,
                 self.logical_not(),
             )
         return self.equality()
 
     def logical_and(self):
         node = self.logical_not()
-        while self.current_token.type == AND:
+        while self.current_token.type == TokenType.AND:
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -543,14 +656,19 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.equality(),
             )
         return node
 
     def comparison(self):
         node = self.arithmetic_expr()
-        while self.current_token.type in (LT, GT, LTE, GTE):
+        while self.current_token.type in (
+            TokenType.LT,
+            TokenType.GT,
+            TokenType.LTE,
+            TokenType.GTE,
+        ):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -559,14 +677,14 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.arithmetic_expr(),
             )
         return node
 
     def equality(self):
         node = self.comparison()
-        while self.current_token.type in (EQUAL_TO, NOT_EQUAL_TO):
+        while self.current_token.type in (TokenType.EQUAL_TO, TokenType.NOT_EQUAL_TO):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -575,14 +693,18 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.comparison(),
             )
         return node
 
     def term(self):
         node = self.power()
-        while self.current_token and self.current_token.type in (MUL, DIV, MOD):
+        while self.current_token and self.current_token.type in (
+            TokenType.MUL,
+            TokenType.DIV,
+            TokenType.MOD,
+        ):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -591,45 +713,54 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.power(),
             )
         return node
 
     def power(self):
         node = self.factor()
-        if self.current_token and self.current_token.type == POW:
+        if self.current_token and self.current_token.type == TokenType.POW:
             op = self.current_token.type
-            self.eat(POW)
+            self.eat(TokenType.POW)
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
                 node,
-                op,
+                BinOpType(op),
                 self.power(),
             )  # right-associative
         return node
 
     def factor(self):
         token = self.current_token
-        if token.type == SUB:
-            self.eat(SUB)
+        if token.type == TokenType.SUB:
+            self.eat(TokenType.SUB)
             return UnaryOp(
-                token.line, token.col, token.end_line, token.end_col, NEG, self.factor()
+                token.line,
+                token.col,
+                token.end_line,
+                token.end_col,
+                UnaryOpType.NEG,
+                self.factor(),
             )
         return self.postfix()
 
     def postfix(self):
         node = self.primary()
 
-        while self.current_token.type in (DOT, LPAREN, LBRACKET):
-            if self.current_token.type == DOT:
+        while self.current_token.type in (
+            TokenType.DOT,
+            TokenType.LPAREN,
+            TokenType.LBRACKET,
+        ):
+            if self.current_token.type == TokenType.DOT:
                 dot_line = self.current_token.line
                 dot_col = self.current_token.col
-                self.eat(DOT)
-                if self.current_token.type != IDENTIFIER:
+                self.eat(TokenType.DOT)
+                if self.current_token.type != TokenType.IDENTIFIER:
                     raise ParserError(
                         4,
                         "Expected identifier after '.'",
@@ -639,7 +770,7 @@ class Parser:
                         self.current_token.end_col,
                     )
 
-                end_tok = self.eat(IDENTIFIER)
+                end_tok = self.eat(TokenType.IDENTIFIER)
                 node = Attribute(
                     dot_line,
                     dot_col,
@@ -649,130 +780,136 @@ class Parser:
                     end_tok.value,
                 )
 
-            elif self.current_token.type == LPAREN:
+            elif self.current_token.type == TokenType.LPAREN:
                 call_line = self.current_token.line
                 call_col = self.current_token.col
-                self.eat(LPAREN)
+                self.eat(TokenType.LPAREN)
                 args = []
 
                 self.skip_newline()
 
-                if self.current_token.type != RPAREN:
+                if self.current_token.type != TokenType.RPAREN:
                     args.append(self.expr())
 
-                    while self.current_token.type == COMMA:
-                        self.eat(COMMA)
+                    while self.current_token.type == TokenType.COMMA:
+                        self.eat(TokenType.COMMA)
                         self.skip_newline()
                         args.append(self.expr())
 
                 self.skip_newline()
 
-                if self.current_token.type == EOF:
+                if self.current_token.type == TokenType.EOF:
                     self.incomplete_input()
 
-                end_tok = self.eat(RPAREN)
+                end_tok = self.eat(TokenType.RPAREN)
                 node = Call(
                     call_line, call_col, end_tok.end_line, end_tok.end_col, node, args
                 )
-            elif self.current_token.type == LBRACKET:
+            elif self.current_token.type == TokenType.LBRACKET:
                 ln = self.current_token.line
                 col = self.current_token.col
-                self.eat(LBRACKET)
+                self.eat(TokenType.LBRACKET)
                 idx = self.expr()
-                end_tok = self.eat(RBRACKET)
+                end_tok = self.eat(TokenType.RBRACKET)
                 node = GetIndex(ln, col, end_tok.end_line, end_tok.end_col, node, idx)
 
         return node
 
     def skip_newline(self):
-        while self.current_token.type == NEWLINE:
-            self.eat(NEWLINE)
+        while self.current_token.type == TokenType.NEWLINE:
+            self.eat(TokenType.NEWLINE)
 
     def primary(self):
         token = self.current_token
-        if token.type == INT:
-            self.eat(INT)
+        if token.type == TokenType.INT:
+            self.eat(TokenType.INT)
             return Number(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
-        elif token.type == DICT_STARTER:
-            self.eat(DICT_STARTER)
-            if self.current_token.type == EOF:
+        elif token.type == TokenType.DICT_STARTER:
+            self.eat(TokenType.DICT_STARTER)
+            if self.current_token.type == TokenType.EOF:
                 self.incomplete_input()
             items = []
             self.skip_newline()
-            if self.current_token.type != RBRACE:
-                if self.current_token.type == EOF:
+            if self.current_token.type != TokenType.RBRACE:
+                if self.current_token.type == TokenType.EOF:
                     self.incomplete_input()
                 self.skip_newline()
                 k = self.expr()
-                self.eat(COLON)
+                self.eat(TokenType.COLON)
                 v = self.expr()
                 items.append((k, v))
-                while self.current_token.type == COMMA:
-                    self.eat(COMMA)
-                    if self.current_token.type == EOF:
+                while self.current_token.type == TokenType.COMMA:
+                    self.eat(TokenType.COMMA)
+                    if self.current_token.type == TokenType.EOF:
                         self.incomplete_input()
                     self.skip_newline()
                     k = self.expr()
-                    self.eat(COLON)
+                    self.eat(TokenType.COLON)
                     v = self.expr()
                     items.append((k, v))
             self.skip_newline()
-            self.eat(RBRACE)
-            return KoniDict(token.line, token.col, self.current_token.line, self.current_token.col, items)
-        elif token.type == LBRACKET:
-            self.eat(LBRACKET)
-            if self.current_token.type == EOF:
+            self.eat(TokenType.RBRACE)
+            return KoniDict(
+                token.line,
+                token.col,
+                self.current_token.line,
+                self.current_token.col,
+                items,
+            )
+        elif token.type == TokenType.LBRACKET:
+            self.eat(TokenType.LBRACKET)
+            if self.current_token.type == TokenType.EOF:
                 self.incomplete_input()
             items = []
             self.skip_newline()
-            if self.current_token.type != RBRACKET:
-                if self.current_token.type == EOF:
+            if self.current_token.type != TokenType.RBRACKET:
+                if self.current_token.type == TokenType.EOF:
                     self.incomplete_input()
                 self.skip_newline()
                 items.append(self.expr())
-                while self.current_token.type == COMMA:
-                    self.eat(COMMA)
-                    if self.current_token.type == EOF:
+                while self.current_token.type == TokenType.COMMA:
+                    self.eat(TokenType.COMMA)
+                    if self.current_token.type == TokenType.EOF:
                         self.incomplete_input()
                     self.skip_newline()
                     items.append(self.expr())
                 self.skip_newline()
-            end_tok = self.eat(RBRACKET)
+            end_tok = self.eat(TokenType.RBRACKET)
             return Array(
                 token.line, token.col, end_tok.end_line, end_tok.end_col, items
             )
-        elif token.type == FLOAT:
-            self.eat(FLOAT)
+        elif token.type == TokenType.FLOAT:
+            self.eat(TokenType.FLOAT)
             return Float(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
-        elif token.type == STRING:
-            self.eat(STRING)
+        elif token.type == TokenType.STRING:
+            self.eat(TokenType.STRING)
             return String(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
-        elif token.type == BOOL:
-            self.eat(BOOL)
+        elif token.type == TokenType.BOOL:
+            self.eat(TokenType.BOOL)
             return Bool(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
-        elif token.type == IDENTIFIER:
-            self.eat(IDENTIFIER)
+        elif token.type == TokenType.IDENTIFIER:
+            self.eat(TokenType.IDENTIFIER)
             return Variable(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
-        elif token.type == NULL:
-            self.eat(NULL)
+        elif token.type == TokenType.NULL:
+            self.eat(TokenType.NULL)
             return Null(token.line, token.col, token.end_line, token.end_col)
-        elif token.type == LPAREN:
-            self.eat(LPAREN)
+        elif token.type == TokenType.LPAREN:
+            self.eat(TokenType.LPAREN)
             node = self.expr()
-            if self.current_token.type == EOF:
+            if self.current_token.type == TokenType.EOF:
                 self.incomplete_input()
             self.skip_newline()
-            self.eat(RPAREN)
+            self.eat(TokenType.RPAREN)
             return node
         raise ParserError(
             3,
@@ -784,7 +921,7 @@ class Parser:
         )
 
     def export(self):
-        self.eat(EXPORT)
+        self.eat(TokenType.EXPORT)
         out = self.statement()
         if out is None:
             raise ParserError(
@@ -818,48 +955,48 @@ class Parser:
 
     def statement(self):
         self.skip_newline()
-        if self.current_token.type == RBRACE:
+        if self.current_token.type == TokenType.RBRACE:
             return None
-        elif self.current_token.type == BREAK:
-            t = self.eat(BREAK)
+        elif self.current_token.type == TokenType.BREAK:
+            t = self.eat(TokenType.BREAK)
             ln = t.line
             col = t.col
             return Break(ln, col, self.current_token.line, self.current_token.col)
-        elif self.current_token.type == AT_RATE:
-            self.eat(AT_RATE)
+        elif self.current_token.type == TokenType.AT_RATE:
+            self.eat(TokenType.AT_RATE)
             if self.current_token.value == 'require':
                 ln = self.current_token.line
                 col = self.current_token.col
-                self.eat(IDENTIFIER)
+                self.eat(TokenType.IDENTIFIER)
                 reqs = []
                 req = ''
 
-                req += self.eat(IDENTIFIER).value
+                req += self.eat(TokenType.IDENTIFIER).value
 
-                while self.current_token.type == DOT:
+                while self.current_token.type == TokenType.DOT:
                     req += '.'
-                    self.eat(DOT)
-                    req += self.eat(IDENTIFIER).value
+                    self.eat(TokenType.DOT)
+                    req += self.eat(TokenType.IDENTIFIER).value
 
                 reqs.append(req)
                 req = ''
-                while self.current_token.type == COMMA:
-                    if self.current_token.type == EOF:
+                while self.current_token.type == TokenType.COMMA:
+                    if self.current_token.type == TokenType.EOF:
                         self.incomplete_input()
                     self.skip_newline()
-                    self.eat(COMMA)
-                    req += self.eat(IDENTIFIER).value
-                    while self.current_token.type == DOT:
+                    self.eat(TokenType.COMMA)
+                    req += self.eat(TokenType.IDENTIFIER).value
+                    while self.current_token.type == TokenType.DOT:
                         req += '.'
-                        self.eat(DOT)
-                        req += self.eat(IDENTIFIER).value
+                        self.eat(TokenType.DOT)
+                        req += self.eat(TokenType.IDENTIFIER).value
                     reqs.append(req)
                     req = ''
-                if self.current_token.type == LBRACE:
+                if self.current_token.type == TokenType.LBRACE:
                     blk = self.block()
                     else_block: Block | None = None
-                    if self.current_token.type == ELSE:
-                        self.eat(ELSE)
+                    if self.current_token.type == TokenType.ELSE:
+                        self.eat(TokenType.ELSE)
                         else_block = self.block()
                     return RequireStatement(
                         ln, col, blk.end_line, blk.end_col, reqs, blk, else_block
@@ -868,58 +1005,58 @@ class Parser:
                     return BareRequire(
                         ln, col, self.current_token.line, self.current_token.col, reqs
                     )
-        elif self.current_token.type == LBRACE:
+        elif self.current_token.type == TokenType.LBRACE:
             return self.block()
-        elif self.current_token.type == FUNC:
+        elif self.current_token.type == TokenType.FUNC:
             return self.function_decl()
-        elif self.current_token.type == IF:
+        elif self.current_token.type == TokenType.IF:
             return self.if_decl()
-        elif self.current_token.type == EXPORT:
+        elif self.current_token.type == TokenType.EXPORT:
             return self.export()
-        elif self.current_token.type == WHILE:
+        elif self.current_token.type == TokenType.WHILE:
             return self.while_decl()
-        elif self.current_token.type == IMPORT:
+        elif self.current_token.type == TokenType.IMPORT:
             ln = self.current_token.line
             col = self.current_token.col
-            self.eat(IMPORT)
-            name_tok = self.eat(IDENTIFIER)
+            self.eat(TokenType.IMPORT)
+            name_tok = self.eat(TokenType.IDENTIFIER)
             return Import(ln, col, name_tok.end_line, name_tok.end_col, name_tok.value)
-        elif self.current_token.type == RETURN:
+        elif self.current_token.type == TokenType.RETURN:
             ln = self.current_token.line
             col = self.current_token.col
-            self.eat(RETURN)
-            if self.current_token.type in (NEWLINE, RBRACE):
+            self.eat(TokenType.RETURN)
+            if self.current_token.type in (TokenType.NEWLINE, TokenType.RBRACE):
                 return Return(
                     ln, col, self.current_token.line, self.current_token.col, None
                 )
             value = self.expr()
             return Return(ln, col, value.end_line, value.end_col, value)
-        elif self.current_token.type == IDENTIFIER:
+        elif self.current_token.type == TokenType.IDENTIFIER:
             next_tok = self.peek()
-            if next_tok and next_tok.type == ASSIGN:
+            if next_tok and next_tok.type == TokenType.ASSIGN:
                 ln = self.current_token.line
                 col = self.current_token.col
-                name = self.eat(IDENTIFIER).value
-                self.eat(ASSIGN)
+                name = self.eat(TokenType.IDENTIFIER).value
+                self.eat(TokenType.ASSIGN)
                 value = self.expr()
                 return Assign(ln, col, value.end_line, value.end_col, name, value)
             elif next_tok and next_tok.type in (
-                PLUS_ASSIGN,
-                DIV_ASSIGN,
-                MUL_ASSIGN,
-                SUB_ASSIGN,
+                TokenType.PLUS_ASSIGN,
+                TokenType.DIV_ASSIGN,
+                TokenType.MUL_ASSIGN,
+                TokenType.SUB_ASSIGN,
             ):
                 ln = self.current_token.line
                 col = self.current_token.col
-                name = self.eat(IDENTIFIER).value
+                name = self.eat(TokenType.IDENTIFIER).value
                 op_token = self.current_token
                 op_type = op_token.type
                 self.eat(op_type)
                 op_map = {
-                    PLUS_ASSIGN: ADD,
-                    SUB_ASSIGN: SUB,
-                    MUL_ASSIGN: MUL,
-                    DIV_ASSIGN: DIV,
+                    TokenType.PLUS_ASSIGN: BinOpType(TokenType.ADD),
+                    TokenType.SUB_ASSIGN: BinOpType(TokenType.SUB),
+                    TokenType.MUL_ASSIGN: BinOpType(TokenType.MUL),
+                    TokenType.DIV_ASSIGN: BinOpType(TokenType.DIV),
                 }
                 op = op_map.get(op_type)
                 if op is None:
@@ -953,17 +1090,20 @@ class Parser:
     def if_decl(self):
         ln = self.current_token.line
         col = self.current_token.col
-        self.eat(IF)
+        self.eat(TokenType.IF)
         expr = self.expr()
-        if self.current_token.type == EOF:
+        if self.current_token.type == TokenType.EOF:
             self.incomplete_input()
         self.skip_newline()
         body = self.block()
-        if self.current_token.type == ELSE and self.peek().type == IF:
-            self.eat(ELSE)
+        if (
+            self.current_token.type == TokenType.ELSE
+            and self.peek().type == TokenType.IF
+        ):
+            self.eat(TokenType.ELSE)
             else_body = self.if_decl()
-        elif self.current_token.type == ELSE:
-            self.eat(ELSE)
+        elif self.current_token.type == TokenType.ELSE:
+            self.eat(TokenType.ELSE)
             else_body = self.block()
         else:
             else_body = None
@@ -978,9 +1118,9 @@ class Parser:
     def while_decl(self):
         ln = self.current_token.line
         col = self.current_token.col
-        self.eat(WHILE)
+        self.eat(TokenType.WHILE)
         expr = self.expr()
-        if self.current_token.type == EOF:
+        if self.current_token.type == TokenType.EOF:
             self.incomplete_input()
         self.skip_newline()
         body = self.block()
@@ -989,27 +1129,27 @@ class Parser:
     def function_decl(self):
         ln = self.current_token.line
         col = self.current_token.col
-        self.eat(FUNC)
+        self.eat(TokenType.FUNC)
 
-        name = self.eat(IDENTIFIER).value
+        name = self.eat(TokenType.IDENTIFIER).value
 
-        self.eat(LPAREN)
+        self.eat(TokenType.LPAREN)
         params: list[FunctionParameter] = []
         optional = False
-        if self.current_token.type == IDENTIFIER:
+        if self.current_token.type == TokenType.IDENTIFIER:
             params.append(
                 FunctionParameter(
                     self.current_token.line,
                     self.current_token.col,
                     self.current_token.end_line,
                     self.current_token.end_col,
-                    self.eat(IDENTIFIER).value,
+                    self.eat(TokenType.IDENTIFIER).value,
                     None,
                 )
             )
-            if self.current_token.type == ASSIGN:
+            if self.current_token.type == TokenType.ASSIGN:
                 optional = True
-                self.eat(ASSIGN)
+                self.eat(TokenType.ASSIGN)
                 params[-1].option = self.primary()
                 params[-1].end_col = params[-1].option.end_col
                 params[-1].end_line = params[-1].option.end_line
@@ -1022,21 +1162,21 @@ class Parser:
                     self.current_token.end_line,
                     self.current_token.end_col,
                 )
-            while self.current_token.type == COMMA:
-                self.eat(COMMA)
+            while self.current_token.type == TokenType.COMMA:
+                self.eat(TokenType.COMMA)
                 params.append(
                     FunctionParameter(
                         self.current_token.line,
                         self.current_token.col,
                         self.current_token.end_line,
                         self.current_token.end_col,
-                        self.eat(IDENTIFIER).value,
+                        self.eat(TokenType.IDENTIFIER).value,
                         None,
                     )
                 )
-                if self.current_token.type == ASSIGN:
+                if self.current_token.type == TokenType.ASSIGN:
                     optional = True
-                    self.eat(ASSIGN)
+                    self.eat(TokenType.ASSIGN)
                     params[-1].option = self.primary()
                     params[-1].end_col = self.current_token.col
                 elif optional:
@@ -1048,7 +1188,7 @@ class Parser:
                         self.current_token.end_line,
                         self.current_token.end_col,
                     )
-        self.eat(RPAREN)
+        self.eat(TokenType.RPAREN)
 
         body = self.block()
         return Assign(
@@ -1064,11 +1204,11 @@ class Parser:
         idx = self.pos + 1
         if idx < len(self.tokens):
             return self.tokens[idx]
-        return Token(EOF, None, 0, 0, 0, 0)
+        return Token(TokenType.EOF, None, 0, 0, 0, 0)
 
     def parse(self):
         node = self.statement()
-        if self.current_token.type != EOF:
+        if self.current_token.type != TokenType.EOF:
             raise ParserError(
                 3,
                 f'Unexpected token of type {self.current_token.type}: {self.current_token.value}',
@@ -1081,15 +1221,15 @@ class Parser:
 
     def program(self):
         statements: list = []
-        while self.current_token.type != EOF:
-            if self.current_token.type == NEWLINE:
-                self.eat(NEWLINE)
+        while self.current_token.type != TokenType.EOF:
+            if self.current_token.type == TokenType.NEWLINE:
+                self.eat(TokenType.NEWLINE)
                 continue
             stmnt = self.statement()
             if stmnt is not None:
                 statements.append(stmnt)
             else:
-                if self.current_token.type != EOF:
+                if self.current_token.type != TokenType.EOF:
                     self.advance()
         end_col = 0
         end_line = 0
@@ -1101,23 +1241,23 @@ class Parser:
         return Program(0, 0, end_line, end_col, statements)
 
     def block(self):
-        self.eat(LBRACE)
+        self.eat(TokenType.LBRACE)
         statements = []
         line = self.current_token.line
         col = self.current_token.col
-        while self.current_token.type != RBRACE:
+        while self.current_token.type != TokenType.RBRACE:
             self.skip_newline()
-            if self.current_token.type == EOF:
+            if self.current_token.type == TokenType.EOF:
                 self.incomplete_input()
                 break
             stmnt = self.statement()
             if stmnt is not None:
                 statements.append(stmnt)
-        if self.current_token.type == EOF:
+        if self.current_token.type == TokenType.EOF:
             self.incomplete_input()
         end_line = self.current_token.end_line
         end_col = self.current_token.end_col
-        self.eat(RBRACE)
+        self.eat(TokenType.RBRACE)
         return Block(line, col, end_line, end_col, statements)
 
 
@@ -1129,9 +1269,12 @@ class BareRequire(ASTNode):
 @dataclass
 class Null(ASTNode):
     pass
+
+
 @dataclass
 class Break(ASTNode):
     pass
+
 
 @dataclass
 class Import(ASTNode):
@@ -1160,9 +1303,12 @@ class RequireStatement(ASTNode):
     statement: Block
     else_block: Block | None
 
+
 @dataclass
 class KoniDict(ASTNode):
     vals: list[tuple[ASTNode, ASTNode]]
+
+
 @dataclass
 class Number(ASTNode):
     value: int
@@ -1192,14 +1338,14 @@ class Attribute(ASTNode):
 
 @dataclass
 class UnaryOp(ASTNode):
-    op: str
+    op: UnaryOpType
     right: ASTNode
 
 
 @dataclass
 class BinOp(ASTNode):
     left: ASTNode
-    op: str
+    op: BinOpType
     right: ASTNode
 
 
@@ -1262,42 +1408,71 @@ class NOP(ASTNode):
 OP_SET_VAR = 'STORE'
 OP_GET_VAR = 'RETRIEVE'
 OP_PUSH_CONST = 'PUSH_CONST'
-OP_ADD = ADD
-OP_SUB = SUB
-OP_MUL = MUL
-OP_DIV = DIV
-OP_POW = POW
-OP_GT = GT
-OP_GTE = GTE
-OP_LT = LT
-OP_LTE = LTE
-OP_EQUAL_TO = EQUAL_TO
-OP_NOT_EQUAL_TO = NOT_EQUAL_TO
-OP_OR = OR
-OP_AND = AND
-OP_CALL = 'CALL'
-NEG = 'NEG'
-OP_NEG = NEG
-OP_MOD = MOD
-OP_NOT = NOT
-OPCODE_MAP = {
-    ADD: OP_ADD,
-    SUB: OP_SUB,
-    MUL: OP_MUL,
-    DIV: OP_DIV,
-    POW: OP_POW,
-    LT: OP_LT,
-    GT: OP_GT,
-    GTE: OP_GTE,
-    LTE: OP_LTE,
-    EQUAL_TO: OP_EQUAL_TO,
-    NOT_EQUAL_TO: OP_NOT_EQUAL_TO,
-    OR: OP_OR,
-    AND: OP_AND,
-    NEG: OP_NEG,
-    NOT: OP_NOT,
-    MOD: OP_MOD,
-}
+# OP_ADD = TokenType.ADD
+# OP_SUB = TokenType.SUB
+# OP_MUL = TokenType.MUL
+# OP_DIV = TokenType.DIV
+# OP_POW = TokenType.POW
+# OP_GT = TokenType.GT
+# OP_GTE = TokenType.GTE
+# OP_LT = TokenType.LT
+# OP_LTE = TokenType.LTE
+# OP_EQUAL_TO = TokenType.EQUAL_TO
+# OP_NOT_EQUAL_TO = TokenType.NOT_EQUAL_TO
+# OP_OR = TokenType.OR
+# OP_AND = TokenType.AND
+# OP_CALL = 'CALL'
+# NEG = 'NEG'
+# OP_NEG = NEG
+# OP_MOD = TokenType.MOD
+# OP_NOT = TokenType.NOT
+
+
+class OpcodeType(Enum):
+    ADD = BinOpType.ADD
+    SUB = BinOpType.SUB
+    MUL = BinOpType.MUL
+    DIV = BinOpType.DIV
+    POW = BinOpType.POW
+    LT = BinOpType.LT
+    GT = BinOpType.GT
+    LTE = BinOpType.LTE
+    GTE = BinOpType.GTE
+    EQ = BinOpType.EQ
+    NEQ = BinOpType.NEQ
+    OR = BinOpType.OR
+    AND = BinOpType.AND
+    MOD = BinOpType.MOD
+    NEG = UnaryOpType.NEG
+    NOT = UnaryOpType.NOT
+    CALL = 'CALL'
+
+    def __str__(self):
+        v = self.value
+        while isinstance(v, Enum):
+            v = v.value
+
+        return v
+
+
+# OPCODE_MAP = {
+#     BinOpType.ADD: OP_ADD,
+#     BinOpType.SUB: OP_SUB,
+#     BinOpType.MUL: OP_MUL,
+#     BinOpType.DIV: OP_DIV,
+#     BinOpType.POW: OP_POW,
+#     BinOpType.LT: OP_LT,
+#     BinOpType.GT: OP_GT,
+#     BinOpType.GTE: OP_GTE,
+#     BinOpType.LTE: OP_LTE,
+#     BinOpType.EQ: OP_EQUAL_TO,
+#     BinOpType.NEQ: OP_NOT_EQUAL_TO,
+#     BinOpType.OR: OP_OR,
+#     BinOpType.AND: OP_AND,
+#     UnaryOpType.NEG: OP_NEG,
+#     UnaryOpType.NOT: OP_NOT,
+#     TokenType.MOD: OP_MOD,
+# }
 BUILTIN = 'BUILTIN'
 NULL = 'NULL'
 
@@ -1388,7 +1563,7 @@ class Compiler:
             self.args = args if args is not None else {}
 
     @dataclass
-    class Warn: # TODO: make a warning code
+    class Warn:  # TODO: make a warning code
         message: str
         line: int
         col: int
@@ -1696,10 +1871,10 @@ class Compiler:
         elif isinstance(node, BinOp):
             yield from self.compile_ins(node.left)
             yield from self.compile_ins(node.right)
-            self.emit(node.line, OPCODE_MAP[node.op])
+            self.emit(node.line, OpcodeType(node.op))
         elif isinstance(node, UnaryOp):
             yield from self.compile_ins(node.right)
-            self.emit(node.line, OPCODE_MAP[node.op])
+            self.emit(node.line, OpcodeType(node.op))
         elif isinstance(node, Block):
             for statement in node.statements:
                 yield from self.compile_ins(statement)
@@ -1799,8 +1974,8 @@ class Compiler:
                         if item[0] == node.func.rhs:
                             atr_itm = item
                             break
-                    if atr_itm is None:    
-                        if 'types.dicts' not in self.reqs:    #TODO             
+                    if atr_itm is None:
+                        if 'types.dicts' not in self.reqs:  # TODO
                             raise CompilerError(
                                 12,
                                 f'No attribute `{node.func.rhs}` found',
@@ -1921,7 +2096,7 @@ class Compiler:
                             for item in params[len(node.args) :]:
                                 if item.option is not None:
                                     yield from self.compile_ins(item.option)
-                        self.emit(node.line, OP_CALL, len(params))
+                        self.emit(node.line, OpcodeType.CALL, len(params))
                     else:
                         yield self.Warn(
                             'Could not detect how many min and max arguments for function call',
@@ -1932,9 +2107,9 @@ class Compiler:
                             self.mod_stack[-1].fp,
                             self,
                         )
-                        self.emit(node.line, OP_CALL, len(node.args))
+                        self.emit(node.line, OpcodeType.CALL, len(node.args))
                 elif isinstance(itm, self.BuiltinScopeItem):
-                    self.emit(node.line, OP_CALL, len(node.args))
+                    self.emit(node.line, OpcodeType.CALL, len(node.args))
                 else:
                     raise
             elif isinstance(node.func, Attribute):
@@ -1945,11 +2120,11 @@ class Compiler:
                                 yield from self.compile_ins(item.option)
                             else:
                                 raise RuntimeError  # impossible
-                        self.emit(node.line, OP_CALL, len(exported.item.params))
+                        self.emit(node.line, OpcodeType.CALL, len(exported.item.params))
                     else:
                         raise RuntimeError  # impossible
                 else:
-                    self.emit(node.line, OP_CALL, len(node.args))
+                    self.emit(node.line, OpcodeType.CALL, len(node.args))
             else:
                 pass  # falling back for future call types #TODO
         elif isinstance(node, While):
@@ -1980,7 +2155,9 @@ class Compiler:
                 yield from self.compile_ins(item)
             self.emit(node.line, 'BUILD_ARRAY', len(node.items))
         elif isinstance(node, KoniDict):
-            yield from self.raise_for_req('types.dicts', 'Dictionary', 'Dictionaries', node)
+            yield from self.raise_for_req(
+                'types.dicts', 'Dictionary', 'Dictionaries', node
+            )
             for item in reversed(node.vals):
                 yield from self.compile_ins(item[1])
                 yield from self.compile_ins(item[0])
@@ -2066,7 +2243,7 @@ class Compiler:
                         for item in exports:
                             if item.name == node.rhs:
                                 broken = True
-                                break        
+                                break
                 if not broken:
                     for item in self.attrs:
                         if item[0] == node.rhs:
@@ -2126,7 +2303,7 @@ class Compiler:
                     node.col,
                     node.end_line,
                     node.end_col,
-                    self.mod_stack[-1].fp
+                    self.mod_stack[-1].fp,
                 )
             else:
                 idx = self.emit(node.line, 'JMP', None)

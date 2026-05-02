@@ -10,7 +10,7 @@ from koni_compiler.main import (
     CompilerError,
     Tokenizer,
     Parser,
-    EOF,
+    TokenType,
     Token,
     Program,
     Compiler,
@@ -70,7 +70,7 @@ def get_program(file_content):
         while True:
             tkn = tknr.get_next_token()
             tkns.append(tkn)
-            if tkn.type == EOF:
+            if tkn.type == TokenType.EOF:
                 break
         psr: Parser = Parser(tkns, base_env.ASTenv)
         program: Program = psr.program()
