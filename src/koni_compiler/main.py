@@ -15,6 +15,7 @@ from koni_compiler.runtime import (
 )
 from enum import Enum
 
+
 class TokenType(Enum):
     ADD = 'ADD'
     INTEGER = 'INT'
@@ -35,7 +36,6 @@ class TokenType(Enum):
     LPAREN = 'LPAREN'
     STRING = 'STRING'
     COMMA = 'COMMA'
-    PRECEDENCE = {ADD: 1, SUB: 1, MUL: 2, DIV: 2, POW: 3}
     LBRACE = 'LBRACE'
     RBRACE = 'RBRACE'
     FUNC = 'FUNC'
@@ -72,6 +72,16 @@ class TokenType(Enum):
     DICT_STARTER = 'DICT_STARTER'
     COLON = 'COLON'
     BREAK = 'BREAK'
+
+
+PRECEDENCE = {
+    TokenType.ADD: 1,
+    TokenType.SUB: 1,
+    TokenType.MUL: 2,
+    TokenType.DIV: 2,
+    TokenType.POW: 3,
+}
+
 
 @dataclass
 class CompilationException(Exception):
@@ -117,7 +127,7 @@ KEYWORDS = {
     '@': TokenType.AT_RATE,
     'not': TokenType.NOT,
     'null': TokenType.NULL,
-    'break': TokenType.BREAK
+    'break': TokenType.BREAK,
 }
 
 
@@ -208,21 +218,37 @@ class Tokenizer:
                 self.advance(1)
             if fl:
                 return Token(
-                    TokenType.FLOAT, float(value), start_line, start_col, self.line, self.col
+                    TokenType.FLOAT,
+                    float(value),
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col,
                 )
             else:
                 return Token(
-                    TokenType.INT, int(value), start_line, start_col, self.line, self.col
+                    TokenType.INT,
+                    int(value),
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col,
                 )
         elif current_char == '[':
             self.advance(1)
-            return Token(TokenType.LBRACKET, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LBRACKET, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ']':
             self.advance(1)
-            return Token(TokenType.RBRACKET, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.RBRACKET, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '@':
             self.advance(1)
-            return Token(TokenType.AT_RATE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.AT_RATE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '#':
             while (
                 self.get_current_char() is not None and self.get_current_char() != '\n'
@@ -231,88 +257,144 @@ class Tokenizer:
             return self.get_next_token()
         elif self.check('+='):
             self.advance(2)
-            return Token(TokenType.PLUS_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.PLUS_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('-='):
             self.advance(2)
-            return Token(TokenType.SUB_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.SUB_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('/='):
             self.advance(2)
-            return Token(TokenType.DIV_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DIV_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('*='):
             self.advance(2)
-            return Token(TokenType.MUL_ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.MUL_ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('%{'):
             self.advance(2)
-            return Token(TokenType.DICT_STARTER, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DICT_STARTER, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '+':
             self.advance(1)
-            return Token(TokenType.ADD, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.ADD, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '.':
             self.advance(1)
-            return Token(TokenType.DOT, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DOT, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('true'):
             self.advance(4)
-            return Token(TokenType.BOOL, True, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.BOOL, True, start_line, start_col, self.line, self.col
+            )
         elif self.check('false'):
             self.advance(5)
-            return Token(TokenType.BOOL, False, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.BOOL, False, start_line, start_col, self.line, self.col
+            )
         elif self.check('=='):
             self.advance(2)
-            return Token(TokenType.EQUAL_TO, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.EQUAL_TO, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '=':
             self.advance(1)
-            return Token(TokenType.ASSIGN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.ASSIGN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ':':
             self.advance(1)
-            return(Token(TokenType.COLON, None, start_line, start_col, self.line, self.col))
+            return Token(
+                TokenType.COLON, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '-':
             self.advance(1)
-            return Token(TokenType.SUB, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.SUB, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('**'):
             self.advance(2)
-            return Token(TokenType.POW, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.POW, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '*':
             self.advance(1)
-            return Token(TokenType.MUL, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.MUL, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('!='):
             self.advance(2)
-            return Token(TokenType.NOT_EQUAL_TO, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.NOT_EQUAL_TO, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('<='):
             self.advance(2)
-            return Token(TokenType.LTE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LTE, None, start_line, start_col, self.line, self.col
+            )
         elif self.check('>='):
             self.advance(2)
-            return Token(TokenType.GTE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.GTE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '\n':
             self.advance(1)
-            return Token(TokenType.NEWLINE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.NEWLINE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '(':
             self.advance(1)
-            return Token(TokenType.LPAREN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LPAREN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ')':
             self.advance(1)
-            return Token(TokenType.RPAREN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.RPAREN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '{':
             self.advance(1)
-            return Token(TokenType.LBRACE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LBRACE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '}':
             self.advance(1)
-            return Token(TokenType.RBRACE, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.RBRACE, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '/':
             self.advance(1)
-            return Token(TokenType.DIV, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.DIV, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == ',':
             self.advance(1)
-            return Token(TokenType.COMMA, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.COMMA, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '<':
             self.advance(1)
-            return Token(TokenType.LESS_THAN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.LESS_THAN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '%':
             self.advance(1)
-            return Token(TokenType.MOD, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.MOD, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '>':
             self.advance(1)
-            return Token(TokenType.GREATER_THAN, None, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.GREATER_THAN, None, start_line, start_col, self.line, self.col
+            )
         elif current_char == '"':
             self.advance(1)
             value = ''
@@ -341,7 +423,9 @@ class Tokenizer:
                     self.col + 1,
                 )
             self.advance()
-            return Token(TokenType.STRING, value, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.STRING, value, start_line, start_col, self.line, self.col
+            )
         elif current_char == "'":
             self.advance(1)
             value = ''
@@ -370,7 +454,9 @@ class Tokenizer:
                     self.col + 1,
                 )
             self.advance()
-            return Token(TokenType.STRING, value, start_line, start_col, self.line, self.col)
+            return Token(
+                TokenType.STRING, value, start_line, start_col, self.line, self.col
+            )
 
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
@@ -452,6 +538,7 @@ class KoniNull(KoniType):
     def __init__(self):
         self.display = 'null'
 
+
 class BinOpType(Enum):
     ADD = TokenType.ADD
     SUB = TokenType.SUBTRACT
@@ -467,11 +554,13 @@ class BinOpType(Enum):
     EQ = TokenType.EQUAL_TO
     NEQ = TokenType.NOT_EQUAL_TO
     MOD = TokenType.MOD
-    
+
 
 class UnaryOpType(Enum):
     NEG = 'NEG'
     NOT = TokenType.NOT
+
+
 class Parser:
     def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool = False):
         self.base_env = base_env
@@ -509,7 +598,10 @@ class Parser:
 
     def arithmetic_expr(self):
         node = self.term()
-        while self.current_token and self.current_token.type in (TokenType.ADD, TokenType.SUB):
+        while self.current_token and self.current_token.type in (
+            TokenType.ADD,
+            TokenType.SUB,
+        ):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -571,7 +663,12 @@ class Parser:
 
     def comparison(self):
         node = self.arithmetic_expr()
-        while self.current_token.type in (TokenType.LT, TokenType.GT, TokenType.LTE, TokenType.GTE):
+        while self.current_token.type in (
+            TokenType.LT,
+            TokenType.GT,
+            TokenType.LTE,
+            TokenType.GTE,
+        ):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -603,7 +700,11 @@ class Parser:
 
     def term(self):
         node = self.power()
-        while self.current_token and self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.MOD):
+        while self.current_token and self.current_token.type in (
+            TokenType.MUL,
+            TokenType.DIV,
+            TokenType.MOD,
+        ):
             op = self.current_token.type
             self.eat(op)
             node = BinOp(
@@ -638,14 +739,23 @@ class Parser:
         if token.type == TokenType.SUB:
             self.eat(TokenType.SUB)
             return UnaryOp(
-                token.line, token.col, token.end_line, token.end_col, UnaryOpType.NEG, self.factor()
+                token.line,
+                token.col,
+                token.end_line,
+                token.end_col,
+                UnaryOpType.NEG,
+                self.factor(),
             )
         return self.postfix()
 
     def postfix(self):
         node = self.primary()
 
-        while self.current_token.type in (TokenType.DOT, TokenType.LPAREN, TokenType.LBRACKET):
+        while self.current_token.type in (
+            TokenType.DOT,
+            TokenType.LPAREN,
+            TokenType.LBRACKET,
+        ):
             if self.current_token.type == TokenType.DOT:
                 dot_line = self.current_token.line
                 dot_col = self.current_token.col
@@ -741,7 +851,13 @@ class Parser:
                     items.append((k, v))
             self.skip_newline()
             self.eat(TokenType.RBRACE)
-            return KoniDict(token.line, token.col, self.current_token.line, self.current_token.col, items)
+            return KoniDict(
+                token.line,
+                token.col,
+                self.current_token.line,
+                self.current_token.col,
+                items,
+            )
         elif token.type == TokenType.LBRACKET:
             self.eat(TokenType.LBRACKET)
             if self.current_token.type == TokenType.EOF:
@@ -980,7 +1096,10 @@ class Parser:
             self.incomplete_input()
         self.skip_newline()
         body = self.block()
-        if self.current_token.type == TokenType.ELSE and self.peek().type == TokenType.IF:
+        if (
+            self.current_token.type == TokenType.ELSE
+            and self.peek().type == TokenType.IF
+        ):
             self.eat(TokenType.ELSE)
             else_body = self.if_decl()
         elif self.current_token.type == TokenType.ELSE:
@@ -1150,9 +1269,12 @@ class BareRequire(ASTNode):
 @dataclass
 class Null(ASTNode):
     pass
+
+
 @dataclass
 class Break(ASTNode):
     pass
+
 
 @dataclass
 class Import(ASTNode):
@@ -1181,9 +1303,12 @@ class RequireStatement(ASTNode):
     statement: Block
     else_block: Block | None
 
+
 @dataclass
 class KoniDict(ASTNode):
     vals: list[tuple[ASTNode, ASTNode]]
+
+
 @dataclass
 class Number(ASTNode):
     value: int
@@ -1302,6 +1427,7 @@ OP_PUSH_CONST = 'PUSH_CONST'
 # OP_MOD = TokenType.MOD
 # OP_NOT = TokenType.NOT
 
+
 class OpcodeType(Enum):
     ADD = BinOpType.ADD
     SUB = BinOpType.SUB
@@ -1320,14 +1446,15 @@ class OpcodeType(Enum):
     NEG = UnaryOpType.NEG
     NOT = UnaryOpType.NOT
     CALL = 'CALL'
-    
+
     def __str__(self):
         v = self.value
         while isinstance(v, Enum):
             v = v.value
-        
+
         return v
-    
+
+
 # OPCODE_MAP = {
 #     BinOpType.ADD: OP_ADD,
 #     BinOpType.SUB: OP_SUB,
@@ -1436,7 +1563,7 @@ class Compiler:
             self.args = args if args is not None else {}
 
     @dataclass
-    class Warn: # TODO: make a warning code
+    class Warn:  # TODO: make a warning code
         message: str
         line: int
         col: int
@@ -1847,8 +1974,8 @@ class Compiler:
                         if item[0] == node.func.rhs:
                             atr_itm = item
                             break
-                    if atr_itm is None:    
-                        if 'types.dicts' not in self.reqs:    #TODO             
+                    if atr_itm is None:
+                        if 'types.dicts' not in self.reqs:  # TODO
                             raise CompilerError(
                                 12,
                                 f'No attribute `{node.func.rhs}` found',
@@ -2028,7 +2155,9 @@ class Compiler:
                 yield from self.compile_ins(item)
             self.emit(node.line, 'BUILD_ARRAY', len(node.items))
         elif isinstance(node, KoniDict):
-            yield from self.raise_for_req('types.dicts', 'Dictionary', 'Dictionaries', node)
+            yield from self.raise_for_req(
+                'types.dicts', 'Dictionary', 'Dictionaries', node
+            )
             for item in reversed(node.vals):
                 yield from self.compile_ins(item[1])
                 yield from self.compile_ins(item[0])
@@ -2114,7 +2243,7 @@ class Compiler:
                         for item in exports:
                             if item.name == node.rhs:
                                 broken = True
-                                break        
+                                break
                 if not broken:
                     for item in self.attrs:
                         if item[0] == node.rhs:
@@ -2174,7 +2303,7 @@ class Compiler:
                     node.col,
                     node.end_line,
                     node.end_col,
-                    self.mod_stack[-1].fp
+                    self.mod_stack[-1].fp,
                 )
             else:
                 idx = self.emit(node.line, 'JMP', None)
