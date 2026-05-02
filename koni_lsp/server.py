@@ -40,8 +40,11 @@ class PublishDiagnosticServer(LanguageServer):
             tkns = []
             while True:
                 tkn = tknr.get_next_token()
-                tkns.append(tkn)
-                if tkn.type == "EOF":
+                if isinstance(tkn, list):
+                    tkns += tkn
+                else:
+                    tkns.append(tkn)
+                if tkns[-1].type == "EOF":
                     break
         except TokenizerError as e:
             diagnostics.append(

@@ -69,8 +69,11 @@ def get_program(file_content):
         tkns: list[Token] = []
         while True:
             tkn = tknr.get_next_token()
-            tkns.append(tkn)
-            if tkn.type == TokenType.EOF:
+            if isinstance(tkn, list):
+                tkns += tkn
+            else:
+                tkns.append(tkn)
+            if tkns[-1].type == TokenType.EOF:
                 break
         psr: Parser = Parser(tkns, base_env.ASTenv)
         program: Program = psr.program()

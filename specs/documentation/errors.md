@@ -145,6 +145,22 @@ println('This isn\'t a loop')
 break # <-
 ```
 
+### 16: Unterminated closing brace in format string
+
+Used when you forget to add a closing brace (`}`) in a format string
+
+```koniscript
+println(`This format literal has no ${closing brace`)
+```
+
+### 17: Invalid escape sequence
+
+Used when you use an invalid escape sequence in a string:
+
+```koniscript
+println('the escape sequence \g does not exist')
+```
+
 ## Runtime (VM) errors
 
 This section is for errors raised by the runtime (`kovm`)

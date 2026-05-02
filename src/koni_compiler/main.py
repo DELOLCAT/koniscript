@@ -13,8 +13,7 @@ from koni_compiler.runtime import (
     Program,
     Builtin,
 )
-from enum import Enum
-
+from enum import Enum, auto
 
 class TokenType(Enum):
     ADD = 'ADD'
@@ -72,6 +71,11 @@ class TokenType(Enum):
     DICT_STARTER = 'DICT_STARTER'
     COLON = 'COLON'
     BREAK = 'BREAK'
+    BACKTICK = 'BACKTICK'
+    FStringStart = 'FStringStart'
+    FStringExpr = 'FStringExpr'
+    FStringExprEnd = 'FStringExprEnd'
+    FStringEnd = 'FstringEnd'
 
 
 PRECEDENCE = {
@@ -149,12 +153,34 @@ class Token:
     end_col: int
 
 
+class FormatStringComponent:
+    pass
+
+
+@dataclass
+class FormatStringStr(FormatStringComponent):
+    value: str
+
+
+@dataclass
+class FormatStringExpr(FormatStringComponent):
+    expr: str
+
+
 class Tokenizer:
+    class TokenizerMode(Enum):
+        Normal = auto()
+        FStringEpr = auto()
+        FStringStr = auto()
+
     def __init__(self, string: str):
         self.string: str = string
         self.current_idx: int = 0
         self.line: int = 0
         self.col: int = 0
+        # self.mode: Tokenizer.TokenizerMode = self.TokenizerMode.Normal
+        self.fstring_count = 0
+        self.mode_stack: list[Tokenizer.TokenizerMode] = [self.TokenizerMode.Normal]
 
     def advance(self, steps: int = 1) -> str | None:
         if steps <= 0:  # To make sure that `ch` isn't `Unbound`
@@ -194,15 +220,152 @@ class Tokenizer:
         end = self.current_idx + len(text)
         return self.string[self.current_idx : end] == text
 
+    def tokenize_string(self, char: Literal["'", '"'], start_line, start_col) -> Token:
+        self.advance(1)
+        value = ''
+        while self.get_current_char() is not None and self.get_current_char() != char:
+            if self.get_current_char() == '\\':
+                self.advance()
+                match self.get_current_char():
+                    case 'n':
+                        value += '\n'
+                    case 't':
+                        value += '\t'
+                    case _:
+                        value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+            else:
+                value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+            self.advance()
+        if self.get_current_char() != char:
+            raise TokenizerError(
+                1,
+                'Unterminated string literal',
+                start_line,
+                start_col,
+                self.line,
+                self.col,
+            )
+        self.advance()
+        return Token(
+            TokenType.STRING, value, start_line, start_col, self.line, self.col
+        )
+
+    def tokenize_format_string(self, start_line, start_col) -> Token | list[Token]:
+        if self.mode_stack[-1] == self.TokenizerMode.FStringStr:
+            value = ''
+            while (
+                self.get_current_char() is not None and self.get_current_char() != '`'
+            ):
+                if self.get_current_char() == '\\':
+                    value += self.parse_escape_seq('`')
+                elif self.check('${'):
+                    self.advance(2)
+                    self.mode_stack.append(self.TokenizerMode.FStringEpr)
+                    return [
+                        Token(
+                            TokenType.STRING,
+                            value,
+                            start_line,
+                            start_col,
+                            self.line,
+                            self.col,
+                        ),
+                        Token(
+                            TokenType.FStringExpr,
+                            None,
+                            self.line,
+                            self.col,
+                            self.line,
+                            self.col,
+                        ),
+                    ]
+                else:
+                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+                    self.advance()
+            if self.get_current_char() != '`':
+                raise TokenizerError(
+                    1,
+                    'Unterminated string literal',
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col + 1,
+                )
+
+            self.advance()
+            self.mode_stack.pop()
+            if len(value) > 0:
+                return [
+                    Token(
+                        TokenType.STRING,
+                        value,
+                        start_line,
+                        start_col,
+                        self.line,
+                        self.col,
+                    ),
+                    Token(
+                        TokenType.FStringEnd,
+                        None,
+                        start_line,
+                        start_col,
+                        self.line,
+                        self.col,
+                    ),
+                ]
+            return Token(
+                TokenType.FStringEnd, None, start_line, start_col, self.line, self.col
+            )
+
+        # elif self.mode_stack[-1] == self.TokenizerMode.FStringEpr:
+        #    if self.get_current_char() == '}':
+        #        self.mode_stack.pop()
+        #        return Token(TokenType.FStringEnd, None, self.line, self.col, self.line, self.col)
+        #    return self.get_next_token()
+        else:
+            self.mode_stack.append(self.TokenizerMode.FStringStr)
+            self.fstring_count += 1
+            return Token(
+                TokenType.FStringStart, None, self.line, self.col, self.line, self.col
+            )
+
+    def parse_escape_seq(self, char: Literal['"', "'", '`']):
+        if self.get_current_char() == '\\':
+            self.advance()
+        match self.get_current_char():
+            case 'n':
+                return '\n'
+            case 'r':
+                return '\r'
+            case 't':
+                return '\t'
+            case '\\':
+                return '\\'
+            case _:
+                if self.get_current_char() == char:
+                    return char
+                raise TokenizerError(
+                    17,
+                    f'Invalid escape sequence \\{self.get_current_char()}',
+                    self.line,
+                    self.col,
+                    self.line,
+                    self.col + 1,
+                )
+
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
-        self.skip_whitespace()
         start_line = self.line
         start_col = self.col
+        if self.mode_stack[-1] == self.TokenizerMode.FStringStr:
+            return self.tokenize_format_string(start_line, start_col)
+        self.skip_whitespace()
         current_char = self.get_current_char()
         if current_char is None:
             return Token(
                 TokenType.EOF, None, start_line, start_col, self.line, self.col
             )  # End of input
+        start_line = self.line
+        start_col = self.col
 
         if current_char.isdigit():
             value = ''
@@ -367,6 +530,18 @@ class Tokenizer:
             )
         elif current_char == '}':
             self.advance(1)
+            if self.mode_stack[-1] == self.TokenizerMode.FStringEpr:
+                # self.mode = self.TokenizerMode.FStringStr
+                self.mode_stack.pop()
+                return Token(
+                    TokenType.FStringExprEnd,
+                    None,
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col,
+                )
+
             return Token(
                 TokenType.RBRACE, None, start_line, start_col, self.line, self.col
             )
@@ -396,68 +571,12 @@ class Tokenizer:
                 TokenType.GREATER_THAN, None, start_line, start_col, self.line, self.col
             )
         elif current_char == '"':
-            self.advance(1)
-            value = ''
-            while (
-                self.get_current_char() is not None and self.get_current_char() != '"'
-            ):
-                if self.get_current_char() == '\\':
-                    self.advance()
-                    match self.get_current_char():
-                        case 'n':
-                            value += '\n'
-                        case 't':
-                            value += '\t'
-                        case _:
-                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                else:
-                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.advance()
-            if self.get_current_char() != '"':
-                raise TokenizerError(
-                    1,
-                    'Unterminated string literal',
-                    self.line,
-                    self.col,
-                    self.line,
-                    self.col + 1,
-                )
-            self.advance()
-            return Token(
-                TokenType.STRING, value, start_line, start_col, self.line, self.col
-            )
+            return self.tokenize_string('"', start_line, start_col)
         elif current_char == "'":
-            self.advance(1)
-            value = ''
-            while (
-                self.get_current_char() is not None and self.get_current_char() != "'"
-            ):
-                if self.get_current_char() == '\\':
-                    self.advance()
-                    match self.get_current_char():
-                        case 'n':
-                            value += '\n'
-                        case 't':
-                            value += '\t'
-                        case _:
-                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                else:
-                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.advance()
-            if self.get_current_char() != "'":
-                raise TokenizerError(
-                    1,
-                    'Unterminated string literal',
-                    self.line,
-                    self.col,
-                    self.line,
-                    self.col + 1,
-                )
+            return self.tokenize_string("'", start_line, start_col)
+        elif current_char == '`':
             self.advance()
-            return Token(
-                TokenType.STRING, value, start_line, start_col, self.line, self.col
-            )
-
+            return self.tokenize_format_string(start_line, start_col)
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
             self.advance()
@@ -890,6 +1009,73 @@ class Parser:
             return String(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
+        elif token.type == TokenType.FStringStart:
+            start_line = token.line
+            start_col = token.col
+            self.eat(TokenType.FStringStart)
+            out: list[ASTNode] = []
+            while True:
+                if self.current_token.type == TokenType.FStringExpr:
+                    self.eat(TokenType.FStringExpr)
+                    t = self.expr()
+                    if not isinstance(t, String):
+                        t = Call(
+                            t.line,
+                            t.col,
+                            t.end_line,
+                            t.end_col,
+                            Variable(t.line, t.col, t.end_line, t.end_col, 'to_str'),
+                            [t],
+                        )
+
+                    out.append(t)
+                elif self.current_token.type == TokenType.FStringExprEnd:
+                    self.eat(TokenType.FStringExprEnd)
+                elif self.current_token.type == TokenType.FStringEnd:
+                    self.eat(TokenType.FStringEnd)
+                    break
+                else:
+                    t = self.expr()
+                    out.append(t)
+            if len(out) == 1:
+                # raise ParserWarn( # TODO: Make parser warnings
+                #     18,
+                #     'Format string without any expressions',
+                #     start_line,
+                #     start_col,
+                #     self.current_token.line,
+                #     self.current_token.col
+                # )
+                return out[0]
+            rhs = out[1]
+            for node in out[2:]:
+                rhs = BinOp(
+                    self.current_token.line,
+                    self.current_token.col,
+                    self.current_token.end_line,
+                    self.current_token.end_col,
+                    rhs,
+                    BinOpType.ADD,
+                    node,
+                )
+            node = BinOp(
+                self.current_token.line,
+                self.current_token.col,
+                self.current_token.end_line,
+                self.current_token.end_col,
+                out[0],
+                BinOpType.ADD,
+                rhs,
+            )
+            return node
+
+            # for item in token.value:
+            #     if isinstance(item, FormatStringStr):
+            #         val.append(item.value)
+            #     elif isinstance(item, FormatStringExpr):
+            #         val.append(self.expr())
+            #     else:
+            #         assert_never(item)
         elif token.type == TokenType.BOOL:
             self.eat(TokenType.BOOL)
             return Bool(
@@ -1369,6 +1555,11 @@ class Assign(ASTNode):
 @dataclass
 class String(ASTNode):
     value: str
+
+
+@dataclass
+class FormatString(ASTNode):
+    value: list[ASTNode]
 
 
 @dataclass
