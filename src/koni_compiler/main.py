@@ -173,6 +173,7 @@ class Tokenizer:
         Normal = auto()
         FStringEpr = auto()
         FStringStr = auto()
+        FStringMStr = auto() # multiline
 
     def __init__(self, string: str):
         self.string: str = string
@@ -221,10 +222,11 @@ class Tokenizer:
         end = self.current_idx + len(text)
         return self.string[self.current_idx : end] == text
 
-    def tokenize_string(self, char: Literal["'", '"'], start_line, start_col) -> Token:
-        self.advance(1)
+    def tokenize_string(self, char: Literal["'", '"'], start_line, start_col, multiline: bool = False) -> Token:
         value = ''
-        while self.get_current_char() is not None and self.get_current_char() != char and self.get_current_char() != '\n':
+        while self.get_current_char() is not None and self.get_current_char() != char:
+            if not multiline and self.get_current_char() == '\n':
+                break
             if self.get_current_char() == '\\':
                 self.advance()
                 value += self.parse_escape_seq(char)
@@ -246,12 +248,18 @@ class Tokenizer:
             TokenType.STRING, value, start_line, start_col, self.line, self.col
         )
 
-    def tokenize_format_string(self, start_line, start_col) -> Token | list[Token]:
-        if self.mode_stack[-1] == self.TokenizerMode.FStringStr:
+    def tokenize_format_string(
+        self, start_line, start_col, multiline: bool = True
+    ) -> Token | list[Token]:
+        if self.mode_stack[-1] in (self.TokenizerMode.FStringStr, self.TokenizerMode.FStringMStr):
             value = ''
             while (
-                self.get_current_char() is not None and self.get_current_char() != '`' and self.get_current_char() != '\n'
+                self.get_current_char() is not None
+                and self.get_current_char() != '`'
             ):
+                if self.mode_stack[-1] == self.TokenizerMode.FStringStr:
+                    if self.get_current_char() == '\n':
+                        break
                 if self.get_current_char() == '\\':
                     self.advance()
                     value += self.parse_escape_seq('`')
@@ -321,7 +329,11 @@ class Tokenizer:
         #        return Token(TokenType.FStringEnd, None, self.line, self.col, self.line, self.col)
         #    return self.get_next_token()
         else:
-            self.mode_stack.append(self.TokenizerMode.FStringStr)
+            if multiline:
+                out = self.TokenizerMode.FStringMStr
+            else:
+                out = self.TokenizerMode.FStringStr
+            self.mode_stack.append(out)
             self.fstring_count += 1
             return Token(
                 TokenType.FStringStart, None, self.line, self.col, self.line, self.col
@@ -390,6 +402,8 @@ class Tokenizer:
                 return '\\'
             case 'b':
                 return '\b'
+            case '\n': # multi line strings
+                return ''
             case 'f':
                 return '\f'
             case 'e':
@@ -417,7 +431,7 @@ class Tokenizer:
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
         start_line = self.line
         start_col = self.col
-        if self.mode_stack[-1] == self.TokenizerMode.FStringStr:
+        if self.mode_stack[-1] in (self.TokenizerMode.FStringStr, self.TokenizerMode.FStringMStr):
             return self.tokenize_format_string(start_line, start_col)
         self.skip_whitespace()
         current_char = self.get_current_char()
@@ -458,6 +472,16 @@ class Tokenizer:
                     self.line,
                     self.col,
                 )
+        elif current_char == 'm' and self.peek() in ('"', "'", '`'):
+            char = self.peek()
+            self.advance(2)
+            match char:
+                case "'":
+                    return self.tokenize_string("'", start_line, start_col, True)
+                case '"':
+                    return self.tokenize_string('"', start_line, start_col, True)
+                case '`':
+                    return self.tokenize_format_string(start_line, start_col, True)
         elif current_char == '[':
             self.advance(1)
             return Token(
@@ -592,7 +616,6 @@ class Tokenizer:
         elif current_char == '}':
             self.advance(1)
             if self.mode_stack[-1] == self.TokenizerMode.FStringEpr:
-                # self.mode = self.TokenizerMode.FStringStr
                 self.mode_stack.pop()
                 return Token(
                     TokenType.FStringExprEnd,
@@ -632,8 +655,10 @@ class Tokenizer:
                 TokenType.GREATER_THAN, None, start_line, start_col, self.line, self.col
             )
         elif current_char == '"':
+            self.advance()
             return self.tokenize_string('"', start_line, start_col)
         elif current_char == "'":
+            self.advance()
             return self.tokenize_string("'", start_line, start_col)
         elif current_char == '`':
             self.advance()
@@ -1099,15 +1124,9 @@ class Parser:
                     t = self.expr()
                     out.append(t)
             if len(out) == 1:
-                # raise ParserWarn( # TODO: Make parser warnings
-                #     18,
-                #     'Format string without any expressions',
-                #     start_line,
-                #     start_col,
-                #     self.current_token.line,
-                #     self.current_token.col
-                # )
                 return out[0]
+            if len(out) == 0:
+                return String(start_line, start_col, start_line, start_col + 1, '')
             rhs = out[1]
             for node in out[2:]:
                 rhs = BinOp(
