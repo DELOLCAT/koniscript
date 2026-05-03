@@ -15,6 +15,7 @@ from koni_compiler.runtime import (
 )
 from enum import Enum, auto
 
+
 class TokenType(Enum):
     ADD = 'ADD'
     INTEGER = 'INT'
@@ -227,7 +228,7 @@ class Tokenizer:
             if self.get_current_char() == '\\':
                 self.advance()
                 value += self.parse_escape_seq(char)
-                #self.advance()
+                # self.advance()
             else:
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
             self.advance()
@@ -329,19 +330,42 @@ class Tokenizer:
     def parse_escape_seq(self, char: Literal['"', "'", '`']):
         if self.get_current_char() == '\\':
             self.advance()
+
         def hex_tokenize(amnt: int):
-                def hex_check(c: str):
-                    return c[0].lower() not in '0123456789abcdef'
+            def hex_check(c: str):
+                return c[0].lower() not in '0123456789abcdef'
+
+            self.advance()
+            c = self.get_current_char()
+            if c is None:
+                raise TokenizerError(
+                    3,
+                    'Unexpected EOF when decoding escape code',
+                    self.line,
+                    self.col,
+                    self.line,
+                    self.col,
+                )
+            if hex_check(c):
+                raise TokenizerError(
+                    17,
+                    'Invalid hexadecimal escape code',
+                    self.line,
+                    self.col,
+                    self.line,
+                    self.col + 1,
+                )
+            for _ in range(amnt - 1):
                 self.advance()
-                c = self.get_current_char()
-                if c is None:
+                tmp = self.get_current_char()
+                if tmp is None:
                     raise TokenizerError(
                         3,
                         'Unexpected EOF when decoding escape code',
                         self.line,
                         self.col,
                         self.line,
-                        self.col
+                        self.col + 1,
                     )
                 if hex_check(c):
                     raise TokenizerError(
@@ -350,46 +374,34 @@ class Tokenizer:
                         self.line,
                         self.col,
                         self.line,
-                        self.col+1
+                        self.col + 1,
                     )
-                for _ in range(amnt - 1):
-                    self.advance()
-                    tmp = self.get_current_char()
-                    if tmp is None:
-                        raise TokenizerError(
-                            3,
-                            'Unexpected EOF when decoding escape code',
-                            self.line,
-                            self.col,
-                            self.line,
-                            self.col+1
-                        )
-                    if hex_check(c):
-                        raise TokenizerError(
-                            17,
-                            'Invalid hexadecimal escape code',
-                            self.line,
-                            self.col,
-                            self.line,
-                            self.col+1
-                        )
-                    c += tmp
-                return chr(int(c, 16))
+                c += tmp
+            return chr(int(c, 16))
 
         match self.get_current_char():
             case 'n':
-                to_ret = '\n'
+                return '\n'
             case 'r':
-                to_ret = '\r'
+                return '\r'
             case 't':
-                to_ret = '\t'
+                return '\t'
             case '\\':
-                to_ret = '\\'
-            case 'x':                
+                return '\\'
+            case 'b':
+                return '\b'
+            case 'f':
+                return '\f'
+            case 'e':
+                return '\x1b'
+            case 'a':
+                return '\x07'
+            case 'x':
                 return hex_tokenize(2)
-            case 'u' | 'U':
-                r = 4 if self.get_current_char() == 'u' else 8
-                return hex_tokenize(r)
+            case 'u':
+                return hex_tokenize(4)
+            case 'U':
+                return hex_tokenize(8)
             case _:
                 if self.get_current_char() == char:
                     return char
@@ -401,7 +413,6 @@ class Tokenizer:
                     self.line,
                     self.col + 1,
                 )
-        return to_ret
 
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
         start_line = self.line
