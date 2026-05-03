@@ -224,7 +224,7 @@ class Tokenizer:
     def tokenize_string(self, char: Literal["'", '"'], start_line, start_col) -> Token:
         self.advance(1)
         value = ''
-        while self.get_current_char() is not None and self.get_current_char() != char:
+        while self.get_current_char() is not None and self.get_current_char() != char and self.get_current_char() != '\n':
             if self.get_current_char() == '\\':
                 self.advance()
                 value += self.parse_escape_seq(char)
@@ -239,7 +239,7 @@ class Tokenizer:
                 start_line,
                 start_col,
                 self.line,
-                self.col,
+                self.col + 1,
             )
         self.advance()
         return Token(
@@ -250,7 +250,7 @@ class Tokenizer:
         if self.mode_stack[-1] == self.TokenizerMode.FStringStr:
             value = ''
             while (
-                self.get_current_char() is not None and self.get_current_char() != '`'
+                self.get_current_char() is not None and self.get_current_char() != '`' and self.get_current_char() != '\n'
             ):
                 if self.get_current_char() == '\\':
                     self.advance()
