@@ -226,13 +226,8 @@ class Tokenizer:
         while self.get_current_char() is not None and self.get_current_char() != char:
             if self.get_current_char() == '\\':
                 self.advance()
-                match self.get_current_char():
-                    case 'n':
-                        value += '\n'
-                    case 't':
-                        value += '\t'
-                    case _:
-                        value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+                value += self.parse_escape_seq(char)
+                #self.advance()
             else:
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
             self.advance()
@@ -257,7 +252,9 @@ class Tokenizer:
                 self.get_current_char() is not None and self.get_current_char() != '`'
             ):
                 if self.get_current_char() == '\\':
+                    self.advance()
                     value += self.parse_escape_seq('`')
+                    self.advance()
                 elif self.check('${'):
                     self.advance(2)
                     self.mode_stack.append(self.TokenizerMode.FStringEpr)
@@ -334,13 +331,57 @@ class Tokenizer:
             self.advance()
         match self.get_current_char():
             case 'n':
-                return '\n'
+                to_ret = '\n'
             case 'r':
-                return '\r'
+                to_ret = '\r'
             case 't':
-                return '\t'
+                to_ret = '\t'
             case '\\':
-                return '\\'
+                to_ret = '\\'
+            case 'x':
+                self.advance()
+                c = self.get_current_char()
+                if c is None:
+                    raise TokenizerError(
+                        3,
+                        'Unexpected EOF when decoding escape code',
+                        self.line,
+                        self.col,
+                        self.line,
+                        self.col
+                    )
+                if ord(c.lower()) > 102:
+                    raise TokenizerError(
+                        17,
+                        'Invalid hexadecimal escape code',
+                        self.line,
+                        self.col,
+                        self.line,
+                        self.col+1
+                    )
+                self.advance()
+                tmp = self.get_current_char()
+                if tmp is None:
+                    raise TokenizerError(
+                        3,
+                        'Unexpected EOF when decoding escape code',
+                        self.line,
+                        self.col,
+                        self.line,
+                        self.col+1
+                    )
+                if ord(tmp.lower()) > 102:
+                    raise TokenizerError(
+                        17,
+                        'Invalid hexadecimal escape code',
+                        self.line,
+                        self.col,
+                        self.line,
+                        self.col+1
+                    )
+                c += tmp
+                input(self.get_current_char())
+                return chr(int(c, 16))
             case _:
                 if self.get_current_char() == char:
                     return char
@@ -352,6 +393,9 @@ class Tokenizer:
                     self.line,
                     self.col + 1,
                 )
+        #self.advance()
+        input(self.get_current_char())
+        return to_ret
 
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
         start_line = self.line
