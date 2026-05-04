@@ -14,6 +14,7 @@ from koni_compiler.main import (
     ParserError,
     Tokenizer,
     TokenizerError,
+    ParserWarn
 )
 
 ADDITION = re.compile(r"^\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)?$")
@@ -63,7 +64,13 @@ class PublishDiagnosticServer(LanguageServer):
         if tkns is not None:
             psr = Parser(tkns, ast_env)
             try:
-                program = psr.program()
+                p = psr.program()
+                while True:
+                    try:
+                        next(p)
+                    except StopIteration as e:
+                        program = e.value
+                        break
             except ParserError as e:
                 diagnostics.append(
                     types.Diagnostic(
@@ -86,7 +93,7 @@ class PublishDiagnosticServer(LanguageServer):
                 try:
                     a = next(it)
                     logging.info(a)
-                    if isinstance(a, Compiler.Warn):
+                    if isinstance(a, ParserWarn):
                         diagnostics.append(
                             types.Diagnostic(
                                 range=types.Range(
