@@ -285,7 +285,7 @@ def show_err_or_warn(e: Failed | Warn, file_content: str):
                 file_content = '<unknown>' # just in case somebody uses this function for their own Warn type
             
 
-    print()
+    print(file=sys.stderr)
     print(f'{tag}: {msg}:', file=sys.stderr)
     
     print(
@@ -356,7 +356,7 @@ def run(
             vm_path = Path(__file__).parent / exec_name('kovm')
         elif vm_path is None:
             print(
-                '<red><b>Could not find `kovm` (koniscript VM), which is required to run programs'
+                '<red><b>Could not find `kovm` (koniscript VM), which is required to run programs', file=sys.stderr
             )
             sys.exit(127)
         # run the VM and capture its output for tests, but also echo to user
