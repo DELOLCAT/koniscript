@@ -8,6 +8,7 @@ from pathlib import Path
 from colorama import init
 from koni_compiler.main import (
     CompilerError,
+    ParserError,
     Tokenizer,
     Parser,
     TokenType,
@@ -15,6 +16,10 @@ from koni_compiler.main import (
     Program,
     Compiler,
     CompilationException,
+    ParserWarn,
+    CompilerWarn,
+    TokenizerError,
+    Warn
 )
 from koni_compiler import base_env
 import copy
@@ -62,18 +67,21 @@ class Success(CompilationResult):
     instructions: list[str]
 
 
-def get_program(file_content):
+def get_program(file_content: str, fp: str):
     try:
         current_env = copy.copy(base_env.compiler_env)
-        tknr = Tokenizer(file_content)
+        tknr = Tokenizer(file_content, fp)
         tkns: list[Token] = []
         while True:
             tkn = tknr.get_next_token()
-            tkns.append(tkn)
-            if tkn.type == TokenType.EOF:
+            if isinstance(tkn, list):
+                tkns += tkn
+            else:
+                tkns.append(tkn)
+            if tkns[-1].type == TokenType.EOF:
                 break
-        psr: Parser = Parser(tkns, base_env.ASTenv)
-        program: Program = psr.program()
+        psr: Parser = Parser(tkns, base_env.ASTenv, fp=fp, file_content=file_content)
+        program: Program = yield from psr.program()
         return program, current_env
     except CompilationException as e:
         return Failed(None, e)
@@ -81,12 +89,12 @@ def get_program(file_content):
 
 def comp(
     file_content: str, filepath, features=None
-) -> Generator[Compiler.Warn | Compiler.ModuleRequest, Program, CompilationResult]:
+) -> Generator[Warn | Compiler.ModuleRequest, Program, CompilationResult]:
 
     if features is None:
         features = []
 
-    tmp = get_program(file_content)
+    tmp = yield from get_program(file_content, filepath)
 
     if isinstance(tmp, Failed):
         return tmp
@@ -120,10 +128,10 @@ def comp(
                     )  # TODO: columns
 
                 content = fp.read_text()
-                tmp = get_program(content)
+                tmp = yield from get_program(content, fp)
                 if isinstance(tmp, Failed):
                     return tmp
-                import_program, import_env = tmp
+                import_program, _ = tmp
                 result = Compiler.ModuleReceived(import_program, str(fp), content)
 
             else:
@@ -188,9 +196,10 @@ def compile(
     while True:
         try:
             value = next(it)
-            if isinstance(value, Compiler.Warn):
-                warns += 1
-                show_err_or_warn(value, filepath, file_content)
+            match value:
+                case Warn():
+                    warns += 1
+                    show_err_or_warn(value, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
@@ -198,7 +207,7 @@ def compile(
             elif isinstance(e.value, Failed):
                 if tracebacks:  # To show Python tracebacks for development
                     raise e.value.exception
-                show_err_or_warn(e.value, filepath, file_content)
+                show_err_or_warn(e.value, file_content)
                 if warns > 0:
                     print(
                         f'<b><red>Failed in {round(perf_counter() - start_time, 3)} seconds, </red><yellow>{warns} warnings emitted</yellow></b>'
@@ -222,7 +231,7 @@ def compile(
     print(f'Wrote to {fp}')
 
 
-def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
+def show_err_or_warn(e: Failed | Warn, file_content: str):
     if isinstance(e, Failed):
         color = '<red><b>'
         tag = f'<red><b>E{e.exception.code:02}'
@@ -232,6 +241,19 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         msg = e.exception.msg
         end_col = e.exception.end_col
         end_line = e.exception.end_line
+        
+        match e.exception:
+            case CompilerError(fp):
+                filepath = fp
+                if e.compiler is None:
+                    ln = None
+                else:
+                    file_content = e.compiler.sources[e.exception.fp]
+            case TokenizerError():
+                file_content = e.exception.file_content
+            case ParserError():
+                file_content = e.exception.file_content
+
         if isinstance(e.exception, CompilerError):
             filepath = e.exception.fp
             if e.compiler is None:
@@ -239,7 +261,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             else:
                 file_content = e.compiler.sources[e.exception.fp]
         else:
-            filepath = fp
+            filepath = e.exception.fp
 
     else:
         color = '<yellow><b>'
@@ -251,7 +273,17 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
         ln = e.line
         msg = e.message
         filepath = e.fp
-        file_content = e.compiler.sources[e.fp]
+        match e:
+            case CompilerWarn():
+                file_content = e.compiler.sources[e.fp]
+            case ParserWarn():
+                if e.parser.file_content:
+                    file_content = e.parser.file_content
+                else:
+                    file_content = '<unknown>'
+            case _:
+                file_content = '<unknown>' # just in case somebody uses this function for their own Warn type
+            
 
     print()
     print(f'{tag}: {msg}:', file=sys.stderr)
@@ -276,7 +308,7 @@ def show_err_or_warn(e: Failed | Compiler.Warn, fp, file_content: str):
             for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
                 arr = f'{color}->{end_color}' if ln == i - 1 else '  '
                 if ln == i-2 and col is not None:
-                    print('<blue><d>       ... </d></blue>', file=sys.stderr)
+                    print('<blue><d>        ... </d></blue>', file=sys.stderr)
                 elif not ln < i-1 < end_line:
                     print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
                 if ln <= i-1 <= end_line and col is not None:
@@ -300,8 +332,8 @@ def run(
     while True:
         try:
             value = next(it)
-            if isinstance(value, Compiler.Warn):
-                show_err_or_warn(value, filepath, file_content)
+            if isinstance(value, CompilerWarn):
+                show_err_or_warn(value, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
@@ -309,7 +341,7 @@ def run(
             elif isinstance(e.value, Failed):  # `elif` for IDE type recognition
                 if tracebacks:
                     raise e.value.exception
-                show_err_or_warn(e.value, filepath, file_content)
+                show_err_or_warn(e.value, file_content)
                 exit(1)  # Abort
             else:
                 raise  # Impossible

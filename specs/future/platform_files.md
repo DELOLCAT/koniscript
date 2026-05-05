@@ -26,6 +26,7 @@ run grault 18 # A runtime value (similar to _name), which can perhaps change dur
 attr garply(1) on str # A method for strings with one argument (syntax tentative)
 @ver 3
 attr waldo on str # An attribute for strings (syntax tentative)
+func fred(1) converts to str # This will be used by the version system, and also format strings (`foo ${bar}` will call `fred(bar)` to convert bar to a string)
 
 const TEST = 'any_type' # These get ignored by the version system, as it just replaces these with the actual value.
 # The macro syntax isn't developed yet 
@@ -38,6 +39,8 @@ These can also be imported using a standard import, like `import std::random`, s
 The search paths will be the same as modules.
 
 Once the type-checker will be unveiled (Typescript-like), these will also support types.
+
+Above, you can see that `fred(1)` converts argument number 1 to a string. This is used by format strings and the type checker.
 
 ## Version System
 
@@ -116,6 +119,6 @@ json_native::load("{'foo': 'bar'}")
 
 There really is going to be one refactor, and it's for the good, which is replacing the hardcoded indexes for the prelude (`println()`, `input()`, etc.) to a platform file.
 
-In order to disable the `prelude.knp` file, you will add `@nostd` to your script.
+In order to disable the `prelude.knp` file, you will add `@nostd` to your script. If you use `@nostd` and don't provide a platform file with a string conversion funciton, format strings that use an argument which isn't a string will fail to compile
 
 As of now, the `prelude` file will reserve indexes from 0 to 30.

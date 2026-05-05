@@ -10,10 +10,13 @@ from koni_compiler import base_env
 from koni_compiler.main import (
     Compiler,
     CompilerError,
+    CompilerWarn,
     Parser,
     ParserError,
+    TokenType,
     Tokenizer,
     TokenizerError,
+    Token
 )
 
 ADDITION = re.compile(r"^\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)?$")
@@ -33,16 +36,21 @@ class PublishDiagnosticServer(LanguageServer):
 
         ast_env, compiler_env, attrs = base_env.make_fresh_env()
 
-        logging.info("SOURCE:\n%s", document.source)
-        tkns = None
+        logging.info("SOURCEa:\n%s", document.source)
+        tkns: list[Token] | None = None
         try:
             tknr = Tokenizer(document.source)
             tkns = []
             while True:
+                logging.info('hi')
                 tkn = tknr.get_next_token()
-                tkns.append(tkn)
-                if tkn.type == "EOF":
+                if isinstance(tkn, list):
+                    tkns += tkn
+                else:
+                    tkns.append(tkn)
+                if tkns[-1].type == TokenType.EOF:
                     break
+            logging.info('break')
         except TokenizerError as e:
             diagnostics.append(
                 types.Diagnostic(
@@ -60,7 +68,24 @@ class PublishDiagnosticServer(LanguageServer):
         if tkns is not None:
             psr = Parser(tkns, ast_env)
             try:
-                program = psr.program()
+                p = psr.program()
+                while True:
+                    try:
+                        w = next(p)
+                        diagnostics.append(
+                            types.Diagnostic(
+                                message = w.message,
+                                severity= types.DiagnosticSeverity.Warning,
+                                range = types.Range(
+                                    start = types.Position(line= w.line, character = w.col),
+                                    end= types.Position(line= w.end_line, character= w.end_col)
+                                ),
+                            )
+                        )
+                        logging.info(w)
+                    except StopIteration as e:
+                        program = e.value
+                        break
             except ParserError as e:
                 diagnostics.append(
                     types.Diagnostic(
@@ -83,7 +108,7 @@ class PublishDiagnosticServer(LanguageServer):
                 try:
                     a = next(it)
                     logging.info(a)
-                    if isinstance(a, Compiler.Warn):
+                    if isinstance(a, CompilerWarn):
                         diagnostics.append(
                             types.Diagnostic(
                                 range=types.Range(
@@ -121,6 +146,7 @@ class PublishDiagnosticServer(LanguageServer):
                                 message=e.msg,
                             )
                         )
+                    break
 
         self.diagnostics[document.uri] = (document.version, diagnostics)
         # ... run compiler ...

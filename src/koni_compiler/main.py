@@ -13,7 +13,7 @@ from koni_compiler.runtime import (
     Program,
     Builtin,
 )
-from enum import Enum
+from enum import Enum, auto
 
 
 class TokenType(Enum):
@@ -72,6 +72,11 @@ class TokenType(Enum):
     DICT_STARTER = 'DICT_STARTER'
     COLON = 'COLON'
     BREAK = 'BREAK'
+    BACKTICK = 'BACKTICK'
+    FStringStart = 'FStringStart'
+    FStringExpr = 'FStringExpr'
+    FStringExprEnd = 'FStringExprEnd'
+    FStringEnd = 'FStringEnd'
 
 
 PRECEDENCE = {
@@ -87,31 +92,28 @@ PRECEDENCE = {
 class CompilationException(Exception):
     code: int
     msg: str
-    line: int | None
-    col: int | None
-    end_line: int | None
-    end_col: int | None
-
-
-@dataclass
-class ParserError(CompilationException):
-    line: int  # type: ignore[override]
-    col: int  # type: ignore[override]
-    end_line: int  # type: ignore[override]
-    end_col: int  # type: ignore[override]
-
-
-@dataclass
-class CompilerError(CompilationException):
+    line: int
+    col: int
+    end_line: int
+    end_col: int
     fp: str
 
 
 @dataclass
+class ParserError(CompilationException):
+    file_content: str
+    pass
+
+
+@dataclass
+class CompilerError(CompilationException):
+    pass
+
+
+@dataclass
 class TokenizerError(CompilationException):
-    line: int  # type: ignore[override]
-    col: int  # type: ignore[override]
-    end_line: int  # type: ignore[override]
-    end_col: int  # type: ignore[override]
+    file_content: str
+    pass
 
 
 KEYWORDS = {
@@ -149,12 +151,52 @@ class Token:
     end_col: int
 
 
+class FormatStringComponent:
+    pass
+
+
+@dataclass
+class FormatStringStr(FormatStringComponent):
+    value: str
+
+
+@dataclass
+class FormatStringExpr(FormatStringComponent):
+    expr: str
+
+
 class Tokenizer:
-    def __init__(self, string: str):
+    class Mode(Enum):
+        Normal = auto()
+        FStringEpr = auto()
+        FStringStr = auto()
+
+    @dataclass
+    class ModeState:
+        mode: Tokenizer.Mode
+        multiline: bool = False
+        raw: bool = False
+
+    def __init__(self, string: str, fp: str = '<unknown>'):
         self.string: str = string
         self.current_idx: int = 0
         self.line: int = 0
         self.col: int = 0
+        self.fp: str = fp
+        # self.mode: Tokenizer.TokenizerMode = self.TokenizerMode.Normal
+        self.fstring_count = 0
+        self.mode_stack: list[Tokenizer.ModeState] = [self.ModeState(self.Mode.Normal)]
+
+    def is_str_prefix(self):
+        i = 0
+        while True:
+            match self.peek(i):
+                case 'm' | 'r':
+                    i += 1
+                case '"' | "'" | '`':
+                    return True
+                case _:
+                    return False
 
     def advance(self, steps: int = 1) -> str | None:
         if steps <= 0:  # To make sure that `ch` isn't `Unbound`
@@ -184,9 +226,9 @@ class Tokenizer:
             else:
                 break
 
-    def peek(self):
-        if self.current_idx + 1 < len(self.string):
-            return self.string[self.current_idx + 1]
+    def peek(self, amnt: int = 1):
+        if self.current_idx + amnt < len(self.string):
+            return self.string[self.current_idx + amnt]
         else:
             return None
 
@@ -194,15 +236,243 @@ class Tokenizer:
         end = self.current_idx + len(text)
         return self.string[self.current_idx : end] == text
 
+    def tokenize_string(
+        self,
+        char: Literal["'", '"'],
+        start_line,
+        start_col,
+        multiline: bool = False,
+        raw: bool = False,
+    ) -> Token:
+        value = ''
+        while self.get_current_char() is not None and self.get_current_char() != char:
+            if not multiline and self.get_current_char() == '\n':
+                break
+            if self.get_current_char() == '\\' and not raw:
+                self.advance()
+                value += self.parse_escape_seq(char)
+                # self.advance()
+            else:
+                value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+            self.advance()
+        if self.get_current_char() != char:
+            raise TokenizerError(
+                1,
+                'Unterminated string literal',
+                start_line,
+                start_col,
+                self.line,
+                self.col + 1,
+                self.fp,
+                self.string,
+            )
+        self.advance()
+        return Token(
+            TokenType.STRING, value, start_line, start_col, self.line, self.col
+        )
+
+    def tokenize_format_string(
+        self, start_line, start_col, multiline: bool = False, raw: bool = False
+    ) -> Token | list[Token]:
+        if self.mode_stack[-1].mode == self.Mode.FStringStr:
+            value = ''
+            while (
+                self.get_current_char() is not None and self.get_current_char() != '`'
+            ):
+                if (
+                    self.get_current_char() == '\n'
+                    and not self.mode_stack[-1].multiline
+                ):
+                    break
+                if self.get_current_char() == '\\' and not self.mode_stack[-1].raw:
+                    self.advance()
+                    value += self.parse_escape_seq('`')
+                    self.advance()
+                elif self.check('${'):
+                    self.advance(2)
+                    self.mode_stack.append(self.ModeState(self.Mode.FStringEpr))
+                    return [
+                        Token(
+                            TokenType.STRING,
+                            value,
+                            start_line,
+                            start_col,
+                            self.line,
+                            self.col,
+                        ),
+                        Token(
+                            TokenType.FStringExpr,
+                            None,
+                            self.line,
+                            self.col,
+                            self.line,
+                            self.col,
+                        ),
+                    ]
+                else:
+                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
+                    self.advance()
+            if self.get_current_char() != '`':
+                raise TokenizerError(
+                    1,
+                    'Unterminated string literal',
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col + 1,
+                    self.fp,
+                    self.string,
+                )
+
+            self.advance()
+            self.mode_stack.pop()
+            if len(value) > 0:
+                return [
+                    Token(
+                        TokenType.STRING,
+                        value,
+                        start_line,
+                        start_col,
+                        self.line,
+                        self.col,
+                    ),
+                    Token(
+                        TokenType.FStringEnd,
+                        None,
+                        start_line,
+                        start_col,
+                        self.line,
+                        self.col,
+                    ),
+                ]
+            return Token(
+                TokenType.FStringEnd, None, start_line, start_col, self.line, self.col
+            )
+
+        else:
+            self.mode_stack.append(self.ModeState(self.Mode.FStringStr, multiline, raw))
+            self.fstring_count += 1
+            return Token(
+                TokenType.FStringStart,
+                None,
+                self.line,
+                self.col - 1,
+                self.line,
+                self.col,
+            )
+
+    def parse_escape_seq(self, char: Literal['"', "'", '`']):
+        if self.get_current_char() == '\\':
+            self.advance()
+
+        def hex_tokenize(amnt: int):
+            def hex_check(c: str):
+                return c[0].lower() not in '0123456789abcdef'
+
+            self.advance()
+            c = self.get_current_char()
+            if c is None:
+                raise TokenizerError(
+                    3,
+                    'Unexpected EOF when decoding escape code',
+                    self.line,
+                    self.col,
+                    self.line,
+                    self.col,
+                    self.fp,
+                    self.string,
+                )
+            if hex_check(c):
+                raise TokenizerError(
+                    17,
+                    'Invalid hexadecimal escape code',
+                    self.line,
+                    self.col,
+                    self.line,
+                    self.col + 1,
+                    self.fp,
+                    self.string,
+                )
+            for _ in range(amnt - 1):
+                self.advance()
+                tmp = self.get_current_char()
+                if tmp is None:
+                    raise TokenizerError(
+                        3,
+                        'Unexpected EOF when decoding escape code',
+                        self.line,
+                        self.col,
+                        self.line,
+                        self.col + 1,
+                        self.fp,
+                        self.string,
+                    )
+                if hex_check(tmp):
+                    raise TokenizerError(
+                        17,
+                        'Invalid hexadecimal escape code',
+                        self.line,
+                        self.col,
+                        self.line,
+                        self.col + 1,
+                        self.fp,
+                        self.string,
+                    )
+                c += tmp
+            return chr(int(c, 16))
+
+        match self.get_current_char():
+            case 'n':
+                return '\n'
+            case 'r':
+                return '\r'
+            case 't':
+                return '\t'
+            case '\\':
+                return '\\'
+            case 'b':
+                return '\b'
+            case '\n':  # multi line strings
+                return ''
+            case 'f':
+                return '\f'
+            case 'e':
+                return '\x1b'
+            case 'a':
+                return '\x07'
+            case 'x':
+                return hex_tokenize(2)
+            case 'u':
+                return hex_tokenize(4)
+            case 'U':
+                return hex_tokenize(8)
+            case _:
+                if self.get_current_char() == char:
+                    return char
+                raise TokenizerError(
+                    17,
+                    f'Invalid escape sequence \\{self.get_current_char()}',
+                    self.line,
+                    self.col,
+                    self.line,
+                    self.col + 1,
+                    self.fp,
+                    self.string,
+                )
+
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
-        self.skip_whitespace()
         start_line = self.line
         start_col = self.col
+        if self.mode_stack[-1].mode == self.Mode.FStringStr:
+            return self.tokenize_format_string(start_line, start_col)
+        self.skip_whitespace()
         current_char = self.get_current_char()
         if current_char is None:
             return Token(
                 TokenType.EOF, None, start_line, start_col, self.line, self.col
             )  # End of input
+        start_line = self.line
+        start_col = self.col
 
         if current_char.isdigit():
             value = ''
@@ -234,6 +504,29 @@ class Tokenizer:
                     self.line,
                     self.col,
                 )
+        elif self.is_str_prefix():
+            raw = False
+            multiline = False
+            while True:
+                match self.get_current_char():
+                    case 'm':
+                        multiline = True
+                    case 'r':
+                        raw = True
+                    case _:
+                        break
+                self.advance()
+            char = self.get_current_char()
+            self.advance()
+            match char:
+                case "'" | '"':
+                    return self.tokenize_string(
+                        char, start_line, start_col, multiline, raw
+                    )
+                case '`':
+                    return self.tokenize_format_string(
+                        start_line, start_col, multiline, raw
+                    )
         elif current_char == '[':
             self.advance(1)
             return Token(
@@ -367,6 +660,17 @@ class Tokenizer:
             )
         elif current_char == '}':
             self.advance(1)
+            if self.mode_stack[-1].mode == self.Mode.FStringEpr:
+                self.mode_stack.pop()
+                return Token(
+                    TokenType.FStringExprEnd,
+                    None,
+                    start_line,
+                    start_col,
+                    self.line,
+                    self.col,
+                )
+
             return Token(
                 TokenType.RBRACE, None, start_line, start_col, self.line, self.col
             )
@@ -396,68 +700,14 @@ class Tokenizer:
                 TokenType.GREATER_THAN, None, start_line, start_col, self.line, self.col
             )
         elif current_char == '"':
-            self.advance(1)
-            value = ''
-            while (
-                self.get_current_char() is not None and self.get_current_char() != '"'
-            ):
-                if self.get_current_char() == '\\':
-                    self.advance()
-                    match self.get_current_char():
-                        case 'n':
-                            value += '\n'
-                        case 't':
-                            value += '\t'
-                        case _:
-                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                else:
-                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.advance()
-            if self.get_current_char() != '"':
-                raise TokenizerError(
-                    1,
-                    'Unterminated string literal',
-                    self.line,
-                    self.col,
-                    self.line,
-                    self.col + 1,
-                )
             self.advance()
-            return Token(
-                TokenType.STRING, value, start_line, start_col, self.line, self.col
-            )
+            return self.tokenize_string('"', start_line, start_col)
         elif current_char == "'":
-            self.advance(1)
-            value = ''
-            while (
-                self.get_current_char() is not None and self.get_current_char() != "'"
-            ):
-                if self.get_current_char() == '\\':
-                    self.advance()
-                    match self.get_current_char():
-                        case 'n':
-                            value += '\n'
-                        case 't':
-                            value += '\t'
-                        case _:
-                            value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                else:
-                    value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
-                self.advance()
-            if self.get_current_char() != "'":
-                raise TokenizerError(
-                    1,
-                    'Unterminated string literal',
-                    self.line,
-                    self.col,
-                    self.line,
-                    self.col + 1,
-                )
             self.advance()
-            return Token(
-                TokenType.STRING, value, start_line, start_col, self.line, self.col
-            )
-
+            return self.tokenize_string("'", start_line, start_col)
+        elif current_char == '`':
+            self.advance()
+            return self.tokenize_format_string(start_line, start_col)
         elif current_char.isalpha() or current_char == '_':
             to_return = current_char
             self.advance()
@@ -480,6 +730,8 @@ class Tokenizer:
             self.col,
             self.line,
             self.col + 1,
+            self.fp,
+            self.string,
         )
 
 
@@ -561,12 +813,41 @@ class UnaryOpType(Enum):
     NOT = TokenType.NOT
 
 
+@dataclass
+class Warn:  # TODO: make a warning code
+    message: str
+    line: int
+    col: int
+    end_line: int
+    end_col: int
+    fp: str
+
+
+@dataclass
+class ParserWarn(Warn):  # TODO: make a warning code
+    parser: Parser
+
+
+@dataclass
+class CompilerWarn(Warn):
+    compiler: Compiler
+
+
 class Parser:
-    def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool = False):
+    def __init__(
+        self,
+        tokens: list[Token],
+        base_env: list[tuple],
+        repl: bool = False,
+        fp: str = '<unknown>',
+        file_content: str = '<unknown>',
+    ):
         self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
         self.repl = repl
+        self.fp = fp
+        self.file_content: str = file_content
         self.current_token = (
             self.tokens[0] if self.tokens else Token(TokenType.EOF, None, 0, 0, 0, 0)
         )
@@ -585,6 +866,8 @@ class Parser:
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         self.advance()
         return out
@@ -596,14 +879,15 @@ class Parser:
         else:
             self.current_token = Token(TokenType.EOF, None, 0, 0, 0, 0)
 
-    def arithmetic_expr(self):
-        node = self.term()
+    def arithmetic_expr(self) -> Generator[ParserWarn, None, ASTNode]:
+        node = yield from self.term()
         while self.current_token and self.current_token.type in (
             TokenType.ADD,
             TokenType.SUB,
         ):
             op = self.current_token.type
             self.eat(op)
+            t = yield from self.term()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -611,15 +895,16 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.term(),
+                t,
             )
         return node
 
     def expr(self):
-        node = self.logical_and()
+        node = yield from self.logical_and()
         while self.current_token.type == TokenType.OR:
             op = self.current_token.type
             self.eat(op)
+            e = yield from self.logical_and()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -627,29 +912,32 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.logical_and(),
+                e,
             )
 
         return node
 
-    def logical_not(self):
+    def logical_not(self) -> Generator[ParserWarn, None, ASTNode]:
         if self.current_token.type == TokenType.NOT:
             self.eat(TokenType.NOT)
+            e = yield from self.logical_not()
             return UnaryOp(
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
                 UnaryOpType.NOT,
-                self.logical_not(),
+                e,
             )
-        return self.equality()
+        e = yield from self.equality()
+        return e
 
     def logical_and(self):
-        node = self.logical_not()
+        node = yield from self.logical_not()
         while self.current_token.type == TokenType.AND:
             op = self.current_token.type
             self.eat(op)
+            e = yield from self.equality()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -657,12 +945,12 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.equality(),
+                e,
             )
         return node
 
-    def comparison(self):
-        node = self.arithmetic_expr()
+    def comparison(self) -> Generator[ParserWarn, None, ASTNode]:
+        node = yield from self.arithmetic_expr()
         while self.current_token.type in (
             TokenType.LT,
             TokenType.GT,
@@ -671,6 +959,7 @@ class Parser:
         ):
             op = self.current_token.type
             self.eat(op)
+            e = yield from self.arithmetic_expr()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -678,15 +967,16 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.arithmetic_expr(),
+                e,
             )
         return node
 
-    def equality(self):
-        node = self.comparison()
+    def equality(self) -> Generator[ParserWarn, None, ASTNode]:
+        node = yield from self.comparison()
         while self.current_token.type in (TokenType.EQUAL_TO, TokenType.NOT_EQUAL_TO):
             op = self.current_token.type
             self.eat(op)
+            c = yield from self.comparison()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -694,12 +984,12 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.comparison(),
+                c,
             )
         return node
 
-    def term(self):
-        node = self.power()
+    def term(self) -> Generator[ParserWarn, None, ASTNode]:
+        node = yield from self.power()
         while self.current_token and self.current_token.type in (
             TokenType.MUL,
             TokenType.DIV,
@@ -707,6 +997,7 @@ class Parser:
         ):
             op = self.current_token.type
             self.eat(op)
+            p = yield from self.power()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -714,15 +1005,16 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.power(),
+                p,
             )
         return node
 
-    def power(self):
-        node = self.factor()
+    def power(self) -> Generator[ParserWarn, None, ASTNode]:
+        node = yield from self.factor()
         if self.current_token and self.current_token.type == TokenType.POW:
             op = self.current_token.type
             self.eat(TokenType.POW)
+            p = yield from self.power()
             node = BinOp(
                 self.current_token.line,
                 self.current_token.col,
@@ -730,26 +1022,28 @@ class Parser:
                 self.current_token.end_col,
                 node,
                 BinOpType(op),
-                self.power(),
+                p,
             )  # right-associative
         return node
 
-    def factor(self):
+    def factor(self) -> Generator[ParserWarn, None, ASTNode]:
         token = self.current_token
         if token.type == TokenType.SUB:
             self.eat(TokenType.SUB)
+            f = yield from self.factor()
             return UnaryOp(
                 token.line,
                 token.col,
                 token.end_line,
                 token.end_col,
                 UnaryOpType.NEG,
-                self.factor(),
+                f,
             )
-        return self.postfix()
+        r = yield from self.postfix()
+        return r
 
-    def postfix(self):
-        node = self.primary()
+    def postfix(self) -> Generator[ParserWarn, None, ASTNode]:
+        node = yield from self.primary()
 
         while self.current_token.type in (
             TokenType.DOT,
@@ -768,6 +1062,8 @@ class Parser:
                         self.current_token.col,
                         self.current_token.end_line,
                         self.current_token.end_col,
+                        self.fp,
+                        self.file_content,
                     )
 
                 end_tok = self.eat(TokenType.IDENTIFIER)
@@ -789,11 +1085,15 @@ class Parser:
                 self.skip_newline()
 
                 if self.current_token.type != TokenType.RPAREN:
-                    args.append(self.expr())
+                    e = yield from self.expr()
+                    args.append(e)
 
                     while self.current_token.type == TokenType.COMMA:
                         self.eat(TokenType.COMMA)
                         self.skip_newline()
+                        e = yield from self.expr()
+                        args.append(e)
+
                         args.append(self.expr())
 
                 self.skip_newline()
@@ -809,7 +1109,7 @@ class Parser:
                 ln = self.current_token.line
                 col = self.current_token.col
                 self.eat(TokenType.LBRACKET)
-                idx = self.expr()
+                idx = yield from self.expr()
                 end_tok = self.eat(TokenType.RBRACKET)
                 node = GetIndex(ln, col, end_tok.end_line, end_tok.end_col, node, idx)
 
@@ -819,7 +1119,7 @@ class Parser:
         while self.current_token.type == TokenType.NEWLINE:
             self.eat(TokenType.NEWLINE)
 
-    def primary(self):
+    def primary(self) -> Generator[ParserWarn, None, ASTNode]:
         token = self.current_token
         if token.type == TokenType.INT:
             self.eat(TokenType.INT)
@@ -845,9 +1145,9 @@ class Parser:
                     if self.current_token.type == TokenType.EOF:
                         self.incomplete_input()
                     self.skip_newline()
-                    k = self.expr()
+                    k = yield from self.expr()
                     self.eat(TokenType.COLON)
-                    v = self.expr()
+                    v = yield from self.expr()
                     items.append((k, v))
             self.skip_newline()
             self.eat(TokenType.RBRACE)
@@ -890,6 +1190,85 @@ class Parser:
             return String(
                 token.line, token.col, token.end_line, token.end_col, token.value
             )
+        elif token.type == TokenType.FStringStart:
+            start_line = token.line
+            start_col = token.col
+            self.eat(TokenType.FStringStart)
+            out: list[ASTNode] = []
+            while True:
+                if self.current_token.type == TokenType.FStringExpr:
+                    self.eat(TokenType.FStringExpr)
+                    t = yield from self.expr()
+                    if not isinstance(t, String):
+                        t = Call(
+                            t.line,
+                            t.col,
+                            t.end_line,
+                            t.end_col,
+                            Variable(t.line, t.col, t.end_line, t.end_col, 'to_str'),
+                            [t],
+                        )
+
+                    out.append(t)
+                elif self.current_token.type == TokenType.FStringExprEnd:
+                    self.eat(TokenType.FStringExprEnd)
+                elif self.current_token.type == TokenType.FStringEnd:
+                    self.eat(TokenType.FStringEnd)
+                    break
+                else:
+                    t = yield from self.expr()
+                    out.append(t)
+            if len(out) == 1:
+                yield ParserWarn(
+                    'Format string with no expressions',
+                    start_line,
+                    start_col,
+                    self.current_token.end_line,
+                    self.current_token.end_col,
+                    self.fp,
+                    self,
+                )
+                return out[0]
+            if len(out) == 0:
+                yield ParserWarn(
+                    'Empty format string',
+                    token.line,
+                    token.col,
+                    token.end_line,
+                    token.end_col,
+                    self.fp,
+                    self,
+                )
+                return String(start_line, start_col, start_line, start_col + 1, '')
+            rhs = out[1]
+            for node in out[2:]:
+                rhs = BinOp(
+                    self.current_token.line,
+                    self.current_token.col,
+                    self.current_token.end_line,
+                    self.current_token.end_col,
+                    rhs,
+                    BinOpType.ADD,
+                    node,
+                )
+            node = BinOp(
+                self.current_token.line,
+                self.current_token.col,
+                self.current_token.end_line,
+                self.current_token.end_col,
+                out[0],
+                BinOpType.ADD,
+                rhs,
+            )
+            return node
+
+            # for item in token.value:
+            #     if isinstance(item, FormatStringStr):
+            #         val.append(item.value)
+            #     elif isinstance(item, FormatStringExpr):
+            #         val.append(self.expr())
+            #     else:
+            #         assert_never(item)
         elif token.type == TokenType.BOOL:
             self.eat(TokenType.BOOL)
             return Bool(
@@ -905,7 +1284,7 @@ class Parser:
             return Null(token.line, token.col, token.end_line, token.end_col)
         elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
-            node = self.expr()
+            node = yield from self.expr()
             if self.current_token.type == TokenType.EOF:
                 self.incomplete_input()
             self.skip_newline()
@@ -918,11 +1297,13 @@ class Parser:
             token.col,
             token.end_line,
             token.end_col,
+            self.fp,
+            self.file_content,
         )
 
-    def export(self):
+    def export(self) -> Generator[ParserWarn, None, ASTNode]:
         self.eat(TokenType.EXPORT)
-        out = self.statement()
+        out = yield from self.statement()
         if out is None:
             raise ParserError(
                 3,
@@ -931,6 +1312,8 @@ class Parser:
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         if not isinstance(out, Assign):
             raise ParserError(
@@ -940,6 +1323,8 @@ class Parser:
                 out.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         name = out.name
         ln = out.line
@@ -953,7 +1338,7 @@ class Parser:
             name,
         )
 
-    def statement(self):
+    def statement(self) -> Generator[ParserWarn, None, ASTNode | None]:
         self.skip_newline()
         if self.current_token.type == TokenType.RBRACE:
             return None
@@ -993,11 +1378,11 @@ class Parser:
                     reqs.append(req)
                     req = ''
                 if self.current_token.type == TokenType.LBRACE:
-                    blk = self.block()
+                    blk = yield from self.block()
                     else_block: Block | None = None
                     if self.current_token.type == TokenType.ELSE:
                         self.eat(TokenType.ELSE)
-                        else_block = self.block()
+                        else_block = yield from self.block()
                     return RequireStatement(
                         ln, col, blk.end_line, blk.end_col, reqs, blk, else_block
                     )
@@ -1006,15 +1391,16 @@ class Parser:
                         ln, col, self.current_token.line, self.current_token.col, reqs
                     )
         elif self.current_token.type == TokenType.LBRACE:
-            return self.block()
+            b = yield from self.block()
+            return b
         elif self.current_token.type == TokenType.FUNC:
-            return self.function_decl()
+            return (yield from self.function_decl())
         elif self.current_token.type == TokenType.IF:
-            return self.if_decl()
+            return (yield from self.if_decl())
         elif self.current_token.type == TokenType.EXPORT:
-            return self.export()
+            return (yield from self.export())
         elif self.current_token.type == TokenType.WHILE:
-            return self.while_decl()
+            return (yield from self.while_decl())
         elif self.current_token.type == TokenType.IMPORT:
             ln = self.current_token.line
             col = self.current_token.col
@@ -1029,7 +1415,7 @@ class Parser:
                 return Return(
                     ln, col, self.current_token.line, self.current_token.col, None
                 )
-            value = self.expr()
+            value = yield from self.expr()
             return Return(ln, col, value.end_line, value.end_col, value)
         elif self.current_token.type == TokenType.IDENTIFIER:
             next_tok = self.peek()
@@ -1038,7 +1424,7 @@ class Parser:
                 col = self.current_token.col
                 name = self.eat(TokenType.IDENTIFIER).value
                 self.eat(TokenType.ASSIGN)
-                value = self.expr()
+                value = yield from self.expr()
                 return Assign(ln, col, value.end_line, value.end_col, name, value)
             elif next_tok and next_tok.type in (
                 TokenType.PLUS_ASSIGN,
@@ -1067,8 +1453,10 @@ class Parser:
                         op_token.col,
                         op_token.end_line,
                         op_token.end_col,
+                        self.fp,
+                        self.file_content,
                     )
-                value = self.expr()
+                value = yield from self.expr()
                 return Assign(
                     ln,
                     col,
@@ -1085,26 +1473,27 @@ class Parser:
                         value,
                     ),
                 )
-        return self.expr()
+        e = yield from self.expr()
+        return e
 
-    def if_decl(self):
+    def if_decl(self) -> Generator[ParserWarn, None, If]:
         ln = self.current_token.line
         col = self.current_token.col
         self.eat(TokenType.IF)
-        expr = self.expr()
+        expr = yield from self.expr()
         if self.current_token.type == TokenType.EOF:
             self.incomplete_input()
         self.skip_newline()
-        body = self.block()
+        body = yield from self.block()
         if (
             self.current_token.type == TokenType.ELSE
             and self.peek().type == TokenType.IF
         ):
             self.eat(TokenType.ELSE)
-            else_body = self.if_decl()
+            else_body = yield from self.if_decl()
         elif self.current_token.type == TokenType.ELSE:
             self.eat(TokenType.ELSE)
-            else_body = self.block()
+            else_body = yield from self.block()
         else:
             else_body = None
         if else_body is None:
@@ -1119,14 +1508,14 @@ class Parser:
         ln = self.current_token.line
         col = self.current_token.col
         self.eat(TokenType.WHILE)
-        expr = self.expr()
+        expr = yield from self.expr()
         if self.current_token.type == TokenType.EOF:
             self.incomplete_input()
         self.skip_newline()
-        body = self.block()
+        body = yield from self.block()
         return While(ln, col, body.end_line, body.end_col, expr, body)
 
-    def function_decl(self):
+    def function_decl(self) -> Generator[ParserWarn, None, ASTNode]:
         ln = self.current_token.line
         col = self.current_token.col
         self.eat(TokenType.FUNC)
@@ -1150,7 +1539,7 @@ class Parser:
             if self.current_token.type == TokenType.ASSIGN:
                 optional = True
                 self.eat(TokenType.ASSIGN)
-                params[-1].option = self.primary()
+                params[-1].option = yield from self.primary()
                 params[-1].end_col = params[-1].option.end_col
                 params[-1].end_line = params[-1].option.end_line
             elif optional:
@@ -1161,6 +1550,8 @@ class Parser:
                     self.current_token.col,
                     self.current_token.end_line,
                     self.current_token.end_col,
+                    self.fp,
+                    self.file_content,
                 )
             while self.current_token.type == TokenType.COMMA:
                 self.eat(TokenType.COMMA)
@@ -1177,7 +1568,7 @@ class Parser:
                 if self.current_token.type == TokenType.ASSIGN:
                     optional = True
                     self.eat(TokenType.ASSIGN)
-                    params[-1].option = self.primary()
+                    params[-1].option = yield from self.primary()
                     params[-1].end_col = self.current_token.col
                 elif optional:
                     raise ParserError(
@@ -1187,10 +1578,12 @@ class Parser:
                         self.current_token.col,
                         self.current_token.end_line,
                         self.current_token.end_col,
+                        self.fp,
+                        self.file_content,
                     )
         self.eat(TokenType.RPAREN)
 
-        body = self.block()
+        body = yield from self.block()
         return Assign(
             ln,
             col,
@@ -1207,7 +1600,7 @@ class Parser:
         return Token(TokenType.EOF, None, 0, 0, 0, 0)
 
     def parse(self):
-        node = self.statement()
+        node = yield from self.statement()
         if self.current_token.type != TokenType.EOF:
             raise ParserError(
                 3,
@@ -1216,16 +1609,18 @@ class Parser:
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         return node
 
-    def program(self):
+    def program(self) -> Generator[ParserWarn, None, Program]:
         statements: list = []
         while self.current_token.type != TokenType.EOF:
             if self.current_token.type == TokenType.NEWLINE:
                 self.eat(TokenType.NEWLINE)
                 continue
-            stmnt = self.statement()
+            stmnt = yield from self.statement()
             if stmnt is not None:
                 statements.append(stmnt)
             else:
@@ -1240,7 +1635,7 @@ class Parser:
                 break
         return Program(0, 0, end_line, end_col, statements)
 
-    def block(self):
+    def block(self) -> Generator[ParserWarn, None, Block]:
         self.eat(TokenType.LBRACE)
         statements = []
         line = self.current_token.line
@@ -1250,7 +1645,7 @@ class Parser:
             if self.current_token.type == TokenType.EOF:
                 self.incomplete_input()
                 break
-            stmnt = self.statement()
+            stmnt = yield from self.statement()
             if stmnt is not None:
                 statements.append(stmnt)
         if self.current_token.type == TokenType.EOF:
@@ -1372,6 +1767,11 @@ class String(ASTNode):
 
 
 @dataclass
+class FormatString(ASTNode):
+    value: list[ASTNode]
+
+
+@dataclass
 class Return(ASTNode):
     value: ASTNode | None
 
@@ -1386,7 +1786,7 @@ class Function(ASTNode):
 class If(ASTNode):
     expr: ASTNode
     body: Block
-    else_body: Block | None
+    else_body: Block | None | If
 
 
 @dataclass
@@ -1505,7 +1905,6 @@ class Compiler:
         self.req_stack: list[
             Compiler.RequirementGroup
         ] = []  # LIFO stack for nested @require statements
-        self.warns: list[str] = []
         self.req_stack_not_allowed: list[
             Compiler.RequirementGroup
         ] = []  # for errors when using a feature where it isn't allowed, like the else branch of an @require statement
@@ -1561,16 +1960,6 @@ class Compiler:
 
             self.next_local = len(self.var_map)
             self.args = args if args is not None else {}
-
-    @dataclass
-    class Warn:  # TODO: make a warning code
-        message: str
-        line: int
-        col: int
-        end_line: int
-        end_col: int
-        fp: str
-        compiler: Compiler
 
     @dataclass
     class Result:
@@ -1640,15 +2029,21 @@ class Compiler:
         program: Program,
         features: Collection[Literal['source'] | Literal['line']] = [],
         input_source: str | None = None,
-    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, list[str]]:
+    ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, list[str]]:
         if input_source is None and 'source' in features:
+            if len(program.statements) == 0:
+                end_line = 0
+                end_col = 0
+            else:
+                end_line = program.statements[-1].end_line
+                end_col = program.statements[-1].end_col
             raise CompilerError(
                 8,
                 'Compiler needs input source to compile with source info.',
-                None,
-                None,
-                None,
-                None,
+                0,
+                0,
+                end_line,
+                end_col,
                 self.mod_stack[-1].fp,
             )
         if 'source' in features:
@@ -1676,7 +2071,7 @@ class Compiler:
         output.append('.const')
         for const in self.constants:
             output.append(
-                f'{const[0]};{str(const[1]).replace("\n", "\\n").replace(";", "\\;")};'
+                f'{const[0]};{str(const[1]).replace("\\", "\\\\").replace("\n", "\\n").replace(";", "\\;")};'
             )
         output.append('.code')
         for instr in self.code:
@@ -1722,7 +2117,7 @@ class Compiler:
             end_line = node.end_line
             if illegal:
                 if unsure:
-                    yield self.Warn(
+                    yield CompilerWarn(
                         f'CRITICAL: This may need the `{req}` requirement, and is in an illegal zone. Perhaps add `@require {req}` to the top of your program?',  # TODO: warning priorities
                         ln,
                         col,
@@ -1743,7 +2138,7 @@ class Compiler:
                     )
             else:
                 if unsure:
-                    yield self.Warn(
+                    yield CompilerWarn(
                         f'This may need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?',
                         ln,
                         col,
@@ -1754,7 +2149,7 @@ class Compiler:
                     )
                 else:
                     self.reqs.append(req)
-                    yield self.Warn(
+                    yield CompilerWarn(
                         f'{second_name} implicitly adds the `{req}` requirement. Perhaps add `@require {req}` to the top of your program to make it explicit?',
                         ln,
                         col,
@@ -1766,7 +2161,7 @@ class Compiler:
 
     def compile_ins(
         self, node: ASTNode, *other
-    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, Any]:
+    ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -1841,7 +2236,7 @@ class Compiler:
                     depth = 0
                 self.emit(node.line, OP_SET_VAR, idx, depth)
 
-                yield self.Warn(
+                yield CompilerWarn(
                     f'Reassignment to a function attempted for {node.name}(). This is usually not recommended',
                     node.line,
                     node.col,
@@ -2098,7 +2493,7 @@ class Compiler:
                                     yield from self.compile_ins(item.option)
                         self.emit(node.line, OpcodeType.CALL, len(params))
                     else:
-                        yield self.Warn(
+                        yield CompilerWarn(
                             'Could not detect how many min and max arguments for function call',
                             node.line,
                             node.col,
@@ -2194,10 +2589,10 @@ class Compiler:
                 raise CompilerError(
                     13,
                     '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/koniscript.',
-                    None,
-                    None,
-                    None,
-                    None,
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
                     self.mod_stack[-1].fp,
                 )
         elif isinstance(node, Return):
@@ -2226,7 +2621,7 @@ class Compiler:
             yield from self.raise_for_req('attributes', 'Attribute', 'Attributes', node)
             broken = False
             if 'types.dicts' in self.reqs:
-                yield self.Warn(
+                yield CompilerWarn(
                     'Dictionaries are enabled, so koniscript cannot check arguments or whether this attribute exists. This will be fixed once koniscript releases a proper type checker',
                     node.line,
                     node.col,

@@ -26,6 +26,7 @@
         "fframe",
         "FOPEN",
         "FREAD",
+        "Fstring",
         "funcs",
         "garply",
         "GETATTR",

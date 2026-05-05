@@ -1,6 +1,6 @@
-# koniscript README
+# koniscript language support
 
-This is the README for your extension "koniscript". After writing up a brief description, we recommend including the following sections.
+This is the official extension for [koniscript](https://github.com/DELOLCAT/koniscript).
 
 ## Features
 
