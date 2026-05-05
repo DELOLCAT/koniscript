@@ -753,12 +753,10 @@ impl VM {
                                     let abs = v.abs() as usize;
                                     let len = arr.borrow().len();
                                     if abs > len {
-                                        return Err(
-                                            VmError {
-                                                msg: format!("Index {} out of bounds", v),
-                                                errcode: ErrCode::IndexError
-                                            }
-                                        );
+                                        return Err(VmError {
+                                            msg: format!("Index {} out of bounds", v),
+                                            errcode: ErrCode::IndexError,
+                                        });
                                     }
                                     len - abs
                                 } else {
@@ -768,7 +766,7 @@ impl VM {
                             _ => {
                                 return Err(VmError {
                                     msg: format!(
-                                        "Cannot index an array with type `{}`",
+                                        "Cannot index into an array with type `{}`",
                                         rhs.display()
                                     ),
                                     errcode: ErrCode::TypeError,
@@ -799,23 +797,38 @@ impl VM {
                         Err(_) => unreachable!(),
                     },
                     Value::String(s) => {
-                        let rhs = match rhs {
-                            Value::Integer(v) => v,
+                        let idx = match rhs {
+                            Value::Integer(v) => {
+                                if v < 0 {
+                                    let abs = v.abs() as usize;
+                                    let len = s.len();
+                                    if abs > len {
+                                        return Err(VmError {
+                                            msg: format!("Index {} out of bounds", v),
+                                            errcode: ErrCode::IndexError,
+                                        });
+                                    }
+                                    len - abs
+                                } else {
+                                    v as usize
+                                }
+                            }
                             _ => {
                                 return Err(VmError {
                                     msg: format!(
-                                        "Cannot index into a string with type {}",
+                                        "Cannot index a string with type `{}`",
                                         rhs.display()
                                     ),
                                     errcode: ErrCode::TypeError,
                                 });
                             }
                         };
-                        let out = match s.chars().nth(rhs as usize) {
+
+                        let out = match s.chars().nth(idx as usize) {
                             Some(v) => Value::String(Rc::new(v.to_string())),
                             None => {
                                 return Err(VmError {
-                                    msg: format!("Index {} out of range", rhs),
+                                    msg: format!("Index {} out of range", idx),
                                     errcode: ErrCode::IndexError,
                                 });
                             }
@@ -824,7 +837,7 @@ impl VM {
                     }
                     _ => {
                         return Err(VmError {
-                            msg: format!("Cannot get an index from a {}", item.display()),
+                            msg: format!("Cannot get an index from type `{}`", item.display()),
                             errcode: ErrCode::TypeError,
                         });
                     }
