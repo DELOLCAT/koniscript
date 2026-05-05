@@ -840,14 +840,14 @@ class Parser:
         base_env: list[tuple],
         repl: bool = False,
         fp: str = '<unknown>',
-        file_content: str | None = None,
+        file_content: str = '<unknown>',
     ):
         self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
         self.repl = repl
         self.fp = fp
-        self.file_content: str = '<unknown>'
+        self.file_content: str = file_content
         self.current_token = (
             self.tokens[0] if self.tokens else Token(TokenType.EOF, None, 0, 0, 0, 0)
         )
