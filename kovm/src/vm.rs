@@ -809,7 +809,7 @@ impl VM {
                             Value::Integer(v) => {
                                 if v < 0 {
                                     let abs = v.abs() as usize;
-                                    let len = s.len();
+                                    let len = s.chars().count();
                                     if abs > len {
                                         return Err(VmError {
                                             msg: format!("Index {} out of bounds", v),
