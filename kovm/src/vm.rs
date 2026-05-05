@@ -781,6 +781,32 @@ impl VM {
                         },
                         Err(_) => unreachable!(),
                     },
+                    Value::String(s) => {
+                        let rhs = match rhs {
+                            Value::Integer(v) => v,
+                            _ => return Err(
+                                VmError {
+                                    msg: format!("Cannot index into a string with type {}", rhs.display()),
+                                    errcode: ErrCode::TypeError
+                                }
+                            )
+                        };
+                        let out = match s.chars().nth(rhs as usize) {
+                            Some(v) => {
+                                Value::String(Rc::new(v.to_string()))
+                            },
+                            None => {
+                                return Err(
+                                    VmError {
+                                        msg: format!("Index {} out of range", rhs),
+                                        errcode: ErrCode::IndexError
+                                    }
+                                )
+                            }
+                        };
+                        self.push_to_stack(out);
+                        
+                    }
                     _ => {
                         return Err(VmError {
                             msg: format!("Cannot get an index from a {}", item.display()),

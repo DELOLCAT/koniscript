@@ -487,7 +487,7 @@ pub fn vm_to_float(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     vm_to_float_basic(item, _vm)
 }
 
-fn vm_to_float_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
+fn vm_to_float_basic(item: &Value, _vm: &mut VM) -> Result<Value, VmError> {
     match item {
         Value::Integer(val) => Result::Ok(Value::Float(*val as f64)),
         Value::Float(val) => Result::Ok(Value::Float(*val)),
@@ -530,7 +530,7 @@ pub fn vm_to_int(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
 
     vm_to_int_basic(item, vm)
 }
-fn vm_to_int_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
+fn vm_to_int_basic(item: &Value, _vm: &mut VM) -> Result<Value, VmError> {
     match item {
         Value::Integer(v) => Ok(Value::Integer(*v)),
         Value::Float(v) => Ok(Value::Integer(*v as i64)),
@@ -555,7 +555,7 @@ pub fn vm_to_bool(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     };
     vm_to_bool_basic(item, _vm)
 }
-pub fn vm_to_bool_basic(item: &Value, vm: &mut VM) -> Result<Value, VmError> {
+pub fn vm_to_bool_basic(item: &Value, _vm: &mut VM) -> Result<Value, VmError> {
     let b = match item {
         Value::Bool(v) => *v,
         Value::Integer(v) => *v != 0,
@@ -607,7 +607,7 @@ pub fn vm_print(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
 
     Ok(Value::Null)
 }
-pub fn vm_sleep(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+pub fn vm_sleep(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [s] = args else {
         return Err(VmError {
             msg: format!("Expected 1 argument, got {}", args.len()),
@@ -724,7 +724,7 @@ pub fn vmenv() -> Vec<Value> {
     ]
 }
 
-fn vm_exit(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+fn vm_exit(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     if args.len() > 1 {
         return Err(VmError {
             msg: format!("Expected 0 to 1 argument, got {}.", args.len()),
@@ -747,7 +747,7 @@ fn vm_exit(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     })
 }
 
-fn vm_len(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+fn vm_len(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     expect_args(args, 1)?;
     match &args[0] {
         Value::String(v) => Ok(Value::Integer(v.len().try_into().unwrap())),
@@ -774,7 +774,7 @@ fn vm_len(vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
         }),
     }
 }
-fn add(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn add(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va + vb)),
         (Value::Integer(va), Value::Float(vb)) => Ok(Value::Float(*va as f64 + vb)),
@@ -796,7 +796,7 @@ fn add(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn sub(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn sub(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va - vb)),
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va - *vb as f64)),
@@ -815,7 +815,7 @@ fn sub(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     }
 }
 
-fn div(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn div(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => {
             if *vb == 0 {
@@ -869,7 +869,7 @@ fn div(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn vm_mod(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn vm_mod(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => {
             if *vb == 0 {
@@ -923,7 +923,7 @@ fn vm_mod(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn mul(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn mul(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va * vb)),
         (Value::Float(va), Value::Integer(vb)) => Ok(Value::Float(va * *vb as f64)),
@@ -956,7 +956,7 @@ fn mul(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn pow(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn pow(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Integer(va.pow(*vb as u32))),
         (Value::Integer(va), Value::Float(vb)) => Ok(Value::Integer(va.pow(*vb as u32))),
@@ -974,7 +974,7 @@ fn pow(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn lt(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn lt(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va < vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va < vb)),
@@ -991,7 +991,7 @@ fn lt(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn gt(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn gt(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va > vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va > vb)),
@@ -1008,7 +1008,7 @@ fn gt(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn lte(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn lte(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va <= vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va <= vb)),
@@ -1025,7 +1025,7 @@ fn lte(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn gte(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn gte(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Integer(va), Value::Integer(vb)) => Ok(Value::Bool(va >= vb)),
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(va >= vb)),
@@ -1043,7 +1043,7 @@ fn gte(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     }
 }
 
-fn equal_to(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn equal_to(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match eq_helper(&a, &b) {
         Ok(v) => Ok(Value::Bool(v)),
         Err(_) => Err(VmError {
@@ -1077,7 +1077,7 @@ fn not_equal_to(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
     }
 }
 
-fn or(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn or(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va || *vb)),
         _ => Err(VmError {
@@ -1090,7 +1090,7 @@ fn or(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
         }),
     }
 }
-fn and(a: Value, b: Value, vm: &mut VM) -> Result<Value, VmError> {
+fn and(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
     match (&a, &b) {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va && *vb)),
         _ => Err(VmError {
@@ -1137,7 +1137,7 @@ fn expect_args<T>(args: &[T], n: usize) -> Result<(), VmError> {
         Ok(())
     }
 }
-fn arr_pop(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
+fn arr_pop(item: Value, args: &[Value], _vm: &mut VM) -> Result<Value, VmError> {
     expect_args(args, 0)?;
     match item {
         Value::Array(ar) => match ar.borrow_mut().pop() {
@@ -1150,7 +1150,7 @@ fn arr_pop(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
         _ => Err(VmError::make_type_error("array", &item)),
     }
 }
-fn arr_contains(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
+fn arr_contains(item: Value, args: &[Value], _vm: &mut VM) -> Result<Value, VmError> {
     expect_args(args, 1)?;
     let cont = &args[0];
     match item {
@@ -1158,7 +1158,7 @@ fn arr_contains(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmErr
         _ => Err(VmError::make_type_error("array", &item)),
     }
 }
-fn arr_push(item: Value, args: &[Value], vm: &mut VM) -> Result<Value, VmError> {
+fn arr_push(item: Value, args: &[Value], _vm: &mut VM) -> Result<Value, VmError> {
     expect_args(args, 1)?;
 
     match &item {
@@ -1204,7 +1204,7 @@ pub static ATTRMAP: Lazy<
     attramp
 });
 
-fn arr_empty(item: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
+fn arr_empty(item: Value, args: MethodArgs, _vm: &mut VM) -> MethodReturn {
     check_method_args(args, 0, 0)?;
     match &item {
         Value::Array(arr) => {
@@ -1215,7 +1215,7 @@ fn arr_empty(item: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     }
 }
 
-fn arr_insert(item: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
+fn arr_insert(item: Value, args: MethodArgs, _vm: &mut VM) -> MethodReturn {
     check_method_args(args, 2, 2)?;
     let idx = match args[0] {
         Value::Integer(v) => v,
@@ -1257,7 +1257,7 @@ fn check_method_args(args: MethodArgs, min: usize, max: usize) -> Result<(), VmE
     Ok(())
 }
 
-fn arr_str_is_empty(val: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
+fn arr_str_is_empty(val: Value, args: MethodArgs, _vm: &mut VM) -> MethodReturn {
     check_method_args(args, 0, 0)?;
     match val {
         Value::String(v) => Ok(Value::Bool(v.is_empty())),
@@ -1269,7 +1269,7 @@ fn arr_str_is_empty(val: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     }
 }
 
-fn arr_get(val: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
+fn arr_get(val: Value, args: MethodArgs, _vm: &mut VM) -> MethodReturn {
     check_method_args(args, 1, 2)?;
     let idx = match args[0] {
         Value::Integer(v) => v,
@@ -1293,20 +1293,20 @@ fn arr_get(val: Value, args: MethodArgs, vm: &mut VM) -> MethodReturn {
     }
 }
 
-fn str_strip(val: Value, _: &[Value], vm: &mut VM) -> Result<Value, VmError> {
+fn str_strip(val: Value, _: &[Value], _vm: &mut VM) -> Result<Value, VmError> {
     match val {
         Value::String(v) => Ok(Value::String(Rc::new(v.trim().to_string()))),
         _ => Err(VmError::make_type_error("str", &val)),
     }
 }
-fn str_upper(val: Value, _: &[Value], vm: &mut VM) -> Result<Value, VmError> {
+fn str_upper(val: Value, _: &[Value], _vm: &mut VM) -> Result<Value, VmError> {
     match val {
         Value::String(v) => Ok(Value::String(Rc::new(v.to_uppercase()))),
         _ => Err(VmError::make_type_error("str", &val)),
     }
 }
 
-pub fn str_lower(val: Value, _: &[Value], vm: &mut VM) -> Result<Value, VmError> {
+pub fn str_lower(val: Value, _: &[Value], _vm: &mut VM) -> Result<Value, VmError> {
     match val {
         Value::String(v) => Ok(Value::String(Rc::new(v.to_lowercase()))),
         _ => Err(VmError::make_type_error("str", &val)),
