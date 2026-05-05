@@ -76,7 +76,7 @@ class TokenType(Enum):
     FStringStart = 'FStringStart'
     FStringExpr = 'FStringExpr'
     FStringExprEnd = 'FStringExprEnd'
-    FStringEnd = 'FstringEnd'
+    FStringEnd = 'FStringEnd'
 
 
 PRECEDENCE = {
@@ -407,7 +407,7 @@ class Tokenizer:
                         self.fp,
                         self.string,
                     )
-                if hex_check(c):
+                if hex_check(tmp):
                     raise TokenizerError(
                         17,
                         'Invalid hexadecimal escape code',
