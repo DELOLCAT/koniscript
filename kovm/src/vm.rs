@@ -750,7 +750,15 @@ impl VM {
                         let idx = match rhs {
                             Value::Integer(v) => {
                                 if v < 0 {
-                                    let abs = v.abs() as usize;
+                                    let abs = match v.checked_abs() {
+                                        Some(v) => v as usize,
+                                        None => return Err(
+                                            VmError {
+                                                msg: "Integer overflow".into(),
+                                                errcode: ErrCode::OverflowError
+                                            }
+                                        )
+                                    };
                                     let len = arr.borrow().len();
                                     if abs > len {
                                         return Err(VmError {
