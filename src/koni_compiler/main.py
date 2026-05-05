@@ -1080,7 +1080,7 @@ class Parser:
                 call_line = self.current_token.line
                 call_col = self.current_token.col
                 self.eat(TokenType.LPAREN)
-                args = []
+                args: list[ASTNode] = []
 
                 self.skip_newline()
 
@@ -1091,10 +1091,7 @@ class Parser:
                     while self.current_token.type == TokenType.COMMA:
                         self.eat(TokenType.COMMA)
                         self.skip_newline()
-                        e = yield from self.expr()
-                        args.append(e)
-
-                        args.append(self.expr())
+                        args.append((yield from self.expr()))
 
                 self.skip_newline()
 
@@ -1136,9 +1133,9 @@ class Parser:
                 if self.current_token.type == TokenType.EOF:
                     self.incomplete_input()
                 self.skip_newline()
-                k = self.expr()
+                k = yield from self.expr()
                 self.eat(TokenType.COLON)
-                v = self.expr()
+                v = yield from self.expr()
                 items.append((k, v))
                 while self.current_token.type == TokenType.COMMA:
                     self.eat(TokenType.COMMA)
@@ -1168,13 +1165,13 @@ class Parser:
                 if self.current_token.type == TokenType.EOF:
                     self.incomplete_input()
                 self.skip_newline()
-                items.append(self.expr())
+                items.append((yield from self.expr()))
                 while self.current_token.type == TokenType.COMMA:
                     self.eat(TokenType.COMMA)
                     if self.current_token.type == TokenType.EOF:
                         self.incomplete_input()
                     self.skip_newline()
-                    items.append(self.expr())
+                    items.append((yield from self.expr()))
                 self.skip_newline()
             end_tok = self.eat(TokenType.RBRACKET)
             return Array(
@@ -1262,13 +1259,6 @@ class Parser:
             )
             return node
 
-            # for item in token.value:
-            #     if isinstance(item, FormatStringStr):
-            #         val.append(item.value)
-            #     elif isinstance(item, FormatStringExpr):
-            #         val.append(self.expr())
-            #     else:
-            #         assert_never(item)
         elif token.type == TokenType.BOOL:
             self.eat(TokenType.BOOL)
             return Bool(
