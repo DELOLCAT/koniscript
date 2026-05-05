@@ -8,6 +8,7 @@ from pathlib import Path
 from colorama import init
 from koni_compiler.main import (
     CompilerError,
+    ParserError,
     Tokenizer,
     Parser,
     TokenType,
@@ -17,6 +18,7 @@ from koni_compiler.main import (
     CompilationException,
     ParserWarn,
     CompilerWarn,
+    TokenizerError,
     Warn
 )
 from koni_compiler import base_env
@@ -68,7 +70,7 @@ class Success(CompilationResult):
 def get_program(file_content: str, fp: str):
     try:
         current_env = copy.copy(base_env.compiler_env)
-        tknr = Tokenizer(file_content)
+        tknr = Tokenizer(file_content, fp)
         tkns: list[Token] = []
         while True:
             tkn = tknr.get_next_token()
@@ -126,7 +128,7 @@ def comp(
                     )  # TODO: columns
 
                 content = fp.read_text()
-                tmp = yield from get_program(content, filepath)
+                tmp = yield from get_program(content, fp)
                 if isinstance(tmp, Failed):
                     return tmp
                 import_program, _ = tmp
@@ -197,7 +199,7 @@ def compile(
             match value:
                 case Warn():
                     warns += 1
-                    show_err_or_warn(value, filepath, file_content)
+                    show_err_or_warn(value, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
@@ -205,7 +207,7 @@ def compile(
             elif isinstance(e.value, Failed):
                 if tracebacks:  # To show Python tracebacks for development
                     raise e.value.exception
-                show_err_or_warn(e.value, filepath, file_content)
+                show_err_or_warn(e.value, file_content)
                 if warns > 0:
                     print(
                         f'<b><red>Failed in {round(perf_counter() - start_time, 3)} seconds, </red><yellow>{warns} warnings emitted</yellow></b>'
@@ -229,7 +231,7 @@ def compile(
     print(f'Wrote to {fp}')
 
 
-def show_err_or_warn(e: Failed | Warn, fp, file_content: str):
+def show_err_or_warn(e: Failed | Warn, file_content: str):
     if isinstance(e, Failed):
         color = '<red><b>'
         tag = f'<red><b>E{e.exception.code:02}'
@@ -239,6 +241,19 @@ def show_err_or_warn(e: Failed | Warn, fp, file_content: str):
         msg = e.exception.msg
         end_col = e.exception.end_col
         end_line = e.exception.end_line
+        
+        match e.exception:
+            case CompilerError(fp):
+                filepath = fp
+                if e.compiler is None:
+                    ln = None
+                else:
+                    file_content = e.compiler.sources[e.exception.fp]
+            case TokenizerError():
+                file_content = e.exception.file_content
+            case ParserError():
+                file_content = e.exception.file_content
+
         if isinstance(e.exception, CompilerError):
             filepath = e.exception.fp
             if e.compiler is None:
@@ -246,7 +261,7 @@ def show_err_or_warn(e: Failed | Warn, fp, file_content: str):
             else:
                 file_content = e.compiler.sources[e.exception.fp]
         else:
-            filepath = fp
+            filepath = e.exception.fp
 
     else:
         color = '<yellow><b>'
@@ -318,7 +333,7 @@ def run(
         try:
             value = next(it)
             if isinstance(value, CompilerWarn):
-                show_err_or_warn(value, filepath, file_content)
+                show_err_or_warn(value, file_content)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
@@ -326,7 +341,7 @@ def run(
             elif isinstance(e.value, Failed):  # `elif` for IDE type recognition
                 if tracebacks:
                     raise e.value.exception
-                show_err_or_warn(e.value, filepath, file_content)
+                show_err_or_warn(e.value, file_content)
                 exit(1)  # Abort
             else:
                 raise  # Impossible

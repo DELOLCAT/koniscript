@@ -92,31 +92,28 @@ PRECEDENCE = {
 class CompilationException(Exception):
     code: int
     msg: str
-    line: int | None
-    col: int | None
-    end_line: int | None
-    end_col: int | None
-
-
-@dataclass
-class ParserError(CompilationException):
-    line: int  # type: ignore[override]
-    col: int  # type: ignore[override]
-    end_line: int  # type: ignore[override]
-    end_col: int  # type: ignore[override]
-
-
-@dataclass
-class CompilerError(CompilationException):
+    line: int
+    col: int
+    end_line: int
+    end_col: int
     fp: str
 
 
 @dataclass
+class ParserError(CompilationException):
+    file_content: str
+    pass
+
+
+@dataclass
+class CompilerError(CompilationException):
+    pass
+
+
+@dataclass
 class TokenizerError(CompilationException):
-    line: int  # type: ignore[override]
-    col: int  # type: ignore[override]
-    end_line: int  # type: ignore[override]
-    end_col: int  # type: ignore[override]
+    file_content: str
+    pass
 
 
 KEYWORDS = {
@@ -180,11 +177,12 @@ class Tokenizer:
         multiline: bool = False
         raw: bool = False
 
-    def __init__(self, string: str):
+    def __init__(self, string: str, fp: str = '<unknown>'):
         self.string: str = string
         self.current_idx: int = 0
         self.line: int = 0
         self.col: int = 0
+        self.fp: str = fp
         # self.mode: Tokenizer.TokenizerMode = self.TokenizerMode.Normal
         self.fstring_count = 0
         self.mode_stack: list[Tokenizer.ModeState] = [self.ModeState(self.Mode.Normal)]
@@ -265,6 +263,8 @@ class Tokenizer:
                 start_col,
                 self.line,
                 self.col + 1,
+                self.fp,
+                self.string,
             )
         self.advance()
         return Token(
@@ -320,6 +320,8 @@ class Tokenizer:
                     start_col,
                     self.line,
                     self.col + 1,
+                    self.fp,
+                    self.string,
                 )
 
             self.advance()
@@ -351,7 +353,12 @@ class Tokenizer:
             self.mode_stack.append(self.ModeState(self.Mode.FStringStr, multiline, raw))
             self.fstring_count += 1
             return Token(
-                TokenType.FStringStart, None, self.line, self.col, self.line, self.col
+                TokenType.FStringStart,
+                None,
+                self.line,
+                self.col - 1,
+                self.line,
+                self.col,
             )
 
     def parse_escape_seq(self, char: Literal['"', "'", '`']):
@@ -372,6 +379,8 @@ class Tokenizer:
                     self.col,
                     self.line,
                     self.col,
+                    self.fp,
+                    self.string,
                 )
             if hex_check(c):
                 raise TokenizerError(
@@ -381,6 +390,8 @@ class Tokenizer:
                     self.col,
                     self.line,
                     self.col + 1,
+                    self.fp,
+                    self.string,
                 )
             for _ in range(amnt - 1):
                 self.advance()
@@ -393,6 +404,8 @@ class Tokenizer:
                         self.col,
                         self.line,
                         self.col + 1,
+                        self.fp,
+                        self.string,
                     )
                 if hex_check(c):
                     raise TokenizerError(
@@ -402,6 +415,8 @@ class Tokenizer:
                         self.col,
                         self.line,
                         self.col + 1,
+                        self.fp,
+                        self.string,
                     )
                 c += tmp
             return chr(int(c, 16))
@@ -441,6 +456,8 @@ class Tokenizer:
                     self.col,
                     self.line,
                     self.col + 1,
+                    self.fp,
+                    self.string,
                 )
 
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
@@ -713,6 +730,8 @@ class Tokenizer:
             self.col,
             self.line,
             self.col + 1,
+            self.fp,
+            self.string,
         )
 
 
@@ -792,6 +811,8 @@ class BinOpType(Enum):
 class UnaryOpType(Enum):
     NEG = 'NEG'
     NOT = TokenType.NOT
+
+
 @dataclass
 class Warn:  # TODO: make a warning code
     message: str
@@ -805,19 +826,28 @@ class Warn:  # TODO: make a warning code
 @dataclass
 class ParserWarn(Warn):  # TODO: make a warning code
     parser: Parser
-    
+
+
 @dataclass
 class CompilerWarn(Warn):
     compiler: Compiler
 
+
 class Parser:
-    def __init__(self, tokens: list[Token], base_env: list[tuple], repl: bool = False, fp: str = '<unknown>', file_content: str| None =None):
+    def __init__(
+        self,
+        tokens: list[Token],
+        base_env: list[tuple],
+        repl: bool = False,
+        fp: str = '<unknown>',
+        file_content: str | None = None,
+    ):
         self.base_env = base_env
         self.tokens = tokens
         self.pos = 0
         self.repl = repl
         self.fp = fp
-        self.file_content: str | None = file_content
+        self.file_content: str = '<unknown>'
         self.current_token = (
             self.tokens[0] if self.tokens else Token(TokenType.EOF, None, 0, 0, 0, 0)
         )
@@ -836,6 +866,8 @@ class Parser:
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         self.advance()
         return out
@@ -1030,6 +1062,8 @@ class Parser:
                         self.current_token.col,
                         self.current_token.end_line,
                         self.current_token.end_col,
+                        self.fp,
+                        self.file_content,
                     )
 
                 end_tok = self.eat(TokenType.IDENTIFIER)
@@ -1192,7 +1226,7 @@ class Parser:
                     self.current_token.end_line,
                     self.current_token.end_col,
                     self.fp,
-                    self
+                    self,
                 )
                 return out[0]
             if len(out) == 0:
@@ -1203,7 +1237,7 @@ class Parser:
                     token.end_line,
                     token.end_col,
                     self.fp,
-                    self
+                    self,
                 )
                 return String(start_line, start_col, start_line, start_col + 1, '')
             rhs = out[1]
@@ -1263,6 +1297,8 @@ class Parser:
             token.col,
             token.end_line,
             token.end_col,
+            self.fp,
+            self.file_content,
         )
 
     def export(self) -> Generator[ParserWarn, None, ASTNode]:
@@ -1276,6 +1312,8 @@ class Parser:
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         if not isinstance(out, Assign):
             raise ParserError(
@@ -1285,6 +1323,8 @@ class Parser:
                 out.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         name = out.name
         ln = out.line
@@ -1413,6 +1453,8 @@ class Parser:
                         op_token.col,
                         op_token.end_line,
                         op_token.end_col,
+                        self.fp,
+                        self.file_content,
                     )
                 value = yield from self.expr()
                 return Assign(
@@ -1508,6 +1550,8 @@ class Parser:
                     self.current_token.col,
                     self.current_token.end_line,
                     self.current_token.end_col,
+                    self.fp,
+                    self.file_content,
                 )
             while self.current_token.type == TokenType.COMMA:
                 self.eat(TokenType.COMMA)
@@ -1534,6 +1578,8 @@ class Parser:
                         self.current_token.col,
                         self.current_token.end_line,
                         self.current_token.end_col,
+                        self.fp,
+                        self.file_content,
                     )
         self.eat(TokenType.RPAREN)
 
@@ -1563,6 +1609,8 @@ class Parser:
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
+                self.fp,
+                self.file_content,
             )
         return node
 
@@ -1913,7 +1961,6 @@ class Compiler:
             self.next_local = len(self.var_map)
             self.args = args if args is not None else {}
 
-
     @dataclass
     class Result:
         value: str
@@ -1984,13 +2031,19 @@ class Compiler:
         input_source: str | None = None,
     ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, list[str]]:
         if input_source is None and 'source' in features:
+            if len(program.statements) == 0:
+                end_line = 0
+                end_col = 0
+            else:
+                end_line = program.statements[-1].end_line
+                end_col = program.statements[-1].end_col
             raise CompilerError(
                 8,
                 'Compiler needs input source to compile with source info.',
-                None,
-                None,
-                None,
-                None,
+                0,
+                0,
+                end_line,
+                end_col,
                 self.mod_stack[-1].fp,
             )
         if 'source' in features:
@@ -2536,10 +2589,10 @@ class Compiler:
                 raise CompilerError(
                     13,
                     '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/koniscript.',
-                    None,
-                    None,
-                    None,
-                    None,
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
                     self.mod_stack[-1].fp,
                 )
         elif isinstance(node, Return):
