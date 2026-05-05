@@ -356,3 +356,7 @@ Used during certain calculations when they are mathematically impossible or unde
 ```koniscript
 println(5/0) # <- Attempted to divide by 0
 ```
+
+### 19: OverflowError
+
+Used whenever an integer overflows

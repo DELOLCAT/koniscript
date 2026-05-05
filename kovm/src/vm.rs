@@ -748,18 +748,41 @@ impl VM {
                 match item {
                     Value::Array(arr) => {
                         let idx = match rhs {
-                            Value::Integer(v) => v,
+                            Value::Integer(v) => {
+                                if v < 0 {
+                                    let abs = match v.checked_abs() {
+                                        Some(v) => v as usize,
+                                        None => return Err(
+                                            VmError {
+                                                msg: "Integer overflow".into(),
+                                                errcode: ErrCode::OverflowError
+                                            }
+                                        )
+                                    };
+                                    let len = arr.borrow().len();
+                                    if abs > len {
+                                        return Err(VmError {
+                                            msg: format!("Index {} out of bounds", v),
+                                            errcode: ErrCode::IndexError,
+                                        });
+                                    }
+                                    len - abs
+                                } else {
+                                    v as usize
+                                }
+                            }
                             _ => {
                                 return Err(VmError {
                                     msg: format!(
-                                        "Cannot index an array with type `{}`",
+                                        "Cannot index into an array with type `{}`",
                                         rhs.display()
                                     ),
                                     errcode: ErrCode::TypeError,
                                 });
                             }
                         };
-                        match arr.borrow().get::<usize>((idx).try_into().unwrap()) {
+
+                        match arr.borrow().get::<usize>(idx as usize) {
                             Some(v) => self.push_to_stack(v.clone()),
                             None => {
                                 return Err(VmError {
@@ -782,34 +805,47 @@ impl VM {
                         Err(_) => unreachable!(),
                     },
                     Value::String(s) => {
-                        let rhs = match rhs {
-                            Value::Integer(v) => v,
-                            _ => return Err(
-                                VmError {
-                                    msg: format!("Cannot index into a string with type {}", rhs.display()),
-                                    errcode: ErrCode::TypeError
-                                }
-                            )
-                        };
-                        let out = match s.chars().nth(rhs as usize) {
-                            Some(v) => {
-                                Value::String(Rc::new(v.to_string()))
-                            },
-                            None => {
-                                return Err(
-                                    VmError {
-                                        msg: format!("Index {} out of range", rhs),
-                                        errcode: ErrCode::IndexError
+                        let idx = match rhs {
+                            Value::Integer(v) => {
+                                if v < 0 {
+                                    let abs = v.abs() as usize;
+                                    let len = s.chars().count();
+                                    if abs > len {
+                                        return Err(VmError {
+                                            msg: format!("Index {} out of bounds", v),
+                                            errcode: ErrCode::IndexError,
+                                        });
                                     }
-                                )
+                                    len - abs
+                                } else {
+                                    v as usize
+                                }
+                            }
+                            _ => {
+                                return Err(VmError {
+                                    msg: format!(
+                                        "Cannot index a string with type `{}`",
+                                        rhs.display()
+                                    ),
+                                    errcode: ErrCode::TypeError,
+                                });
+                            }
+                        };
+
+                        let out = match s.chars().nth(idx as usize) {
+                            Some(v) => Value::String(Rc::new(v.to_string())),
+                            None => {
+                                return Err(VmError {
+                                    msg: format!("Index {} out of range", idx),
+                                    errcode: ErrCode::IndexError,
+                                });
                             }
                         };
                         self.push_to_stack(out);
-                        
                     }
                     _ => {
                         return Err(VmError {
-                            msg: format!("Cannot get an index from a {}", item.display()),
+                            msg: format!("Cannot get an index from type `{}`", item.display()),
                             errcode: ErrCode::TypeError,
                         });
                     }
@@ -946,10 +982,7 @@ impl VM {
                     Value::Integer(val) => Value::Integer(0 - val),
                     _ => {
                         return Err(VmError {
-                            msg: format!(
-                                "Cannot convert a {} to a negative value",
-                                v.display()
-                            ),
+                            msg: format!("Cannot convert a {} to a negative value", v.display()),
                             errcode: ErrCode::TypeError,
                         });
                     }

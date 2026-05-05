@@ -409,6 +409,7 @@ pub enum ErrCode {
     InvalidOperation = 16,
     IndexError = 17,
     MathError = 18,
+    OverflowError = 19
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
