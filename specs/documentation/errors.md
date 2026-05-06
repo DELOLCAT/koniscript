@@ -161,6 +161,14 @@ Used when you use an invalid escape sequence in a string:
 println('the escape sequence \g does not exist')
 ```
 
+### 18: Invalid assignment target
+
+Used when you try to assign a value to something that cannot be assigned to:
+
+```koniscript
+'foo' = 'bar'
+```
+
 ## Runtime (VM) errors
 
 This section is for errors raised by the runtime (`kovm`)

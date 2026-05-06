@@ -1328,6 +1328,17 @@ class Parser:
             name,
         )
 
+    def is_assignable(self, e: ASTNode):
+        match e:
+            case GetIndex():
+                return True
+            case Attribute():
+                return True
+            case Variable():
+                return True
+            case _:
+                return False
+
     def statement(self) -> Generator[ParserWarn, None, ASTNode | None]:
         self.skip_newline()
         if self.current_token.type == TokenType.RBRACE:
@@ -1407,63 +1418,31 @@ class Parser:
                 )
             value = yield from self.expr()
             return Return(ln, col, value.end_line, value.end_col, value)
-        elif self.current_token.type == TokenType.IDENTIFIER:
-            next_tok = self.peek()
-            if next_tok and next_tok.type == TokenType.ASSIGN:
-                ln = self.current_token.line
-                col = self.current_token.col
-                name = self.eat(TokenType.IDENTIFIER).value
-                self.eat(TokenType.ASSIGN)
-                value = yield from self.expr()
-                return Assign(ln, col, value.end_line, value.end_col, name, value)
-            elif next_tok and next_tok.type in (
-                TokenType.PLUS_ASSIGN,
-                TokenType.DIV_ASSIGN,
-                TokenType.MUL_ASSIGN,
-                TokenType.SUB_ASSIGN,
-            ):
-                ln = self.current_token.line
-                col = self.current_token.col
-                name = self.eat(TokenType.IDENTIFIER).value
-                op_token = self.current_token
-                op_type = op_token.type
-                self.eat(op_type)
-                op_map = {
-                    TokenType.PLUS_ASSIGN: BinOpType(TokenType.ADD),
-                    TokenType.SUB_ASSIGN: BinOpType(TokenType.SUB),
-                    TokenType.MUL_ASSIGN: BinOpType(TokenType.MUL),
-                    TokenType.DIV_ASSIGN: BinOpType(TokenType.DIV),
-                }
-                op = op_map.get(op_type)
-                if op is None:
-                    raise ParserError(
-                        5,
-                        'Internal error: unexpected assignment operator',
-                        op_token.line,
-                        op_token.col,
-                        op_token.end_line,
-                        op_token.end_col,
-                        self.fp,
-                        self.file_content,
-                    )
-                value = yield from self.expr()
-                return Assign(
-                    ln,
-                    col,
+        e = yield from self.expr()
+
+        if self.current_token.type in (TokenType.ASSIGN, TokenType.PLUS_ASSIGN, TokenType.MUL_ASSIGN, TokenType.SUB_ASSIGN):
+            t = self.current_token.type
+            self.eat(t)
+            value = yield from self.expr()
+            if not self.is_assignable(e):
+                raise ParserError(
+                    18,
+                    'Invalid assignment target',
+                    e.line,
+                    e.col,
                     value.end_line,
                     value.end_col,
-                    name,
-                    BinOp(
-                        ln,
-                        col,
-                        value.end_line,
-                        value.end_col,
-                        Variable(ln, col, op_token.end_line, op_token.end_col, name),
-                        op,
-                        value,
-                    ),
+                    self.fp,
+                    self.file_content
                 )
-        e = yield from self.expr()
+            match e:
+                case Variable():
+                    return Assign(e.line, e.col, value.end_line, value.end_col, e.name, value)
+                case GetIndex():
+                    return SetIndex(e.line, e.col, value.end_line, value.end_col, e.idx, value, e.item)
+                case Attribute():
+                    return SetAttr(e.line, e.col, value.end_line, value.end_col, e.attr, e.val, value)
+            
         return e
 
     def if_decl(self) -> Generator[ParserWarn, None, If]:
@@ -1583,8 +1562,8 @@ class Parser:
             Function(ln, col, body.end_line, body.end_col, params, body),
         )
 
-    def peek(self):
-        idx = self.pos + 1
+    def peek(self, amnt=1):
+        idx = self.pos + amnt
         if idx < len(self.tokens):
             return self.tokens[idx]
         return Token(TokenType.EOF, None, 0, 0, 0, 0)
@@ -1717,8 +1696,8 @@ class Call(ASTNode):
 
 @dataclass
 class Attribute(ASTNode):
-    lhs: ASTNode
-    rhs: str
+    val: ASTNode
+    attr: str
 
 
 @dataclass
@@ -1738,6 +1717,16 @@ class BinOp(ASTNode):
 class Variable(ASTNode):
     name: str
 
+@dataclass 
+class SetIndex(ASTNode):
+    idx: ASTNode
+    value: ASTNode
+    item: ASTNode
+@dataclass
+class SetAttr(ASTNode):
+    attr: str
+    item: ASTNode
+    value: ASTNode
 
 @dataclass
 class FunctionParameter(ASTNode):
@@ -2346,24 +2335,24 @@ class Compiler:
                 atr_itm: (
                     tuple[str, int, int, tuple[tuple[str, str, str], ...] | None] | None
                 ) = None
-                if isinstance(node.func.lhs, Variable):
-                    obj = self.get_var_obj(node.func.lhs.name)
+                if isinstance(node.func.val, Variable):
+                    obj = self.get_var_obj(node.func.val.name)
                     if obj is not None and isinstance(obj[0].value, self.Module):
                         exports = obj[0].value.exports
                         for item in exports:
-                            if item.name == node.func.rhs:
+                            if item.name == node.func.attr:
                                 exported = item
                                 break
                 if exported is None:
                     for item in self.attrs:
-                        if item[0] == node.func.rhs:
+                        if item[0] == node.func.attr:
                             atr_itm = item
                             break
                     if atr_itm is None:
                         if 'types.dicts' not in self.reqs:  # TODO
                             raise CompilerError(
                                 12,
-                                f'No attribute `{node.func.rhs}` found',
+                                f'No attribute `{node.func.attr}` found',
                                 node.line,
                                 node.col,
                                 node.end_line,
@@ -2497,6 +2486,7 @@ class Compiler:
                     self.emit(node.line, OpcodeType.CALL, len(node.args))
                 else:
                     raise
+            
             elif isinstance(node.func, Attribute):
                 if exported is not None:
                     if isinstance(exported.item, Function):
@@ -2539,6 +2529,18 @@ class Compiler:
             for item in reversed(node.items):
                 yield from self.compile_ins(item)
             self.emit(node.line, 'BUILD_ARRAY', len(node.items))
+        elif isinstance(node, SetIndex):
+            yield from self.raise_for_req('indexes', 'Index', 'Indexing', node)
+            yield from self.compile_ins(node.item)
+            yield from self.compile_ins(node.idx)
+            yield from self.compile_ins(node.value)
+            self.emit(node.line, 'SET_INDEX')
+        elif isinstance(node, SetAttr):
+            yield from self.raise_for_req('attributes', 'Attribute', 'Attributes', node)
+            yield from self.compile_ins(node.item)
+            yield from self.compile_ins(node.value)
+            i = self.add_constant((T_STRING, node.attr))
+            self.emit(node.line, 'SET_ATTR', i)
         elif isinstance(node, KoniDict):
             yield from self.raise_for_req(
                 'types.dicts', 'Dictionary', 'Dictionaries', node
@@ -2621,31 +2623,31 @@ class Compiler:
                     self,
                 )
             else:
-                if isinstance(node.lhs, Variable):
-                    itm = self.get_var_obj(node.lhs.name)
+                if isinstance(node.val, Variable):
+                    itm = self.get_var_obj(node.val.name)
                     if itm is not None and isinstance(itm[0].value, self.Module):
                         exports = itm[0].value.exports
                         for item in exports:
-                            if item.name == node.rhs:
+                            if item.name == node.attr:
                                 broken = True
                                 break
                 if not broken:
                     for item in self.attrs:
-                        if item[0] == node.rhs:
+                        if item[0] == node.attr:
                             broken = True
                             break
                     if not broken:
                         raise CompilerError(
                             12,
-                            f'Could not find attribute {node.rhs}',
+                            f'Could not find attribute {node.attr}',
                             node.line,
                             node.col,
                             node.end_line,
                             node.end_col,
                             self.mod_stack[-1].fp,
                         )
-            yield from self.compile_ins(node.lhs)
-            idx = self.add_constant((T_STRING, node.rhs))
+            yield from self.compile_ins(node.val)
+            idx = self.add_constant((T_STRING, node.attr))
             self.emit(node.line, 'GETATTR', idx)
         elif isinstance(node, GetIndex):
             yield from self.raise_for_req('indexes', 'Index', 'Indexing', node)

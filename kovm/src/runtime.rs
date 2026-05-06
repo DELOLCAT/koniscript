@@ -121,8 +121,48 @@ pub enum Value {
     Array(Rc<RefCell<Vec<Value>>>),
     Null,
     RuntimeValue(RuntimeType),
-    Dict(Rc<Vec<(Value, Value)>>),
+    Dict(Rc<RefCell<Vec<(Value, Value)>>>),
     CallRequest(Rc<KoniFunc>, Rc<Vec<Value>>),
+}
+pub fn arr_idx_resolve(idx: &Value, arr: &Rc<RefCell<Vec<Value>>>) -> Result<usize, VmError> {
+    match idx {
+        Value::Integer(v) => {
+            if *v < 0 {
+                let abs = match v.checked_abs() {
+                    Some(v) => v as usize,
+                    None => {
+                        return Err(VmError {
+                            msg: "Integer overflow".into(),
+                            errcode: ErrCode::OverflowError,
+                        });
+                    }
+                };
+                let len = arr.borrow().len();
+                if abs > len {
+                    return Err(VmError {
+                        msg: format!("Index {} out of bounds", v),
+                        errcode: ErrCode::IndexError,
+                    });
+                }
+                Ok(len - abs)
+            } else {
+                let out = *v as usize;
+                if out >= arr.borrow().len() {
+                    return Err(VmError {
+                        msg: format!("Index {} out of bounds", v),
+                        errcode: ErrCode::IndexError,
+                    });
+                }
+                Ok(out)
+            }
+        }
+        _ => {
+            return Err(VmError {
+                msg: format!("Cannot index into an array with type `{}`", idx.display()),
+                errcode: ErrCode::TypeError,
+            });
+        }
+    }
 }
 fn eq_helper(a: &Value, other: &Value) -> Result<bool, ()> {
     match (a, other) {
@@ -188,7 +228,7 @@ impl Value {
                         return Err(VmError {
                             msg: format!("Invalid int `{}`", payload),
                             errcode: ErrCode::TypeError,
-                        })
+                        });
                     }
                 };
                 Ok(Value::Integer(out))
@@ -211,7 +251,7 @@ impl Value {
                         return Err(VmError {
                             msg: format!("Invalid float `{}`", payload),
                             errcode: ErrCode::TypeError,
-                        })
+                        });
                     }
                 };
                 Ok(Value::Float(out))
@@ -339,7 +379,7 @@ impl Value {
     pub fn dict_get(&self, key: &Value) -> Result<Option<Value>, VmError> {
         match self {
             Value::Dict(d) => {
-                for (k, v) in d.iter() {
+                for (k, v) in d.borrow().iter() {
                     if k == key {
                         return Ok(Some(v.clone()));
                     }
@@ -349,16 +389,32 @@ impl Value {
             _ => Err(VmError::make_type_error("dict", self)),
         }
     }
+    pub fn dict_set(&mut self, key: &Value, val: &Value) -> Result<(), VmError> {
+        match self {
+            Value::Dict(d) => {
+                let mut d = d.borrow_mut();
+                for (k, v) in d.iter_mut() {
+                    if k == key {
+                        *v = val.clone();
+                        return Ok(());
+                    }
+                }
+                d.push((key.clone(), val.clone()));
+                Ok(())
+            }
+            _ => Err(VmError::make_type_error("dict", self)),
+        }
+    }
     pub fn dict_display(&self, vm: &mut VM) -> Result<String, VmError> {
         match self {
             Value::Dict(d) => {
                 let mut out = String::new();
                 out.push_str("%{");
-                for (i, (k, v)) in d.iter().enumerate() {
+                for (i, (k, v)) in d.borrow().iter().enumerate() {
                     out.push_str(&k.repr(vm));
                     out.push_str(": ");
                     out.push_str(&v.repr(vm));
-                    if i != d.len() - 1 {
+                    if i != d.borrow().len() - 1 {
                         out.push_str(", ")
                     }
                 }
@@ -409,7 +465,7 @@ pub enum ErrCode {
     InvalidOperation = 16,
     IndexError = 17,
     MathError = 18,
-    OverflowError = 19
+    OverflowError = 19,
 }
 impl fmt::Display for ErrCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -758,14 +814,14 @@ fn vm_len(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
                 .dict_get(&Value::String(Rc::new("_len".to_string())))
                 .unwrap()
             {
-                None => Ok(Value::Integer(d.len().try_into().unwrap())),
+                None => Ok(Value::Integer(d.borrow().len().try_into().unwrap())),
                 Some(v) => match v {
                     Value::Func(v) => Ok(Value::CallRequest(
                         v.clone(),
                         Rc::new(vec![args[0].clone()]),
                     )), // TODO: perhaps find out how to not clone this
                     Value::Integer(v) => Ok(Value::Integer(v)),
-                    _ => Ok(Value::Integer(d.len().try_into().unwrap())),
+                    _ => Ok(Value::Integer(d.borrow().len().try_into().unwrap())),
                 },
             }
         }
