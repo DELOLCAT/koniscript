@@ -1,5 +1,5 @@
 use crate::runtime::{
-    Env, ErrCode, Export, KoniFunc, Module, RuntimeType, Value, VmError, VmPanic,
+    self, Env, ErrCode, Export, KoniFunc, Module, RuntimeType, Value, VmError, VmPanic
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -504,7 +504,7 @@ impl VM {
         if self.get_i() > self.ins.len() {
             panic!("Invalid i")
         }
-        let operators = &self.ins[self.get_i()];
+        let operators = &self.ins[self.get_i()].clone();
         let mut returned = false;
         match operators[0].as_str() {
             "JMP" => {
@@ -614,7 +614,7 @@ impl VM {
                     };
                     map.push((k, v));
                 }
-                self.push_to_stack(Value::Dict(Rc::new(map)));
+                self.push_to_stack(Value::Dict(Rc::new(map.into())));
             }
             "PUSH_CONST" => {
                 let item: Value = self.const_pool[operators[1].parse::<usize>().unwrap()].clone();
@@ -747,41 +747,7 @@ impl VM {
 
                 match item {
                     Value::Array(arr) => {
-                        let idx = match rhs {
-                            Value::Integer(v) => {
-                                if v < 0 {
-                                    let abs = match v.checked_abs() {
-                                        Some(v) => v as usize,
-                                        None => return Err(
-                                            VmError {
-                                                msg: "Integer overflow".into(),
-                                                errcode: ErrCode::OverflowError
-                                            }
-                                        )
-                                    };
-                                    let len = arr.borrow().len();
-                                    if abs > len {
-                                        return Err(VmError {
-                                            msg: format!("Index {} out of bounds", v),
-                                            errcode: ErrCode::IndexError,
-                                        });
-                                    }
-                                    len - abs
-                                } else {
-                                    v as usize
-                                }
-                            }
-                            _ => {
-                                return Err(VmError {
-                                    msg: format!(
-                                        "Cannot index into an array with type `{}`",
-                                        rhs.display()
-                                    ),
-                                    errcode: ErrCode::TypeError,
-                                });
-                            }
-                        };
-
+                        let idx = runtime::arr_idx_resolve(&rhs, &arr)?;
                         match arr.borrow().get::<usize>(idx as usize) {
                             Some(v) => self.push_to_stack(v.clone()),
                             None => {
@@ -913,6 +879,40 @@ impl VM {
                         }
                         .clone(),
                     ),
+                }
+            }
+            "SET_ATTR" => {
+                let val = self.pop_from_stack()?;
+                let mut item = self.pop_from_stack()?;
+                let attr = into_usize(get_op(operators, 1, "SET_ATTR")?.as_str())?;
+                let attr= match self.const_pool.get(attr) {
+                    None => todo!(), // TODO
+                    Some(v) => v
+                };
+                match item {
+                    Value::Dict(_) => {
+                        item.dict_set(attr, &val)?;
+                    },
+                    _ => return Err(
+                        VmError {
+                            msg: format!("Cannot set an attribute of type `{}`", item.display()),
+                            errcode: ErrCode::TypeError
+                        }
+                    )
+                }
+            },
+            "SET_INDEX" => {
+                let val = self.pop_from_stack()?;
+                let idx = self.pop_from_stack()?;
+                let item = self.pop_from_stack()?;
+
+                match item {
+                    Value::Array(arr) => {
+                        let idx = runtime::arr_idx_resolve(&idx, &arr)?;
+
+                        arr.borrow_mut()[idx] = val
+                    },
+                    _ => todo!()
                 }
             }
             "CALL" => {
