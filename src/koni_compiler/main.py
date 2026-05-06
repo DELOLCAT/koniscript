@@ -1425,7 +1425,16 @@ class Parser:
             self.eat(t)
             value = yield from self.expr()
             if not self.is_assignable(e):
-                raise RuntimeError('no implemented')
+                raise ParserError(
+                    18,
+                    'Invalid assignment target',
+                    e.line,
+                    e.col,
+                    value.end_line,
+                    value.end_col,
+                    self.fp,
+                    self.file_content
+                )
             match e:
                 case Variable():
                     return Assign(e.line, e.col, value.end_line, value.end_col, e.name, value)

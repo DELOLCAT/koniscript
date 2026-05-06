@@ -886,7 +886,12 @@ impl VM {
                 let mut item = self.pop_from_stack()?;
                 let attr = into_usize(get_op(operators, 1, "SET_ATTR")?.as_str())?;
                 let attr= match self.const_pool.get(attr) {
-                    None => todo!(), // TODO
+                    None => return Err(
+                        VmError {
+                            msg: format!("Expected a value at constant pool idx {} for SET_ATTR", attr),
+                            errcode: ErrCode::ValueError
+                        }
+                    ),
                     Some(v) => v
                 };
                 match item {
@@ -904,7 +909,7 @@ impl VM {
             "SET_INDEX" => {
                 let val = self.pop_from_stack()?;
                 let idx = self.pop_from_stack()?;
-                let item = self.pop_from_stack()?;
+                let mut item = self.pop_from_stack()?;
 
                 match item {
                     Value::Array(arr) => {
@@ -912,7 +917,10 @@ impl VM {
 
                         arr.borrow_mut()[idx] = val
                     },
-                    _ => todo!()
+                    Value::Dict(_) => {
+                        item.dict_set(&idx, &val)?;
+                    }
+                    _ => return Err(VmError::make_type_error("array` or `dict", &item))
                 }
             }
             "CALL" => {
