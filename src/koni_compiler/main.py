@@ -1428,11 +1428,11 @@ class Parser:
                 raise RuntimeError('no implemented')
             match e:
                 case Variable():
-                    return Assign(e.line, e.col, e.end_line, e.end_col, e.name, value)
+                    return Assign(e.line, e.col, value.end_line, value.end_col, e.name, value)
                 case GetIndex():
-                    return SetIndex(e.line, e.col, e.end_line, e.end_col, e.idx, value, e.item)
+                    return SetIndex(e.line, e.col, value.end_line, value.end_col, e.idx, value, e.item)
                 case Attribute():
-                    return SetAttr(e.line, e.col, e.end_line, e.end_col, e.attr, e.val, value)
+                    return SetAttr(e.line, e.col, value.end_line, value.end_col, e.attr, e.val, value)
             
         return e
 
