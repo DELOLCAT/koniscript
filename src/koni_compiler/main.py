@@ -77,6 +77,7 @@ class TokenType(Enum):
     FStringExpr = 'FStringExpr'
     FStringExprEnd = 'FStringExprEnd'
     FStringEnd = 'FStringEnd'
+    CONTINUE = 'CONTINUE'
 
 
 PRECEDENCE = {
@@ -130,6 +131,7 @@ KEYWORDS = {
     'not': TokenType.NOT,
     'null': TokenType.NULL,
     'break': TokenType.BREAK,
+    'continue': TokenType.CONTINUE
 }
 
 
@@ -1348,6 +1350,9 @@ class Parser:
             ln = t.line
             col = t.col
             return Break(ln, col, self.current_token.line, self.current_token.col)
+        elif self.current_token.type == TokenType.CONTINUE:
+            t = self.eat(TokenType.CONTINUE)
+            return Continue(t.line, t.col, self.current_token.line, self.current_token.col)
         elif self.current_token.type == TokenType.AT_RATE:
             self.eat(TokenType.AT_RATE)
             if self.current_token.value == 'require':
@@ -1638,7 +1643,9 @@ class Null(ASTNode):
 @dataclass
 class Break(ASTNode):
     pass
-
+@dataclass
+class Continue(ASTNode):
+    pass
 
 @dataclass
 class Import(ASTNode):
@@ -1891,6 +1898,7 @@ class Compiler:
             tuple[str, int, int, tuple[tuple[str, str, str], ...] | None]
         ] = attrs
         self.break_stack: list[list[int]] = []
+        self.continue_stack: list[list[int]] = []
         self.enter_scope()
 
     @dataclass
@@ -2503,9 +2511,11 @@ class Compiler:
             else:
                 pass  # falling back for future call types #TODO
         elif isinstance(node, While):
+            j = len(self.code)
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
             self.break_stack.append([])
+            self.continue_stack.append([])
             yield from self.compile_ins(node.body)
             yield from self.compile_ins(node.expr)
             self.emit(node.line, 'JMPIF', jmp + 1)
@@ -2513,6 +2523,8 @@ class Compiler:
             self.code[jmp] = ('JMPIFF', end)
             for break_statement in self.break_stack.pop():
                 self.code[break_statement] = ('JMP', end)
+            for continue_statement in self.continue_stack.pop():
+                self.code[continue_statement] = ('JMP', j-1)
         elif isinstance(node, If):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -2695,6 +2707,22 @@ class Compiler:
             else:
                 idx = self.emit(node.line, 'JMP', None)
                 self.break_stack[-1].append(idx)
+                
+        elif isinstance(node, Continue):
+            if len(self.continue_stack) == 0:
+                raise CompilerError(
+                    15,
+                    'Cannot continue outside of a loop',
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
+                    self.mod_stack[-1].fp,
+                )
+            else:
+                idx = self.emit(node.line, 'JMP', None)
+                self.continue_stack[-1].append(idx)
+
         else:
             raise CompilerError(
                 13,
