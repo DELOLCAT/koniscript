@@ -2524,7 +2524,6 @@ class Compiler:
             for break_statement in self.break_stack.pop():
                 self.code[break_statement] = ('JMP', end)
             for continue_statement in self.continue_stack.pop():
-                input(continue_statement)
                 self.code[continue_statement] = ('JMP', j-1)
         elif isinstance(node, If):
             yield from self.compile_ins(node.expr)
