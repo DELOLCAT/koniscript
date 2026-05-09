@@ -86,7 +86,7 @@ def test_unary_negation():
 
 def test_floats():
     out = koni.run(TESTS / 'test_floats.kn').stdout
-    assert out == b'3.14\n4\n2\n'
+    assert out == b'3.14\n4\n2.5\n'
 
 
 def test_null():
