@@ -2007,6 +2007,10 @@ def fold_node(node: ASTNode, fp: str) -> ASTNode:
                 if b.value == 0:
                     raise FoldingError(s, fp, FER.DivByZero)
                 return Number(s.line, s.col, s.end_line, s.end_col, a.value % b.value)
+            case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
+                if b.value == 0:
+                    raise FoldingError(s, fp, FER.DivByZero)
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value % b.value)
         return s
 
     def or_(s: BinOp) -> ASTNode:
