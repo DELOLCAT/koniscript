@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Collection, Generator, Literal
+from typing import Any, Collection, Generator, Literal, assert_never
 from koni_compiler import base_env
 from koni_compiler.runtime import (
     T_BOOL,
@@ -1446,12 +1446,17 @@ class Parser:
             TokenType.PLUS_ASSIGN,
             TokenType.MUL_ASSIGN,
             TokenType.SUB_ASSIGN,
-            TokenType.DIV_ASSIGN
+            TokenType.DIV_ASSIGN,
         ):
             t = self.current_token.type
             self.eat(t)
             value = yield from self.expr()
-            if t in (TokenType.PLUS_ASSIGN, TokenType.MUL_ASSIGN, TokenType.SUB_ASSIGN, TokenType.DIV_ASSIGN):
+            if t in (
+                TokenType.PLUS_ASSIGN,
+                TokenType.MUL_ASSIGN,
+                TokenType.SUB_ASSIGN,
+                TokenType.DIV_ASSIGN,
+            ):
                 op_type = BinOpType(t)
                 value = BinOp(
                     value.line,
@@ -1921,6 +1926,266 @@ BUILTIN = 'BUILTIN'
 NULL = 'NULL'
 
 
+class FER(Enum):
+    DivByZero = ('Attempted to divide by 0', 19)
+    MulStrByNeg = ('Attempted to multiply a string by a negative number', 20)
+
+
+@dataclass
+class FoldingError(CompilationException):
+    def __init__(self, op: ASTNode, fp: str, reason: FER):
+        self.reason = reason
+        msg = reason.value[0]
+        code = reason.value[1]
+        line = op.line
+        col = op.col
+        end_line = op.end_line
+        end_col = op.end_col
+        super().__init__(code, msg, line, col, end_line, end_col, fp)
+
+
+def fold_node(node: ASTNode, fp: str) -> ASTNode:
+    def add(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+        match a, b:
+            case (Number(), Number()):
+                return Number(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+            case (String(), String()):
+                return String(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+            case (Float(), Float()):
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+            case (Float(), Number()) | (Number(), Float()):
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+        return node
+
+    def sub(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+        match a, b:
+            case (Number(), Number()):
+                return Number(s.line, s.col, s.end_line, s.end_col, a.value - b.value)
+            case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value - b.value)
+        return s
+
+    def div(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (Number(), Number()):
+                if b.value == 0:
+                    raise FoldingError(s, fp, FER.DivByZero)
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value / b.value)
+            case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
+                if b.value == 0:
+                    raise FoldingError(s, fp, FER.DivByZero)
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value / b.value)
+        return s
+
+    def mul(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+        match a, b:
+            case (Number(), Number()):
+                return Number(s.line, s.col, s.end_line, s.end_col, a.value * b.value)
+            case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value * b.value)
+            case (String(), Number()):
+                if b.value < 0:
+                    raise FoldingError(s, fp, FER.MulStrByNeg)
+                return String(s.line, s.col, s.end_line, s.end_col, a.value * b.value)
+        return s
+
+    def mod(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (Number(), Number()):
+                if b.value == 0:
+                    raise FoldingError(s, fp, FER.DivByZero)
+                return Number(s.line, s.col, s.end_line, s.end_col, a.value % b.value)
+            case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
+                if b.value == 0:
+                    raise FoldingError(s, fp, FER.DivByZero)
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value % b.value)
+        return s
+
+    def or_(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (Bool(), Bool()):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value or b.value)
+        return s
+
+    def and_(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (Bool(), Bool()):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value and b.value)
+        return s
+
+    def eq(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (
+                (Number(), Number())
+                | (Number(), Float())
+                | (Float(), Number())
+                | (Float(), Float())
+                | (Bool(), Bool())
+            ):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value == b.value)
+        return s
+
+    def neq(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (
+                (Number(), Number())
+                | (Number(), Float())
+                | (Float(), Number())
+                | (Float(), Float())
+                | (Bool(), Bool())
+            ):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value != b.value)
+        return s
+
+    def pow(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (Number(), Number()):
+                return Number(s.line, s.col, s.end_line, s.end_col, a.value**b.value)
+            case (Number(), Float()) | (Float(), Number()) | (Float(), Float()):
+                return Float(s.line, s.col, s.end_line, s.end_col, a.value**b.value)
+        return s
+
+    def lt(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (Number(), Number()):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value < b.value)
+            case (Number(), Float()) | (Float(), Number()) | (Float(), Float()):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value < b.value)
+        return s
+
+    def lte(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (
+                (Number(), Number())
+                | (Number(), Float())
+                | (Float(), Number())
+                | (Float(), Float())
+            ):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value <= b.value)
+        return s
+
+    def gt(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (
+                (Number(), Number())
+                | (Number(), Float())
+                | (Float(), Number())
+                | (Float(), Float())
+            ):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value > b.value)
+        return s
+
+    def gte(s: BinOp) -> ASTNode:
+        a = s.left
+        b = s.right
+
+        match a, b:
+            case (
+                (Number(), Number())
+                | (Number(), Float())
+                | (Float(), Number())
+                | (Float(), Float())
+            ):
+                return Bool(s.line, s.col, s.end_line, s.end_col, a.value >= b.value)
+        return s
+    def neg(s: UnaryOp) -> ASTNode:
+        match s.right:
+            case Number():
+                return Number(s.line, s.col, s.end_line, s.end_col, 0 - s.right.value)
+            case Float():
+                return Float(s.line, s.col, s.end_line, s.end_col, 0 - s.right.value)
+        return s
+    
+    def not_(s: UnaryOp) -> ASTNode:
+        match s.right:
+            case Bool():
+                return Bool(s.line, s.col, s.end_line, s.end_col, not s.right)
+        return s
+    match node:
+        case BinOp():
+            node.left = fold_node(node.left, fp)
+            node.right = fold_node(node.right, fp)
+            match node.op:
+                case BinOpType.ADD:
+                    return add(node)
+                case BinOpType.SUB:
+                    return sub(node)
+                case BinOpType.DIV:
+                    return div(node)
+                case BinOpType.MUL:
+                    return mul(node)
+                case BinOpType.MOD:
+                    return mod(node)
+                case BinOpType.LT:
+                    return lt(node)
+                case BinOpType.GT:
+                    return gt(node)
+                case BinOpType.LTE:
+                    return lte(node)
+                case BinOpType.GTE:
+                    return gte(node)
+                case BinOpType.OR:
+                    return or_(node)
+                case BinOpType.AND:
+                    return and_(node)
+                case BinOpType.POW:
+                    return pow(node)
+                case BinOpType.EQ:
+                    return eq(node)
+                case BinOpType.NEQ:
+                    return neq(node)
+                case _:
+                    assert_never(node.op)
+        case UnaryOp():
+            node.right = fold_node(node.right, fp)
+            
+            match node.op:
+                case UnaryOpType.NEG:
+                    return neg(node)
+                case UnaryOpType.NOT:
+                    return not_(node)
+                case _:
+                    assert_never(node.op)
+
+    return node
+
+
 class Compiler:
     def __init__(
         self,
@@ -2009,7 +2274,16 @@ class Compiler:
     @dataclass
     class Result:
         value: str
-
+    def make_warn(self, node: ASTNode, msg: str):
+        yield CompilerWarn(
+            msg,
+            node.line,
+            node.col,
+            node.end_line,
+            node.end_col,
+            self.mod_stack[-1].fp,
+            self
+        )
     def enter_scope(self, var_map=None, args=None):
         self.scopes.append(Compiler.Scope(var_map, args))
 
@@ -2207,6 +2481,7 @@ class Compiler:
     def compile_ins(
         self, node: ASTNode, *other
     ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
+        node = fold_node(node, self.mod_stack[-1].fp)
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
@@ -2585,16 +2860,39 @@ class Compiler:
             for continue_statement in self.continue_stack.pop():
                 self.code[continue_statement] = ('JMP', j - 1)
         elif isinstance(node, If):
-            yield from self.compile_ins(node.expr)
-            jmp = self.emit(node.line, 'JMPIFF', None)
-            yield from self.compile_ins(node.body)
-            if node.else_body:
-                jmp2 = self.emit(node.line, 'JMP', None)
-                self.code[jmp] = ('JMPIFF', len(self.code))
-                yield from self.compile_ins(node.else_body)
-                self.code[jmp2] = ('JMP', len(self.code))
+            jmps = True
+            compelse = True
+            compif = True
+            node.expr = fold_node(node.expr, self.mod_stack[-1].fp)
+            if not isinstance(node.expr, Bool):
+                yield from self.compile_ins(node.expr)
+                jmp = self.emit(node.line, 'JMPIFF', None)
             else:
-                self.code[jmp] = ('JMPIFF', len(self.code))
+                jmps = False
+                if node.expr.value:
+                    compelse = False
+                    if node.else_body:
+                        yield from self.make_warn(node.else_body, 'Unreachable block')
+                    else:
+                        yield from self.make_warn(node, 'Condition will always run')
+                else:
+                    compif = False
+                    if not node.else_body:
+                        yield from self.make_warn(node, 'Block will never run')
+                        return
+                    else:
+                        yield from self.make_warn(node.body, 'Block will never run')
+            if compif:
+                yield from self.compile_ins(node.body)
+            if node.else_body and compelse:
+                if jmps:
+                    jmp2 = self.emit(node.line, 'JMP', None)
+                    self.code[jmp] = ('JMPIFF', len(self.code)) # pyright: ignore[reportPossiblyUnboundVariable]
+                yield from self.compile_ins(node.else_body)
+                if jmps:
+                    self.code[jmp2] = ('JMP', len(self.code)) # pyright: ignore[reportPossiblyUnboundVariable]
+            elif jmps:
+                self.code[jmp] = ('JMPIFF', len(self.code)) # pyright: ignore[reportPossiblyUnboundVariable]
         elif isinstance(node, Array):
             yield from self.raise_for_req('types.arrays', 'Array', 'Arrays', node)
             for item in reversed(node.items):
