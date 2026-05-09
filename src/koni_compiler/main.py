@@ -2129,9 +2129,9 @@ def fold_node(node: ASTNode, fp: str) -> ASTNode:
         return s
     
     def not_(s: UnaryOp) -> ASTNode:
-        match s:
+        match s.right:
             case Bool():
-                return Bool(s.line, s.col, s.end_line, s.end_col, not s.value)
+                return Bool(s.line, s.col, s.end_line, s.end_col, not s.right)
         return s
     match node:
         case BinOp():
