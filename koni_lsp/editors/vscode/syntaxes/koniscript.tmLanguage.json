@@ -32,7 +32,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.koniscript",
-					"match": "(?<!\\.)(\\b(if|while|func|return|else|or|and|not|import|break)\\b|@require)"
+					"match": "(?<!\\.)(\\b(if|while|func|return|else|or|and|not|import|break|let|continue|null|export)\\b|@require)"
 				},
 				{
 					"name": "constant.character.koniscript",

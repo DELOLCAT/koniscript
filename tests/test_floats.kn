@@ -1,8 +1,8 @@
-a = 3.14
+let a = 3.14
 println(a)
 
-b = 2.5 + 1.5
+let b = 2.5 + 1.5
 println(b)
 
-c = 10 / 4
+let c = 10 / 4
 println(c)
