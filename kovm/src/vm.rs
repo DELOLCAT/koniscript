@@ -447,8 +447,11 @@ impl VM {
                         errcode: ErrCode::InvalidArgCount,
                     });
                 }
-                for i in 0..*param_count {
-                    fenv.borrow_mut().values[i] = rust_args[i].clone()
+                {
+                    let mut env = fenv.borrow_mut();
+                    for i in 0..*param_count {
+                        env.values[i] = rust_args[i].clone()
+                    }
                 }
                 let fframe = Frame::new()
                     .env(fenv)
