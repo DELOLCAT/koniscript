@@ -811,7 +811,6 @@ class BinOpType(Enum):
 
     @classmethod
     def _missing_(cls, value):
-        print('hit')
         if isinstance(value, TokenType):
             a = {
                 TokenType.PLUS_ASSIGN: TokenType.ADD,
@@ -2310,7 +2309,6 @@ class Compiler:
                 if depth is None:
                     depth = 0
                 self.emit(node.line, OP_SET_VAR, idx, depth)
-            print(node.name, idx, depth, len(self.code))
         elif isinstance(node, BinOp):
             yield from self.compile_ins(node.left)
             yield from self.compile_ins(node.right)
