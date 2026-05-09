@@ -131,7 +131,7 @@ KEYWORDS = {
     'not': TokenType.NOT,
     'null': TokenType.NULL,
     'break': TokenType.BREAK,
-    'continue': TokenType.CONTINUE
+    'continue': TokenType.CONTINUE,
 }
 
 
@@ -809,6 +809,20 @@ class BinOpType(Enum):
     NEQ = TokenType.NOT_EQUAL_TO
     MOD = TokenType.MOD
 
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, TokenType):
+            a = {
+                TokenType.PLUS_ASSIGN: TokenType.ADD,
+                TokenType.MUL_ASSIGN: TokenType.MUL,
+                TokenType.DIV_ASSIGN: TokenType.DIV,
+                TokenType.SUB_ASSIGN: TokenType.SUB,
+            }
+            canonical = a.get(value)
+            if canonical is not None:
+                return cls(canonical)
+        return None
+
 
 class UnaryOpType(Enum):
     NEG = 'NEG'
@@ -1352,7 +1366,9 @@ class Parser:
             return Break(ln, col, self.current_token.line, self.current_token.col)
         elif self.current_token.type == TokenType.CONTINUE:
             t = self.eat(TokenType.CONTINUE)
-            return Continue(t.line, t.col, self.current_token.line, self.current_token.col)
+            return Continue(
+                t.line, t.col, self.current_token.line, self.current_token.col
+            )
         elif self.current_token.type == TokenType.AT_RATE:
             self.eat(TokenType.AT_RATE)
             if self.current_token.value == 'require':
@@ -1425,10 +1441,27 @@ class Parser:
             return Return(ln, col, value.end_line, value.end_col, value)
         e = yield from self.expr()
 
-        if self.current_token.type in (TokenType.ASSIGN, TokenType.PLUS_ASSIGN, TokenType.MUL_ASSIGN, TokenType.SUB_ASSIGN):
+        if self.current_token.type in (
+            TokenType.ASSIGN,
+            TokenType.PLUS_ASSIGN,
+            TokenType.MUL_ASSIGN,
+            TokenType.SUB_ASSIGN,
+            TokenType.DIV_ASSIGN
+        ):
             t = self.current_token.type
             self.eat(t)
             value = yield from self.expr()
+            if t in (TokenType.PLUS_ASSIGN, TokenType.MUL_ASSIGN, TokenType.SUB_ASSIGN, TokenType.DIV_ASSIGN):
+                op_type = BinOpType(t)
+                value = BinOp(
+                    value.line,
+                    value.col,
+                    value.end_line,
+                    value.end_col,
+                    e,
+                    op_type,
+                    value,
+                )
             if not self.is_assignable(e):
                 raise ParserError(
                     18,
@@ -1438,16 +1471,34 @@ class Parser:
                     value.end_line,
                     value.end_col,
                     self.fp,
-                    self.file_content
+                    self.file_content,
                 )
             match e:
                 case Variable():
-                    return Assign(e.line, e.col, value.end_line, value.end_col, e.name, value)
+                    return Assign(
+                        e.line, e.col, value.end_line, value.end_col, e.name, value
+                    )
                 case GetIndex():
-                    return SetIndex(e.line, e.col, value.end_line, value.end_col, e.idx, value, e.item)
+                    return SetIndex(
+                        e.line,
+                        e.col,
+                        value.end_line,
+                        value.end_col,
+                        e.idx,
+                        value,
+                        e.item,
+                    )
                 case Attribute():
-                    return SetAttr(e.line, e.col, value.end_line, value.end_col, e.attr, e.val, value)
-            
+                    return SetAttr(
+                        e.line,
+                        e.col,
+                        value.end_line,
+                        value.end_col,
+                        e.attr,
+                        e.val,
+                        value,
+                    )
+
         return e
 
     def if_decl(self) -> Generator[ParserWarn, None, If]:
@@ -1643,9 +1694,12 @@ class Null(ASTNode):
 @dataclass
 class Break(ASTNode):
     pass
+
+
 @dataclass
 class Continue(ASTNode):
     pass
+
 
 @dataclass
 class Import(ASTNode):
@@ -1724,16 +1778,20 @@ class BinOp(ASTNode):
 class Variable(ASTNode):
     name: str
 
-@dataclass 
+
+@dataclass
 class SetIndex(ASTNode):
     idx: ASTNode
     value: ASTNode
     item: ASTNode
+
+
 @dataclass
 class SetAttr(ASTNode):
     attr: str
     item: ASTNode
     value: ASTNode
+
 
 @dataclass
 class FunctionParameter(ASTNode):
@@ -2241,6 +2299,7 @@ class Compiler:
                 if len(other) > 0 and other[0]:
                     self.emit(node.line, 'DUP')
                 self.emit(node.line, OP_SET_VAR, idx, 0)
+                depth = 0
             else:
                 idx, _, depth = res
                 yield from self.compile_ins(node.value)
@@ -2494,7 +2553,7 @@ class Compiler:
                     self.emit(node.line, OpcodeType.CALL, len(node.args))
                 else:
                     raise
-            
+
             elif isinstance(node.func, Attribute):
                 if exported is not None:
                     if isinstance(exported.item, Function):
@@ -2524,7 +2583,7 @@ class Compiler:
             for break_statement in self.break_stack.pop():
                 self.code[break_statement] = ('JMP', end)
             for continue_statement in self.continue_stack.pop():
-                self.code[continue_statement] = ('JMP', j-1)
+                self.code[continue_statement] = ('JMP', j - 1)
         elif isinstance(node, If):
             yield from self.compile_ins(node.expr)
             jmp = self.emit(node.line, 'JMPIFF', None)
@@ -2707,7 +2766,7 @@ class Compiler:
             else:
                 idx = self.emit(node.line, 'JMP', None)
                 self.break_stack[-1].append(idx)
-                
+
         elif isinstance(node, Continue):
             if len(self.continue_stack) == 0:
                 raise CompilerError(
