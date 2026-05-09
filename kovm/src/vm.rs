@@ -1,5 +1,5 @@
 use crate::runtime::{
-    self, Env, ErrCode, Export, KoniFunc, Module, RuntimeType, Value, VmError, VmPanic
+    self, Env, ErrCode, Export, KoniFunc, Module, RuntimeType, Value, VmError, VmPanic,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -137,8 +137,8 @@ impl Frame {
         self.ret_addr = Some(ret_addr);
         self
     }
-    fn env(mut self, env: Env) -> Self {
-        self.env = Rc::new(RefCell::new(env));
+    fn env(mut self, env: Rc<RefCell<Env>>) -> Self {
+        self.env = env;
         self
     }
     fn name(mut self, name: String) -> Self {
@@ -328,11 +328,11 @@ impl VM {
             }
             i += 1;
         }
-        let frame = Frame::new().env(Env {
+        let frame = Frame::new().env(Rc::new(RefCell::new(Env {
             values: vec![None; local_count.unwrap() as usize],
             parent: None,
             exports: HashMap::new(),
-        });
+        })));
 
         let content = if let Some(x) = sup_lines {
             &instructions[broken..x]
@@ -432,11 +432,11 @@ impl VM {
                 module,
             } => {
                 self.mod_stack.push(module.to_string());
-                let mut fenv = Env {
+                let fenv = Rc::new(RefCell::new(Env {
                     values: vec![None; *local_count],
-                    parent: Some(closure.clone()),
+                    parent: Some(Rc::clone(closure)),
                     exports: HashMap::new(),
-                };
+                }));
                 let mut rust_args: Vec<Option<Value>> = vec![];
                 for arg in args {
                     rust_args.push(Some(arg))
@@ -448,7 +448,7 @@ impl VM {
                     });
                 }
                 for i in 0..*param_count {
-                    fenv.values[i] = rust_args[i].clone()
+                    fenv.borrow_mut().values[i] = rust_args[i].clone()
                 }
                 let fframe = Frame::new()
                     .env(fenv)
@@ -885,27 +885,30 @@ impl VM {
                 let val = self.pop_from_stack()?;
                 let mut item = self.pop_from_stack()?;
                 let attr = into_usize(get_op(operators, 1, "SET_ATTR")?.as_str())?;
-                let attr= match self.const_pool.get(attr) {
-                    None => return Err(
-                        VmError {
-                            msg: format!("Expected a value at constant pool idx {} for SET_ATTR", attr),
-                            errcode: ErrCode::ValueError
-                        }
-                    ),
-                    Some(v) => v
+                let attr = match self.const_pool.get(attr) {
+                    None => {
+                        return Err(VmError {
+                            msg: format!(
+                                "Expected a value at constant pool idx {} for SET_ATTR",
+                                attr
+                            ),
+                            errcode: ErrCode::ValueError,
+                        });
+                    }
+                    Some(v) => v,
                 };
                 match item {
                     Value::Dict(_) => {
                         item.dict_set(attr, &val)?;
-                    },
-                    _ => return Err(
-                        VmError {
+                    }
+                    _ => {
+                        return Err(VmError {
                             msg: format!("Cannot set an attribute of type `{}`", item.display()),
-                            errcode: ErrCode::TypeError
-                        }
-                    )
+                            errcode: ErrCode::TypeError,
+                        });
+                    }
                 }
-            },
+            }
             "SET_INDEX" => {
                 let val = self.pop_from_stack()?;
                 let idx = self.pop_from_stack()?;
@@ -916,11 +919,11 @@ impl VM {
                         let idx = runtime::arr_idx_resolve(&idx, &arr)?;
 
                         arr.borrow_mut()[idx] = val
-                    },
+                    }
                     Value::Dict(_) => {
                         item.dict_set(&idx, &val)?;
                     }
-                    _ => return Err(VmError::make_type_error("array` or `dict", &item))
+                    _ => return Err(VmError::make_type_error("array` or `dict", &item)),
                 }
             }
             "CALL" => {
@@ -1162,7 +1165,7 @@ impl VM {
                         });
                     }
                 };
-                let closure = self.frames.last().unwrap().env.clone();
+                let closure = Rc::clone(&self.frames.last().unwrap().env);
                 let item = Value::Func(Rc::new(KoniFunc::User {
                     entry,
                     local_count,
