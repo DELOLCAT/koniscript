@@ -169,6 +169,22 @@ Used when you try to assign a value to something that cannot be assigned to:
 'foo' = 'bar'
 ```
 
+### 19: Attempted to divide by 0
+
+Used when the compiler finds an area where you attempt to divide by 0 (at the moment this is done during constant folding):
+
+```koniscript
+println(5 / 0)
+```
+
+### 20: Attempted to multiply a string by a negative number
+
+Used when the compiler finds an area where you attempt to multiply a string by a negative number (at the moment this is done during constant folding):
+
+```koniscript
+println('*' * -2)
+```
+
 ## Runtime (VM) errors
 
 This section is for errors raised by the runtime (`kovm`)
