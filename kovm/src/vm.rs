@@ -994,6 +994,7 @@ impl VM {
                 };
                 let out = match v {
                     Value::Integer(val) => Value::Integer(0 - val),
+                    Value::Float(val) => Value::Float(0.0 - val),
                     _ => {
                         return Err(VmError {
                             msg: format!("Cannot convert a {} to a negative value", v.display()),
