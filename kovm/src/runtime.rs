@@ -881,7 +881,7 @@ fn div(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
                     errcode: ErrCode::MathError,
                 })
             } else {
-                Ok(Value::Integer(va / vb))
+                Ok(Value::Float(*va as f64 / *vb as f64))
             }
         }
         (Value::Float(va), Value::Integer(vb)) => {
@@ -1726,8 +1726,8 @@ mod tests {
 
         let res = div(Value::Integer(6), Value::Integer(3), &mut vm).unwrap();
         match res {
-            Value::Integer(i) => assert_eq!(i, 2),
-            _ => panic!("Expected integer"),
+            Value::Float(i) => assert_eq!(i, 2.0),
+            _ => panic!("Expected float"),
         }
 
         let res = div(Value::Float(7.0), Value::Float(2.0), &mut vm).unwrap();
