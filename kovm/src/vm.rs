@@ -532,7 +532,7 @@ impl VM {
                     _ => {
                         return Err(VmError {
                             msg: format!(
-                                "Type error: expected a boolean but got a {}",
+                                "expected a boolean but got a {}",
                                 condv.display()
                             ),
                             errcode: ErrCode::TypeError,
@@ -563,7 +563,7 @@ impl VM {
                     _ => {
                         return Err(VmError {
                             msg: format!(
-                                "Type error: expected a boolean but got a {}",
+                                "expected a boolean but got a {}",
                                 condv.display()
                             ),
                             errcode: ErrCode::TypeError,

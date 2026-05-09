@@ -845,7 +845,7 @@ fn add(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         }
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot add a {} with a {}",
+                "Cannot add a {} with a {}",
                 a.display(),
                 b.display()
             ),
@@ -863,7 +863,7 @@ fn sub(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
 
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot subtract a {} with a {}",
+                "Cannot subtract a {} with a {}",
                 a.display(),
                 b.display()
             ),
@@ -918,7 +918,7 @@ fn div(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
 
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot divide a {} with a {}",
+                "Cannot divide a {} with a {}",
                 a.display(),
                 b.display()
             ),
@@ -972,7 +972,7 @@ fn vm_mod(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
 
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot modulo a {} with a {}",
+                "Cannot modulo a {} with a {}",
                 a.display(),
                 b.display()
             ),
@@ -991,7 +991,7 @@ fn mul(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::String(s), Value::Integer(n)) => {
             if *n < 0 {
                 return Err(VmError {
-                    msg: "Type Error: cannot multiply string by negative number".to_string(),
+                    msg: "cannot multiply string by negative number".to_string(),
                     errcode: ErrCode::TypeError,
                 });
             }
@@ -1005,7 +1005,7 @@ fn mul(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
 
         _ => Err(VmError {
             msg: format!(
-                "Type Error: Cannot multiply a {} with a {}",
+                "Cannot multiply a {} with a {}",
                 a.display(),
                 b.display()
             ),
@@ -1023,7 +1023,7 @@ fn pow(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
 
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot raise a {} to a power of a {}",
+                "Cannot raise a {} to a power of a {}",
                 a.display(),
                 b.display()
             ),
@@ -1040,7 +1040,7 @@ fn lt(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va < vb)),
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot check if a {} is less than a {}",
+                "Cannot check if a {} is less than a {}",
                 a.display(),
                 b.display()
             ),
@@ -1057,7 +1057,7 @@ fn gt(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va > vb)),
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot check if a {} is greater than a {}",
+                "Cannot check if a {} is greater than a {}",
                 a.display(),
                 b.display()
             ),
@@ -1074,7 +1074,7 @@ fn lte(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va <= vb)),
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot check if a {} is less than or equal to a {}",
+                "Cannot check if a {} is less than or equal to a {}",
                 a.display(),
                 b.display()
             ),
@@ -1091,7 +1091,7 @@ fn gte(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Bool(va >= vb)),
         _ => Err(VmError {
             msg: format!(
-                "TypeError: Cannot check if a {} is greater than or equal to a {}",
+                "Cannot check if a {} is greater than or equal to a {}",
                 a.display(),
                 b.display()
             ),
@@ -1105,7 +1105,7 @@ fn equal_to(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         Ok(v) => Ok(Value::Bool(v)),
         Err(_) => Err(VmError {
             msg: format!(
-                "TypeError: Cannot check if a {} is equal to a {}",
+                "Cannot check if a {} is equal to a {}",
                 a.display(),
                 b.display()
             ),
@@ -1139,7 +1139,7 @@ fn or(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va || *vb)),
         _ => Err(VmError {
             msg: format!(
-                "TypeError: OR cannot have types of {} and {}",
+                "OR cannot have types of {} and {}",
                 a.display(),
                 b.display()
             ),
@@ -1152,7 +1152,7 @@ fn and(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Bool(va), Value::Bool(vb)) => Ok(Value::Bool(*va && *vb)),
         _ => Err(VmError {
             msg: format!(
-                "TypeError: AND cannot have types of {} and {}",
+                "AND cannot have types of {} and {}",
                 a.display(),
                 b.display()
             ),
