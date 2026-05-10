@@ -2000,22 +2000,6 @@ def can_be_constant(node: ASTNode):
         case _:
             return False
 
-def get_type_id(node: ASTNode) -> int | None:
-    match node:
-        case Number():
-            return 1
-        case String():
-            return 2
-        case Bool():
-            return 3
-        case Function():
-            return 4
-        case Null():
-            return 6
-        case Float():
-            return 7
-        case Array():
-            return 9
 class Compiler:
     def __init__(
         self,
