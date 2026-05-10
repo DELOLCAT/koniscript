@@ -2344,7 +2344,6 @@ class Compiler:
         for scope in reversed(self.scopes):
             if name in scope.var_map:
                 scope.var_map[name].value = value
-                print(depth, name, value)
                 return (depth, scope.var_map[name].idx)
             depth += 1
 
@@ -2532,10 +2531,11 @@ class Compiler:
             if node.value is not None
             else Null(node.line, node.col, node.end_line, node.end_col)
         )
+        
+        idx = self.declare_local(node.name, v)
         yield from self.compile_ins(v)
         if dup:
             self.emit(node.line, 'DUP')
-        idx = self.declare_local(node.name, v)
         self.emit(node.line, OP_SET_VAR, idx, 0)
 
     def compile_ins(
@@ -2597,35 +2597,36 @@ class Compiler:
                     )
                 self.emit(node.line, 'PUSH_BUILTIN', idx[0])
         elif isinstance(node, Declare) and isinstance(node.value, Function):
-            res = self.get_var(node.name)
-            if res is None:
-                idx = self.declare_local(node.name, node.value)
-                yield from self.compile_ins(node.value, node.name)
-                if len(other) > 0 and other[0]:
-                    self.emit(node.line, 'DUP')
-                self.emit(node.line, OP_SET_VAR, idx, 0)
-                return idx, 0
-            else:
-                idx, cat, depth = res
-                yield from self.compile_ins(node.value, node.name)
-
-                idx = self.declare_local(node.name, node.value)
-                if len(other) > 0 and other[0]:
-                    self.emit(node.line, 'DUP')
-                if depth is None:
-                    depth = 0
-                self.emit(node.line, OP_SET_VAR, idx, depth)
-
-                yield CompilerWarn(
-                    f'Reassignment to a function attempted for {node.name}(). This is usually not recommended',
-                    node.line,
-                    node.col,
-                    node.end_line,
-                    node.end_col,
-                    self.mod_stack[-1].fp,
-                    self,
-                )
-                return idx, 0
+            # res = self.get_var(node.name)
+            # if res is None:
+            #     idx = self.declare_local(node.name, node.value)
+            #     yield from self.compile_ins(node.value, node.name)
+            #     if len(other) > 0 and other[0]:
+            #         self.emit(node.line, 'DUP')
+            #     self.emit(node.line, OP_SET_VAR, idx, 0)
+            #     return idx, 0
+            # else:
+            #     idx, cat, depth = res
+            #     yield from self.compile_ins(node.value, node.name)
+# 
+            #     idx = self.declare_local(node.name, node.value)
+            #     if len(other) > 0 and other[0]:
+            #         self.emit(node.line, 'DUP')
+            #     if depth is None:
+            #         depth = 0
+            #     self.emit(node.line, OP_SET_VAR, idx, depth)
+# 
+            #     yield CompilerWarn(
+            #         f'Reassignment to a function attempted for {node.name}(). This is usually not recommended',
+            #         node.line,
+            #         node.col,
+            #         node.end_line,
+            #         node.end_col,
+            #         self.mod_stack[-1].fp,
+            #         self,
+            #     )
+            #     return idx, 0
+            yield from self.compile_declare(node)
         elif isinstance(node, Assign):
             # res = self.get_var(node.name)
             # if res is None:
