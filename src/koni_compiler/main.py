@@ -1,8 +1,6 @@
 from __future__ import annotations
-from calendar import c
 from dataclasses import dataclass
-from operator import truediv
-from typing import Any, Collection, Generator, Literal, assert_never, cast
+from typing import Any, Collection, Generator, Literal, assert_never
 from koni_compiler import base_env
 from koni_compiler.runtime import (
     T_BOOL,
@@ -2685,7 +2683,7 @@ class Compiler:
                 )
             
             idx = self.add_constant_for_node(val)
-            self.declare_local(node.name, ConstValue(node.line, node.col, node.end_line, node.end_col, idx))
+            self.declare_local(node.name, ConstValue(node.line, node.col, node.end_line, node.end_col, idx)) # pyright: ignore[reportArgumentType]
         elif isinstance(node, Declare):
             yield from self.compile_declare(node)
 
