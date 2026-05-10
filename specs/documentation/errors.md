@@ -60,6 +60,12 @@ Used when you attempt to export anything other than a declaration or function:
 export "foo"
 ```
 
+or when you try to export an empty declaration:
+
+```koniscript
+export let foo
+```
+
 ### 6: Module not found
 
 Used when the compiler can't find an imported module
@@ -88,6 +94,12 @@ Used when you use a variable (or function) before declaring it
 
 ```koniscript
 print(a) # But a was never declared (`let a='foo'` was never ran)
+```
+
+or
+
+```koniscript
+foo = 'bar' # But you never declared foo with `let foo`
 ```
 
 ### 11: Invalid arg count (10 was removed)

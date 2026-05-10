@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Collection, Generator, Literal, assert_never, cast
+from typing import Any, Collection, Generator, Literal, assert_never
 from koni_compiler import base_env
 from koni_compiler.runtime import (
     T_BOOL,
@@ -1333,7 +1333,7 @@ class Parser:
             )
         if out.value is None:
             raise ParserError(
-                -4,  # TODO
+                5,
                 'Exported declarations must have a value',
                 out.line,
                 out.col,
@@ -2598,7 +2598,7 @@ class Compiler:
             s = self.set_local(node.name, node.value)
             if s is None:
                 raise CompilerError(
-                    -4,  # TODO
+                    9,
                     f'Undeclared variable {node.name}',
                     node.line,
                     node.col,
