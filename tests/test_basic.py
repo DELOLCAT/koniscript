@@ -1,3 +1,5 @@
+import pytest
+
 from koni_compiler import koni
 from pathlib import Path
 
@@ -110,3 +112,8 @@ def test_closures():
 def test_arr_dict_assign():
     out = koni.run(TESTS / 'test_arr_dict_assign.kn').stdout
     assert out == b'baz\nbar\n--\nfoo\nboo\nbaz\n'
+    
+def test_decl_error():
+    with pytest.raises(SystemExit):
+        out = koni.run(TESTS / 'test_decl_error.kn')
+        assert out.returncode != 0
