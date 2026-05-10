@@ -2528,9 +2528,11 @@ class Compiler:
             if node.value is not None
             else Null(node.line, node.col, node.end_line, node.end_col)
         )
-        
+        if not isinstance(node.value, Function):
+            yield from self.compile_ins(v)
         idx = self.declare_local(node.name, v)
-        yield from self.compile_ins(v)
+        if isinstance(node.value, Function):
+            yield from self.compile_ins(v)
         if dup:
             self.emit(node.line, 'DUP')
         self.emit(node.line, OP_SET_VAR, idx, 0)
