@@ -1,6 +1,8 @@
 from __future__ import annotations
+from calendar import c
 from dataclasses import dataclass
-from typing import Any, Collection, Generator, Literal, assert_never
+from operator import truediv
+from typing import Any, Collection, Generator, Literal, assert_never, cast
 from koni_compiler import base_env
 from koni_compiler.runtime import (
     T_BOOL,
@@ -79,6 +81,7 @@ class TokenType(Enum):
     FStringEnd = 'FStringEnd'
     CONTINUE = 'CONTINUE'
     LET = 'LET'
+    CONST = 'CONST'
 
 
 PRECEDENCE = {
@@ -134,6 +137,7 @@ KEYWORDS = {
     'break': TokenType.BREAK,
     'continue': TokenType.CONTINUE,
     'let': TokenType.LET,
+    'const': TokenType.CONST
 }
 
 
@@ -1463,7 +1467,13 @@ class Parser:
                 end_line = name.end_line
                 end_col = name.end_col
             return Declare(let.line, let.col, end_line, end_col, name.value, val)
-
+        elif self.current_token.type == TokenType.CONST:
+            const = self.eat(TokenType.CONST)
+            name = self.eat(TokenType.IDENTIFIER).value
+            self.eat(TokenType.ASSIGN)
+            expr = yield from self.expr()
+            return Const(const.line, const.col, expr.end_line, expr.end_col, name, expr)
+        
         e = yield from self.expr()
 
         if self.current_token.type in (
@@ -1840,6 +1850,14 @@ class Declare(ASTNode):
     name: str
     value: ASTNode | None
 
+@dataclass
+class Const(ASTNode):
+    name: str
+    value: ASTNode
+
+@dataclass
+class ConstValue(ASTNode):
+    idx: int
 
 @dataclass
 class String(ASTNode):
@@ -2218,8 +2236,29 @@ def fold_node(node: ASTNode, fp: str) -> ASTNode:
                     assert_never(node.op)
 
     return node
+def can_be_constant(node: ASTNode):
+    match node:
+        case String() | Number() | Float() | Bool() | Null():
+            return True
+        case _:
+            return False
 
-
+def get_type_id(node: ASTNode) -> int | None:
+    match node:
+        case Number():
+            return 1
+        case String():
+            return 2
+        case Bool():
+            return 3
+        case Function():
+            return 4
+        case Null():
+            return 6
+        case Float():
+            return 7
+        case Array():
+            return 9
 class Compiler:
     def __init__(
         self,
@@ -2536,25 +2575,43 @@ class Compiler:
         if dup:
             self.emit(node.line, 'DUP')
         self.emit(node.line, OP_SET_VAR, idx, 0)
-
-    def compile_ins(
-        self, node: ASTNode, *other
-    ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
-        node = fold_node(node, self.mod_stack[-1].fp)
+    def add_constant_for_node(self, node):
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Number):
             idx = self.add_constant([T_INT, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
+        elif isinstance(node, Bool):
+            idx = self.add_constant([T_BOOL, 'true' if node.value else 'false'])
+            self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Float):
             idx = self.add_constant([T_FLOAT, node.value])
             self.emit(node.line, OP_PUSH_CONST, idx)
-        elif isinstance(node, BareRequire):
-            self.reqs += node.reqs
         elif isinstance(node, Null):
             idx = self.add_constant([T_NULL, ''])
             self.emit(node.line, OP_PUSH_CONST, idx)
+        else:
+            return None
+        return idx
+
+
+    def compile_ins(
+        self, node: ASTNode, *other
+    ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
+        node = fold_node(node, self.mod_stack[-1].fp)
+        if isinstance(node, String):
+            self.add_constant_for_node(node)
+        elif isinstance(node, Number):
+            self.add_constant_for_node(node)
+        elif isinstance(node, Bool):
+            self.add_constant_for_node(node)
+        elif isinstance(node, Float):
+            self.add_constant_for_node(node)
+        elif isinstance(node, BareRequire):
+            self.reqs += node.reqs
+        elif isinstance(node, Null):
+            self.add_constant_for_node(node)
         elif isinstance(node, RequireStatement):
             consts: list[int] = []
             for item in node.reqs:
@@ -2588,7 +2645,11 @@ class Compiler:
                     self.mod_stack[-1].fp,
                 )
             if idx[1] == 'user':
-                self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
+                o = self.get_var_obj(node.name)
+                if o is not None and isinstance(o[0], self.ScopeItem) and isinstance(o[0].value, ConstValue):
+                    self.emit(node.line, 'PUSH_CONST', o[0].idx)
+                else:
+                    self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
                 if node.name == '_name':
                     yield from self.raise_for_req(
@@ -2609,16 +2670,23 @@ class Compiler:
                     self.mod_stack[-1].fp,
                 )
             self.emit(node.line, OP_SET_VAR, s[1], s[0])
-
+        elif isinstance(node, Const):
+            val = fold_node(node.value, self.mod_stack[-1].fp)
+            
+            if not can_be_constant(val):
+                raise CompilerError(
+                    -4, # TODO
+                    'This value cannot be folded into a constant',
+                    node.value.line,
+                    node.value.col,
+                    node.value.end_line,
+                    node.value.end_col,
+                    self.mod_stack[-1].fp,
+                )
+            
+            idx = self.add_constant_for_node(val)
+            self.declare_local(node.name, ConstValue(node.line, node.col, node.end_line, node.end_col, idx))
         elif isinstance(node, Declare):
-            # v = (
-            #     node.value
-            #     if node.value is not None
-            #     else Null(node.line, node.col, node.end_line, node.end_col)
-            # )
-            # yield from self.compile_ins(v)
-            # idx = self.declare_local(node.name, v)
-            # self.emit(node.line, OP_SET_VAR, idx, 0)
             yield from self.compile_declare(node)
 
         elif isinstance(node, BinOp):
@@ -2631,9 +2699,6 @@ class Compiler:
         elif isinstance(node, Block):
             for statement in node.statements:
                 yield from self.compile_ins(statement)
-        elif isinstance(node, Bool):
-            idx = self.add_constant([T_BOOL, 'true' if node.value else 'false'])
-            self.emit(node.line, OP_PUSH_CONST, idx)
         elif isinstance(node, Call):
             # compile the expression that identifies the callable (variable, attribute, etc.)
             yield from self.compile_ins(node.func)
