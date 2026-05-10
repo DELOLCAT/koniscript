@@ -1,0 +1,19 @@
+func make_counter(incr) {
+    let i = 0
+    func count() {
+        i += incr
+        return i
+    }
+    return count
+}
+
+let counter = make_counter(2)
+
+println(counter())
+println(counter())
+
+let counter2 = make_counter(4)
+
+println(counter2())
+println(counter2())
+println(counter2())

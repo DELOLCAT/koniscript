@@ -366,9 +366,6 @@ class Tokenizer:
             )
 
     def parse_escape_seq(self, char: Literal['"', "'", '`']):
-        if self.get_current_char() == '\\':
-            self.advance()
-
         def hex_tokenize(amnt: int):
             def hex_check(c: str):
                 return c[0].lower() not in '0123456789abcdef'
@@ -2596,64 +2593,7 @@ class Compiler:
                         'runtime_values', 'Runtime Value', 'Runtime Values', node
                     )
                 self.emit(node.line, 'PUSH_BUILTIN', idx[0])
-        elif isinstance(node, Declare) and isinstance(node.value, Function):
-            # res = self.get_var(node.name)
-            # if res is None:
-            #     idx = self.declare_local(node.name, node.value)
-            #     yield from self.compile_ins(node.value, node.name)
-            #     if len(other) > 0 and other[0]:
-            #         self.emit(node.line, 'DUP')
-            #     self.emit(node.line, OP_SET_VAR, idx, 0)
-            #     return idx, 0
-            # else:
-            #     idx, cat, depth = res
-            #     yield from self.compile_ins(node.value, node.name)
-# 
-            #     idx = self.declare_local(node.name, node.value)
-            #     if len(other) > 0 and other[0]:
-            #         self.emit(node.line, 'DUP')
-            #     if depth is None:
-            #         depth = 0
-            #     self.emit(node.line, OP_SET_VAR, idx, depth)
-# 
-            #     yield CompilerWarn(
-            #         f'Reassignment to a function attempted for {node.name}(). This is usually not recommended',
-            #         node.line,
-            #         node.col,
-            #         node.end_line,
-            #         node.end_col,
-            #         self.mod_stack[-1].fp,
-            #         self,
-            #     )
-            #     return idx, 0
-            yield from self.compile_declare(node)
         elif isinstance(node, Assign):
-            # res = self.get_var(node.name)
-            # if res is None:
-            #     # yield from self.compile_ins(node.value)
-            #     # idx = self.declare_local(node.name, node.value)
-            #     # if len(other) > 0 and other[0]:
-            #     #     self.emit(node.line, 'DUP')
-            #     # self.emit(node.line, OP_SET_VAR, idx, 0)
-            #     # depth = 0
-            #     raise CompilerError(
-            #         -4, # TODO
-            #         f'Undeclared variable {node.name}',
-            #         node.line,
-            #         node.col,
-            #         node.end_line,
-            #         node.end_col,
-            #         self.mod_stack[-1].fp
-            #     )
-            # else:
-            #     idx, _, depth = res
-            #     yield from self.compile_ins(node.value)
-            #     idx = self.declare_local(node.name, node.value)
-            #     if len(other) > 0 and other[0]:
-            #         self.emit(node.line, 'DUP')
-            #     if depth is None:
-            #         depth = 0
-            #     self.emit(node.line, OP_SET_VAR, idx, depth)
             yield from self.compile_ins(node.value)
             s = self.set_local(node.name, node.value)
             if s is None:

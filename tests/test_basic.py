@@ -102,3 +102,11 @@ def test_first_class_functions():
 def test_import():
     out = koni.run(TESTS / 'test_import.kn').stdout
     assert out == b'Hello World\n42\n'
+
+def test_closures():
+    out = koni.run(TESTS / 'test_closures.kn').stdout
+    assert out == b'2\n4\n4\n8\n12\n'
+    
+def test_arr_dict_assign():
+    out = koni.run(TESTS / 'test_arr_dict_assign.kn').stdout
+    assert out == b'baz\nbar\n--\nfoo\nboo\nbaz\n'

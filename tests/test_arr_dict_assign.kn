@@ -1,0 +1,24 @@
+let da = %{
+    'foo': 'bar',
+    'baz': 'boo'
+}
+
+da.foo = 'baz'
+println(da['foo'])
+
+da.baz = 'bar'
+println(da.baz)
+
+let aa = [
+    'foo',
+    'bar',
+    'baz'
+]
+
+aa[1] = 'boo'
+println('--')
+let i = 0
+while i < len(aa) {
+    println(aa[i])
+    i += 1
+}
