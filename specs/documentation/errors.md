@@ -197,6 +197,22 @@ Used when the compiler finds an area where you attempt to multiply a string by a
 println('*' * -2)
 ```
 
+### 21: Value cannot be constant folded
+
+Used when you use a value that cannot be embedded in the constant pool in a constant value:
+
+```koniscript
+const foo = [] # Arrays cannot be constant folded
+```
+
+Note that koniscript constant folds these values, so:
+
+```koniscript
+const foo = 2 * 2
+```
+
+will work
+
 ## Runtime (VM) errors
 
 This section is for errors raised by the runtime (`kovm`)
