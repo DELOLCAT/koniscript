@@ -2636,7 +2636,7 @@ class Compiler:
             if idx[1] == 'user':
                 o = self.get_var_obj(node.name)
                 if o is not None and isinstance(o[0], self.ScopeItem) and isinstance(o[0].value, ConstValue):
-                    self.emit(node.line, 'PUSH_CONST', o[0].idx)
+                    self.emit(node.line, OP_PUSH_CONST, o[0].idx)
                 else:
                     self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
             else:
@@ -3020,7 +3020,7 @@ class Compiler:
             yield from self.compile_ins(node.body)
 
             self.emit(
-                node.line, 'PUSH_CONST', self.add_constant((base_env.T_NULL, None))
+                node.line, OP_PUSH_CONST, self.add_constant((base_env.T_NULL, None))
             )
             self.emit(node.line, 'RET')
 
