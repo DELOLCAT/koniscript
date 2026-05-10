@@ -2,4 +2,4 @@ export func greet(name) {
     return 'Hello ' + name
 }
 
-export value = 42
+export let value = 42

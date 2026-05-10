@@ -1,12 +1,12 @@
-x = 5
+let x = 5
 println(x)
 
-y = 'hello'
+let y = 'hello'
 println(y)
 
-x = 10
+let x = 10
 println(x)
 
-a = 2
-b = 3
+let a = 2
+let b = 3
 println(a + b)

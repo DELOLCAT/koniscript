@@ -41,23 +41,29 @@ if {
 Used when an identifier isn't used after a `.` (attribute)
 
 ```koniscript
-a = 'hi'
+let a = 'hi'
 a.
 ```
 
 or
 
 ```koniscript
-a = 'hi'
+let a = 'hi'
 a.2
 ```
 
 ### 5: Cannot export anything other than an assignment or function
 
-Used when you attempt to export anything other than an assignment or function:
+Used when you attempt to export anything other than a declaration or function:
 
 ```koniscript
 export "foo"
+```
+
+or when you try to export an empty declaration:
+
+```koniscript
+export let foo
 ```
 
 ### 6: Module not found
@@ -87,7 +93,13 @@ Used when the compiler is told to include source info, but doesn't receive it (i
 Used when you use a variable (or function) before declaring it
 
 ```koniscript
-print(a) # But a was never declared (a='foo' was never ran)
+print(a) # But a was never declared (`let a='foo'` was never ran)
+```
+
+or
+
+```koniscript
+foo = 'bar' # But you never declared foo with `let foo`
 ```
 
 ### 11: Invalid arg count (10 was removed)
@@ -105,7 +117,7 @@ foo('bar') # <- Expected exactly 0 arguments, got 1
 or
 
 ```koniscript
-func foo(bar='baz') {
+func foo(bar='baz') { # Note that default arguments are very unstable, see [#34](https://github.com/DELOLCAT/koniscript/issues/34)
 
 }
 
@@ -197,7 +209,7 @@ Used when you supply an invalid number of arguments to a function:
 func foo(bar) {
     # ...
 }
-a = foo
+let a = foo
 a() # <- 0 arguments, and the compiler cannot catch this as of now
 ```
 
@@ -242,21 +254,10 @@ As you can see above, there is no target to jump to
 
 ### 6: Variable Not Found
 
-Used when the runtime reaches a variable that hasn't been declared in the current scope. Note that the compiler would prevent this from happening, except in this edge case, as closures aren't fully implemented yet:
+Used when the runtime reaches a variable that hasn't been declared in the current scope. Note that the compiler would prevent this from happening.
 
 ```koniscript
-func make_counter() {
-    x = 0 # <- Could not find a variable at slot `x:x`, where both `x`es are integers
-    func count() {
-        x += 1
-        return x
-    }
-    return count
-}
-
-a = make_counter()
-println(a())
-println(a())
+println(foo) # The compiler somehow didn't catch that `foo` has never been declared
 ```
 
 ### 7: StackUnderflow
@@ -305,7 +306,7 @@ Used when the VM attempts to run code that requires a feature which it doesn't s
 For instance, let's say that we have a program with this:
 
 ```koniscript
-@require arrays
+@require types.arrays
 
 a = [
     'foo',
@@ -353,7 +354,7 @@ Used when an attribute cannot be found for an item:
 
 ### 15: ExitSignal
 
-Internal. Used when a builtin wants to exit the VM. This may not exist in other implementations
+Internal. Used when a builtin wants to make the VM exit. This may not exist in other implementations
 
 ### 16: InvalidOperation
 

@@ -1,13 +1,13 @@
 @require types.arrays
 
-a = [1, 2, 3]
+let a = [1, 2, 3]
 println(a[0])
 println(a[1])
 
-b = ['hello', 'world']
+let b = ['hello', 'world']
 println(b[0])
 
-arr = []
+let arr = []
 arr.push('first')
 arr.push('second')
 println(arr[0])

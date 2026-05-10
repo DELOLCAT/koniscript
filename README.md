@@ -48,7 +48,7 @@ println('foo, bar', 'baz') # The println function takes multiple arguments, and 
 - Variables:
 
 ```koniscript
-this_is_a_var = 'foo'
+let this_is_a_var = 'foo'
 println(this_is_a_var)
 ```
 
@@ -61,7 +61,7 @@ println(5 + 5 / 2)
 - Conditionals:
 
 ```koniscript
-num = input('Enter a number\n>>> ') # The input function prints a message and waits for user input, returning the input given by the user.
+let num = input('Enter a number\n>>> ') # The input function prints a message and waits for user input, returning the input given by the user.
 
 println(num == 5)
 if num == 5 {
@@ -76,10 +76,10 @@ if num == 5 {
 - While loops
 
 ```koniscript
-i = 0
+let i = 0
 while i < 5 {
   println(i)
-  i+=1
+  i+=1 # There is no `let` here, so it uses the variable `i` declared above
 }
 ```
 
@@ -103,7 +103,7 @@ Functions are also first class
 ```koniscript
 func run_with_message(f) {
   println('Running...')
-val = f() # Note that this will raise a warning, as the compiler can't check the number of arguments. This will be fixed when the type checker is released.
+  let val = f() # Note that this will raise a warning, as the compiler can't check the number of arguments. This will be fixed when the type checker is released.
   println('Completed!')
   return val
 }
@@ -122,7 +122,7 @@ run_with_message(some_callback)
 println('hi'.upper())
 
 @require types.arrays {
-  arr = []
+  let arr = []
   arr.push('test')
 } else {
   println('Arrays not supported') # Any code that tries to use arrays in here will fail to compile
@@ -139,7 +139,7 @@ Note that using a feature that is under a requirement will implicitly add the re
 ```koniscript
 @require types.arrays
 
-a = [
+let a = [
   'foo',
   'bar'
 ]
@@ -156,7 +156,7 @@ println(a) # => ['foo', 'bar', 'baz']
 ```koniscript
 @require types.dicts
 
-a = %{
+let a = %{
   'foo': 'bar',
   'baz': 5,
   5: 'boo'

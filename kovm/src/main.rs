@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
-use std::process::exit;
 use std::fs;
+use std::process::exit;
 mod runtime;
 mod vm;
 use vm::VM;
@@ -37,9 +37,6 @@ fn val(file: String) {
     };
 }
 
-
-
-
 fn run(file: String) {
     let contents = fs::read_to_string(file).expect("Could not read file");
     let contents: Vec<String> = contents.lines().map(|s| s.to_string()).collect();
@@ -65,7 +62,7 @@ fn run(file: String) {
             let lines_opt = vm.lines.as_ref();
             let source_opt = vm.sources;
 
-            for (frame_idx, frame) in vm.frames.iter().rev().enumerate() {
+            for (frame_idx, frame) in vm.frames.iter().enumerate() {
                 if frame_idx > 0 {
                     println!()
                 } // Add space between frames
@@ -119,6 +116,7 @@ fn run(file: String) {
                     println!("  at {} ({})", frame.name.cyan(), ip_str);
                 }
             }
+            println!("\n{}: {}", e.errcode.to_string().red().bold(), e.msg.red());
         }
     }
 }

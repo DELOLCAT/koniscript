@@ -78,6 +78,7 @@ class TokenType(Enum):
     FStringExprEnd = 'FStringExprEnd'
     FStringEnd = 'FStringEnd'
     CONTINUE = 'CONTINUE'
+    LET = 'LET'
 
 
 PRECEDENCE = {
@@ -132,6 +133,7 @@ KEYWORDS = {
     'null': TokenType.NULL,
     'break': TokenType.BREAK,
     'continue': TokenType.CONTINUE,
+    'let': TokenType.LET,
 }
 
 
@@ -364,9 +366,6 @@ class Tokenizer:
             )
 
     def parse_escape_seq(self, char: Literal['"', "'", '`']):
-        if self.get_current_char() == '\\':
-            self.advance()
-
         def hex_tokenize(amnt: int):
             def hex_check(c: str):
                 return c[0].lower() not in '0123456789abcdef'
@@ -1321,10 +1320,21 @@ class Parser:
                 self.fp,
                 self.file_content,
             )
-        if not isinstance(out, Assign):
+        if not isinstance(out, Declare):
             raise ParserError(
                 5,
-                'Cannot export anything other than an assignment or function',
+                'Cannot export anything other than an declaration or function',
+                out.line,
+                out.col,
+                self.current_token.end_line,
+                self.current_token.end_col,
+                self.fp,
+                self.file_content,
+            )
+        if out.value is None:
+            raise ParserError(
+                5,
+                'Exported declarations must have a value',
                 out.line,
                 out.col,
                 self.current_token.end_line,
@@ -1439,6 +1449,21 @@ class Parser:
                 )
             value = yield from self.expr()
             return Return(ln, col, value.end_line, value.end_col, value)
+        elif self.current_token.type == TokenType.LET:
+            let = self.eat(TokenType.LET)
+            name = self.eat(TokenType.IDENTIFIER)
+
+            if self.current_token.type == TokenType.ASSIGN:
+                self.eat(TokenType.ASSIGN)
+                val = yield from self.expr()
+                end_line = val.end_line
+                end_col = val.end_col
+            else:
+                val = None
+                end_line = name.end_line
+                end_col = name.end_col
+            return Declare(let.line, let.col, end_line, end_col, name.value, val)
+
         e = yield from self.expr()
 
         if self.current_token.type in (
@@ -1614,13 +1639,13 @@ class Parser:
         self.eat(TokenType.RPAREN)
 
         body = yield from self.block()
-        return Assign(
+        return Declare(
             ln,
             col,
             body.end_line,
             body.end_col,
             name,
-            Function(ln, col, body.end_line, body.end_col, params, body),
+            Function(ln, col, body.end_line, body.end_col, params, body, name),
         )
 
     def peek(self, amnt=1):
@@ -1811,6 +1836,12 @@ class Assign(ASTNode):
 
 
 @dataclass
+class Declare(ASTNode):
+    name: str
+    value: ASTNode | None
+
+
+@dataclass
 class String(ASTNode):
     value: str
 
@@ -1829,6 +1860,7 @@ class Return(ASTNode):
 class Function(ASTNode):
     params: list[FunctionParameter]
     body: Block
+    name: str
 
 
 @dataclass
@@ -2124,6 +2156,7 @@ def fold_node(node: ASTNode, fp: str) -> ASTNode:
             ):
                 return Bool(s.line, s.col, s.end_line, s.end_col, a.value >= b.value)
         return s
+
     def neg(s: UnaryOp) -> ASTNode:
         match s.right:
             case Number():
@@ -2131,12 +2164,13 @@ def fold_node(node: ASTNode, fp: str) -> ASTNode:
             case Float():
                 return Float(s.line, s.col, s.end_line, s.end_col, 0 - s.right.value)
         return s
-    
+
     def not_(s: UnaryOp) -> ASTNode:
         match s.right:
             case Bool():
-                return Bool(s.line, s.col, s.end_line, s.end_col, not s.right)
+                return Bool(s.line, s.col, s.end_line, s.end_col, not s.right.value)
         return s
+
     match node:
         case BinOp():
             node.left = fold_node(node.left, fp)
@@ -2174,7 +2208,7 @@ def fold_node(node: ASTNode, fp: str) -> ASTNode:
                     assert_never(node.op)
         case UnaryOp():
             node.right = fold_node(node.right, fp)
-            
+
             match node.op:
                 case UnaryOpType.NEG:
                     return neg(node)
@@ -2274,6 +2308,7 @@ class Compiler:
     @dataclass
     class Result:
         value: str
+
     def make_warn(self, node: ASTNode, msg: str):
         yield CompilerWarn(
             msg,
@@ -2282,8 +2317,9 @@ class Compiler:
             node.end_line,
             node.end_col,
             self.mod_stack[-1].fp,
-            self
+            self,
         )
+
     def enter_scope(self, var_map=None, args=None):
         self.scopes.append(Compiler.Scope(var_map, args))
 
@@ -2299,11 +2335,19 @@ class Compiler:
         self.const_map[value_tuple] = index
         return index
 
+    def set_local(self, name: str, value: ASTNode) -> tuple[int, int] | None:
+        depth = 0
+        scope = self.scopes[-1]
+        for scope in reversed(self.scopes):
+            if name in scope.var_map:
+                scope.var_map[name].value = value
+                return (depth, scope.var_map[name].idx)
+            depth += 1
+
     def declare_local(self, name: str, value: ASTNode):
         scope = self.scopes[-1]
-        if name in scope.var_map:
-            return scope.var_map[name].idx
-
+        # if name in scope.var_map:
+        #    return scope.var_map[name].idx
         index = scope.next_local
         scope.var_map[name] = Compiler.ScopeItem(index, value)
         scope.next_local += 1
@@ -2478,6 +2522,21 @@ class Compiler:
                         self,
                     )
 
+    def compile_declare(self, node: Declare, dup: bool = False):
+        v = (
+            node.value
+            if node.value is not None
+            else Null(node.line, node.col, node.end_line, node.end_col)
+        )
+        if not isinstance(node.value, Function):
+            yield from self.compile_ins(v)
+        idx = self.declare_local(node.name, v)
+        if isinstance(node.value, Function):
+            yield from self.compile_ins(v)
+        if dup:
+            self.emit(node.line, 'DUP')
+        self.emit(node.line, OP_SET_VAR, idx, 0)
+
     def compile_ins(
         self, node: ASTNode, *other
     ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
@@ -2536,54 +2595,32 @@ class Compiler:
                         'runtime_values', 'Runtime Value', 'Runtime Values', node
                     )
                 self.emit(node.line, 'PUSH_BUILTIN', idx[0])
-        elif isinstance(node, Assign) and isinstance(node.value, Function):
-            res = self.get_var(node.name)
-            if res is None:
-                idx = self.declare_local(node.name, node.value)
-                yield from self.compile_ins(node.value, node.name)
-                if len(other) > 0 and other[0]:
-                    self.emit(node.line, 'DUP')
-                self.emit(node.line, OP_SET_VAR, idx, 0)
-                return idx, 0
-            else:
-                idx, cat, depth = res
-                yield from self.compile_ins(node.value, node.name)
-
-                idx = self.declare_local(node.name, node.value)
-                if len(other) > 0 and other[0]:
-                    self.emit(node.line, 'DUP')
-                if depth is None:
-                    depth = 0
-                self.emit(node.line, OP_SET_VAR, idx, depth)
-
-                yield CompilerWarn(
-                    f'Reassignment to a function attempted for {node.name}(). This is usually not recommended',
+        elif isinstance(node, Assign):
+            yield from self.compile_ins(node.value)
+            s = self.set_local(node.name, node.value)
+            if s is None:
+                raise CompilerError(
+                    9,
+                    f'Undeclared variable {node.name}',
                     node.line,
                     node.col,
                     node.end_line,
                     node.end_col,
                     self.mod_stack[-1].fp,
-                    self,
                 )
-                return idx, 0
-        elif isinstance(node, Assign):
-            res = self.get_var(node.name)
-            if res is None:
-                yield from self.compile_ins(node.value)
-                idx = self.declare_local(node.name, node.value)
-                if len(other) > 0 and other[0]:
-                    self.emit(node.line, 'DUP')
-                self.emit(node.line, OP_SET_VAR, idx, 0)
-                depth = 0
-            else:
-                idx, _, depth = res
-                yield from self.compile_ins(node.value)
-                idx = self.declare_local(node.name, node.value)
-                if len(other) > 0 and other[0]:
-                    self.emit(node.line, 'DUP')
-                if depth is None:
-                    depth = 0
-                self.emit(node.line, OP_SET_VAR, idx, depth)
+            self.emit(node.line, OP_SET_VAR, s[1], s[0])
+
+        elif isinstance(node, Declare):
+            # v = (
+            #     node.value
+            #     if node.value is not None
+            #     else Null(node.line, node.col, node.end_line, node.end_col)
+            # )
+            # yield from self.compile_ins(v)
+            # idx = self.declare_local(node.name, v)
+            # self.emit(node.line, OP_SET_VAR, idx, 0)
+            yield from self.compile_declare(node)
+
         elif isinstance(node, BinOp):
             yield from self.compile_ins(node.left)
             yield from self.compile_ins(node.right)
@@ -2887,12 +2924,12 @@ class Compiler:
             if node.else_body and compelse:
                 if jmps:
                     jmp2 = self.emit(node.line, 'JMP', None)
-                    self.code[jmp] = ('JMPIFF', len(self.code)) # pyright: ignore[reportPossiblyUnboundVariable]
+                    self.code[jmp] = ('JMPIFF', len(self.code))  # pyright: ignore[reportPossiblyUnboundVariable]
                 yield from self.compile_ins(node.else_body)
                 if jmps:
-                    self.code[jmp2] = ('JMP', len(self.code)) # pyright: ignore[reportPossiblyUnboundVariable]
+                    self.code[jmp2] = ('JMP', len(self.code))  # pyright: ignore[reportPossiblyUnboundVariable]
             elif jmps:
-                self.code[jmp] = ('JMPIFF', len(self.code)) # pyright: ignore[reportPossiblyUnboundVariable]
+                self.code[jmp] = ('JMPIFF', len(self.code))  # pyright: ignore[reportPossiblyUnboundVariable]
         elif isinstance(node, Array):
             yield from self.raise_for_req('types.arrays', 'Array', 'Arrays', node)
             for item in reversed(node.items):
@@ -2936,25 +2973,14 @@ class Compiler:
             local_count = self.scopes[-1].next_local
             self.exit_scope()
             self.code[jmp] = ('JMP', len(self.code))
-            if len(other) >= 1:
-                idx = self.add_constant([T_STRING, other[0]])
-                self.emit(
+            idx = self.add_constant([T_STRING, node.name])
+            self.emit(
                     node.line,
                     'MAKE_FUNCTION',
                     fn_entry,
                     local_count,
                     len(node.params),
                     idx,
-                )
-            else:
-                raise CompilerError(
-                    13,
-                    '(internal) Expected array `other` to have at least 1 value, found 0. This error should not be raised under any circumstance, please report at https://github.com/DELOLCAT/koniscript.',
-                    node.line,
-                    node.col,
-                    node.end_line,
-                    node.end_col,
-                    self.mod_stack[-1].fp,
                 )
         elif isinstance(node, Return):
             if node.value is None:
@@ -2964,8 +2990,8 @@ class Compiler:
             yield from self.compile_ins(node.value)
             self.emit(node.line, 'RET')
         elif isinstance(node, Export):
-            yield from self.compile_ins(
-                Assign(
+            yield from self.compile_declare(
+                Declare(
                     node.line,
                     node.col,
                     node.end_line,
@@ -2973,7 +2999,7 @@ class Compiler:
                     node.name,
                     node.lhs,
                 ),
-                True,
+                True
             )
             idx = self.add_constant((T_STRING, node.name))
             self.mod_stack[-1].exports.append(self.ExportItem(node.name, node.lhs))
@@ -3045,8 +3071,8 @@ class Compiler:
             self.emit(node.line, 'MAKE_MODULE', idx)
             md = self.mod_stack.pop()
             self.scopes[0].next_local += 1  # TODO: make this better
-            yield from self.compile_ins(
-                Assign(node.line, node.col, node.end_line, node.end_col, node.mod, md)
+            yield from self.compile_declare(
+                Declare(node.line, node.col, node.end_line, node.end_col, node.mod, md)
             )
         elif isinstance(node, self.Module):
             pass

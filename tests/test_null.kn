@@ -1,2 +1,2 @@
-x = null
+let x = null
 println(x)
