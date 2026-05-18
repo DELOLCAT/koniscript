@@ -1441,6 +1441,8 @@ class Parser:
             self.eat(TokenType.IMPORT)
             name_tok = self.eat(TokenType.IDENTIFIER)
             return Import(ln, col, name_tok.end_line, name_tok.end_col, name_tok.value)
+        elif self.current_token.type == TokenType.LBRACE:
+            return (yield from self.block())
         elif self.current_token.type == TokenType.RETURN:
             ln = self.current_token.line
             col = self.current_token.col
@@ -2083,6 +2085,7 @@ class Compiler:
             )
 
             self.next_local = len(self.var_map)
+            self.local_count = len(self.var_map)
             self.args = args if args is not None else {}
 
     @dataclass
@@ -2132,6 +2135,7 @@ class Compiler:
         scope.var_map[name] = Compiler.ScopeItem(index, value)
         scope.next_local += 1
         self.var_count += 1
+        scope.local_count += 1
 
         return index
 
@@ -2457,7 +2461,7 @@ class Compiler:
         if len(self.reqs) > 0:
             output.append('.reqs ' + ' '.join([str(x) for x in self.reqs]))
 
-        output.append(f'.frame {self.scopes[0].next_local}')
+        output.append(f'.frame {self.scopes[0].local_count}')
 
         output.append('.const')
         for const in self.constants:
@@ -2584,7 +2588,17 @@ class Compiler:
             return None
         return idx
 
-
+    def compile_block(self, block: Block, create_scope: bool):
+        if create_scope:
+            self.emit(block.line, 'ENTER_SCOPE')
+            old_map = self.scopes[-1].var_map.copy()
+            old_nl = self.scopes[-1].next_local
+        for stmnt in block.statements:
+            yield from self.compile_ins(stmnt)
+        if create_scope:
+            self.emit(block.end_line, 'EXIT_SCOPE')
+            self.scopes[-1].next_local = old_nl # pyright: ignore[reportPossiblyUnboundVariable]
+            self.scopes[-1].var_map = old_map # pyright: ignore[reportPossiblyUnboundVariable]
     def compile_ins(
         self, node: ASTNode, *other
     ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
@@ -2686,8 +2700,7 @@ class Compiler:
             yield from self.compile_ins(node.right)
             self.emit(node.line, OpcodeType(node.op))
         elif isinstance(node, Block):
-            for statement in node.statements:
-                yield from self.compile_ins(statement)
+            yield from self.compile_block(node, True)
         elif isinstance(node, Call):
             # compile the expression that identifies the callable (variable, attribute, etc.)
             yield from self.compile_ins(node.func)
@@ -3017,14 +3030,14 @@ class Compiler:
             self.enter_scope({})
             for param in node.params:
                 self.declare_local(param.name, param)
-            yield from self.compile_ins(node.body)
+            yield from self.compile_block(node.body, False)
 
             self.emit(
                 node.line, OP_PUSH_CONST, self.add_constant((base_env.T_NULL, None))
             )
             self.emit(node.line, 'RET')
 
-            local_count = self.scopes[-1].next_local
+            local_count = self.scopes[-1].local_count
             self.exit_scope()
             self.code[jmp] = ('JMP', len(self.code))
             idx = self.add_constant([T_STRING, node.name])
@@ -3125,6 +3138,7 @@ class Compiler:
             self.emit(node.line, 'MAKE_MODULE', idx)
             md = self.mod_stack.pop()
             self.scopes[0].next_local += 1  # TODO: make this better
+            self.scopes[0].local_count += 1
             yield from self.compile_declare(
                 Declare(node.line, node.col, node.end_line, node.end_col, node.mod, md)
             )

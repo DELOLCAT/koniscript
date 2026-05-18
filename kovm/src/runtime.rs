@@ -31,6 +31,7 @@ pub struct Env {
     pub values: Vec<Option<Value>>,
     pub parent: Option<Rc<RefCell<Env>>>,
     pub exports: HashMap<String, Export>,
+    pub markers: Vec<usize>
 }
 
 impl PartialEq for Env {
