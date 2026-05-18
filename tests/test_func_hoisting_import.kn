@@ -1,0 +1,3 @@
+import test_func_hoisting
+
+test_func_hoisting.main()
