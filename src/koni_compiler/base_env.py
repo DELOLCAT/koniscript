@@ -10,6 +10,10 @@ T_NULL = 6
 ASTenv: list[tuple[str, Builtin]] = [
     ('print', BuiltinFunction('print', 0, None)),
     ('println', BuiltinFunction('println', 0, None)),
+    ('eprint', BuiltinFunction('eprint', 0, None)),
+    ('eprintln', BuiltinFunction('eprintln', 0, None)),
+    ('flush', BuiltinFunction('flush', 0, 0)),
+    ('eflush', BuiltinFunction('eflush', 0, 0)),
     ('sleep', BuiltinFunction('sleep', 1, 1)),
     ('input', BuiltinFunction('input', 0, 1)),
     ('to_str', BuiltinFunction('to_str', 1, 1)),

@@ -631,11 +631,37 @@ pub fn vm_to_bool_basic(item: &Value, _vm: &mut VM) -> Result<Value, VmError> {
     Ok(Value::Bool(b))
 }
 pub fn vm_println(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
-    print_helper(_vm, args)?;
+    print_helper(_vm, args, false)?;
     println!();
     Ok(Value::Null)
 }
-fn print_helper(_vm: &mut VM, args: &[Value]) -> Result<(), VmError> {
+pub fn vm_eprintln(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+    print_helper(_vm, args, true)?;
+    eprintln!();
+    Ok(Value::Null)
+}
+pub fn vm_flush(_vm: &mut VM, _args: &[Value]) -> Result<Value, VmError> {
+    let o = std::io::stdout().flush();
+    match o {
+        Err(_) => Err(VmError {
+            msg: "Failed to flush stdout".to_string(),
+            errcode: ErrCode::IoError
+        }),
+        Ok(_) => Ok(Value::Null)
+    }
+}
+pub fn vm_eflush(_vm: &mut VM, _args: &[Value]) -> Result<Value, VmError> {
+    let o = std::io::stderr().flush();
+    match o {
+        Err(_) => Err(VmError {
+            msg: "Failed to flush stderr".to_string(),
+            errcode: ErrCode::IoError
+        }),
+        Ok(_) => Ok(Value::Null)
+    }
+}
+
+fn print_helper(_vm: &mut VM, args: &[Value], e: bool) -> Result<(), VmError> {
     let mut rust_args: Vec<String> = Vec::new();
     for item in args {
         let out = vm_to_str(_vm, std::slice::from_ref(item));
@@ -653,18 +679,23 @@ fn print_helper(_vm: &mut VM, args: &[Value]) -> Result<(), VmError> {
             Err(e) => return Err(e),
         }
     }
-    print!("{}", rust_args.join(" "));
+    if e {
+        eprint!("{}", rust_args.join(" "));
+    } else {
+        print!("{}", rust_args.join(" "));
+    }
     Ok(())
 }
 pub fn vm_print(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
-    print_helper(_vm, args)?;
-    io::stdout().flush().map_err(|e| VmError {
-        msg: format!("Failed to flush stdout: {}", e),
-        errcode: ErrCode::IoError, // Or a specific I/O error code
-    })?;
-
+    print_helper(_vm, args, false)?;
     Ok(Value::Null)
 }
+
+pub fn vm_eprint(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
+    print_helper(_vm, args, true)?;
+    Ok(Value::Null)
+}
+
 pub fn vm_sleep(_vm: &mut VM, args: &[Value]) -> Result<Value, VmError> {
     let [s] = args else {
         return Err(VmError {
@@ -732,6 +763,22 @@ pub fn vmenv() -> Vec<Value> {
         Value::Func(Rc::new(KoniFunc::Builtin {
             name: "println".to_string(),
             func: vm_println,
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
+            name: "eprint".to_string(),
+            func: vm_eprint,
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
+            name: "eprintln".to_string(),
+            func: vm_eprintln,
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
+            name: "flush".to_string(),
+            func: vm_flush
+        })),
+        Value::Func(Rc::new(KoniFunc::Builtin {
+            name: "eflush".to_string(),
+            func: vm_eflush
         })),
         Value::Func(Rc::new(KoniFunc::Builtin {
             name: "sleep".to_string(),
