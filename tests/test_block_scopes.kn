@@ -1,0 +1,16 @@
+let i = 1
+
+if true {
+    let i = 5
+    println(i)
+}
+
+
+println(i)
+
+{
+    let i = 2
+    println(i)
+}
+
+println(i)

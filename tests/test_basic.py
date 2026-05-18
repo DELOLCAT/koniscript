@@ -50,6 +50,10 @@ def test_if_else():
     out = koni.run(TESTS / 'test_if_else.kn').stdout
     assert out == b'equal\nmedium\n'
 
+def test_block_scopes():
+    out = koni.run(TESTS / 'test_block_scopes.kn').stdout
+    assert out == b'5\n1\n2\n1\n'
+
 
 def test_while():
     out = koni.run(TESTS / 'test_while.kn').stdout

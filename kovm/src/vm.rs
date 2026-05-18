@@ -126,6 +126,7 @@ impl Frame {
                 parent: None,
                 values: vec![],
                 exports: HashMap::new(),
+                markers: vec![]
             })),
             ret_addr: None,
             stack: vec![],
@@ -332,6 +333,7 @@ impl VM {
             values: vec![None; local_count.unwrap() as usize],
             parent: None,
             exports: HashMap::new(),
+            markers: vec![]
         })));
 
         let content = if let Some(x) = sup_lines {
@@ -436,6 +438,7 @@ impl VM {
                     values: vec![None; *local_count],
                     parent: Some(Rc::clone(closure)),
                     exports: HashMap::new(),
+                    markers: vec![]
                 }));
                 let mut rust_args: Vec<Option<Value>> = vec![];
                 for arg in args {
@@ -531,10 +534,7 @@ impl VM {
                     Value::Bool(v) => v,
                     _ => {
                         return Err(VmError {
-                            msg: format!(
-                                "expected a boolean but got a {}",
-                                condv.display()
-                            ),
+                            msg: format!("expected a boolean but got a {}", condv.display()),
                             errcode: ErrCode::TypeError,
                         });
                     }
@@ -562,10 +562,7 @@ impl VM {
                     Value::Bool(v) => v,
                     _ => {
                         return Err(VmError {
-                            msg: format!(
-                                "expected a boolean but got a {}",
-                                condv.display()
-                            ),
+                            msg: format!("expected a boolean but got a {}", condv.display()),
                             errcode: ErrCode::TypeError,
                         });
                     }
@@ -639,10 +636,10 @@ impl VM {
                 self.push_to_stack(to_push);
             }
             "BREAK" => {
-                println!("Breakpoint: at {}:", self.frames.last().unwrap().name);
-                println!("Stack : {:#?}", self.frames.last().unwrap().stack);
+                eprintln!("Breakpoint: at {}:", self.frames.last().unwrap().name);
+                eprintln!("Stack : {:#?}", self.frames.last().unwrap().stack);
                 let mut b = String::new();
-                print!("Press enter to continue");
+                eprint!("Press enter to continue");
                 let _ = std::io::stdin().read_line(&mut b);
             }
             "GETATTR" => {
@@ -743,6 +740,22 @@ impl VM {
                     }
                 };
                 self.frames.last_mut().unwrap().stack.push(out);
+            }
+            "ENTER_SCOPE" => {
+                let mut l: usize = 0;
+                for item in &self.frames.last().unwrap().env.borrow().values {
+                    if item.is_some() {
+                        l += 1;
+                    }
+                }
+                self.frames.last_mut().unwrap().env.borrow_mut().markers.push(l);
+            }
+            "EXIT_SCOPE" => {
+                let l = self.frames.last().unwrap().env.borrow().values.len();
+                let m = self.frames.last().unwrap().env.borrow_mut().markers.pop().unwrap();
+                for idx in m..l {
+                    self.frames.last().unwrap().env.borrow_mut().values[idx] = None;
+                }
             }
             "GET_ITEM" => {
                 let item = self.pop_from_stack()?;
