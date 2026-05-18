@@ -121,3 +121,7 @@ def test_decl_error():
     with pytest.raises(SystemExit):
         out = koni.run(TESTS / 'test_decl_error.kn')
         assert out.returncode != 0
+
+def test_func_hoisting():
+    out = koni.run(TESTS / 'test_func_hoisting_import.kn').stdout
+    assert out == b'true\ntrue\n'

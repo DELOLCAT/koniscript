@@ -2418,6 +2418,12 @@ class Compiler:
                     return o[0].value.value
 
         return node
+    def decl_funcs(self, statements: list[ASTNode]):
+        for node in statements:
+            if isinstance(node, Declare) and isinstance(node.value, Function):
+                self.declare_local(node.name, node.value)
+            if isinstance(node, Export) and isinstance(node.lhs, Function):
+                self.declare_local(node.name, node.lhs)
 
     def compile(
         self,
@@ -2445,6 +2451,7 @@ class Compiler:
             self.sources[self.filepath] = (  # pyright: ignore[reportArgumentType]
                 input_source
             )
+        self.decl_funcs(program.statements)
         for node in program.statements:
             # empty statements (e.g. stray braces) may be None
             if node is None:
@@ -2562,7 +2569,12 @@ class Compiler:
         )
         if not isinstance(node.value, Function):
             yield from self.compile_ins(v)
-        idx = self.declare_local(node.name, v)
+            idx = self.declare_local(node.name, v)
+        else:
+            idx = self.get_var(node.name)
+            if idx is None:
+                raise CompilerError(13, '(internal) Function was not hoisted to the top of its scope. Report this bug to koniscript\'s bug tracker on GitHub', node.line, node.col, node.end_line, node.end_col, self.mod_stack[-1].fp)
+            idx = idx[0]
         if isinstance(node.value, Function):
             yield from self.compile_ins(v)
         if dup:
@@ -2593,6 +2605,7 @@ class Compiler:
             self.emit(block.line, 'ENTER_SCOPE')
             old_map = self.scopes[-1].var_map.copy()
             old_nl = self.scopes[-1].next_local
+        self.decl_funcs(block.statements)
         for stmnt in block.statements:
             yield from self.compile_ins(stmnt)
         if create_scope:
@@ -3131,6 +3144,7 @@ class Compiler:
             self.modules.append(node.mod)
             self.enter_scope()
             self.sources[module.filepath] = module.content
+            self.decl_funcs(module.program.statements)
             for statement in module.program.statements:
                 yield from self.compile_ins(statement)
             self.exit_scope()
