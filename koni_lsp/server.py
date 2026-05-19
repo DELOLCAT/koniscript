@@ -20,6 +20,22 @@ from koni_compiler.main import (
 ADDITION = re.compile(r'^\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)?$')
 
 
+def get_helps(document: TextDocument, w: CompilationException | Warn, endln: int, end_col: int):
+    return [
+        types.DiagnosticRelatedInformation(
+            types.Location(
+                document.uri,
+                types.Range(
+                    types.Position(w.line, w.col),
+                    types.Position(endln, end_col),
+                ),
+            ),
+            help.value,
+        )
+        for help in w.helps
+    ]
+
+
 class PublishDiagnosticServer(LanguageServer):
     """Language server demonstrating "push-model" diagnostics."""
 
@@ -68,6 +84,7 @@ class PublishDiagnosticServer(LanguageServer):
                         ),
                         end=types.Position(line=endln, character=end_col),
                     ),
+                    related_information=get_helps(document, e, endln, end_col)
                 )
             )
         program = None
@@ -86,19 +103,7 @@ class PublishDiagnosticServer(LanguageServer):
                             end_col = w.col
                         else:
                             end_col = w.end_col
-                        helps = [
-                            types.DiagnosticRelatedInformation(
-                                types.Location(
-                                    document.uri,
-                                    types.Range(
-                                        types.Position(w.line, w.col),
-                                        types.Position(endln, end_col),
-                                    ),
-                                ),
-                                help.value,
-                            )
-                            for help in w.helps
-                        ]
+                        helps = get_helps(document, w, endln, end_col)
                         diagnostics.append(
                             types.Diagnostic(
                                 message=w.message,
@@ -123,19 +128,7 @@ class PublishDiagnosticServer(LanguageServer):
                     end_col = e.col
                 else:
                     end_col = e.end_col
-                helps = [
-                    types.DiagnosticRelatedInformation(
-                        types.Location(
-                            document.uri,
-                            types.Range(
-                                types.Position(e.line, e.col),
-                                types.Position(endln, end_col),
-                            ),
-                        ),
-                        help.value,
-                    )
-                    for help in e.helps
-                ]
+                helps = get_helps(document, e, endln, end_col)
 
                 diagnostics.append(
                     types.Diagnostic(
@@ -169,19 +162,6 @@ class PublishDiagnosticServer(LanguageServer):
                         else:
                             end_col = a.end_col
 
-                        helps = [
-                            types.DiagnosticRelatedInformation(
-                                types.Location(
-                                    document.uri,
-                                    types.Range(
-                                        types.Position(a.line, a.col),
-                                        types.Position(endln, end_col),
-                                    ),
-                                ),
-                                help.value,
-                            )
-                            for help in a.helps
-                        ]
 
                         diagnostics.append(
                             types.Diagnostic(
@@ -191,7 +171,7 @@ class PublishDiagnosticServer(LanguageServer):
                                 ),
                                 message=a.message,
                                 severity=types.DiagnosticSeverity.Warning,
-                                related_information=helps,
+                                related_information=get_helps(document, a, endln, end_col),
                             )
                         )
                 except StopIteration:
@@ -206,26 +186,14 @@ class PublishDiagnosticServer(LanguageServer):
                     else:
                         end_col = e.end_col
 
-                    helps = [
-                        types.DiagnosticRelatedInformation(
-                            types.Location(
-                                document.uri,
-                                types.Range(
-                                    types.Position(e.line, e.col),
-                                    types.Position(endln, end_col),
-                                ),
-                            ),
-                            help.value,
-                        )
-                        for help in e.helps
-                    ]
+                    helps = get_helps(document, e, endln, end_col)
 
                     diagnostics.append(
                         types.Diagnostic(
                             range=types.Range(
                                 start=types.Position(
                                     line=e.line,
-                                    character=e.col if e.col is not None else 0,
+                                    character=e.col
                                 ),
                                 end=types.Position(
                                     line=endln,
@@ -233,6 +201,7 @@ class PublishDiagnosticServer(LanguageServer):
                                 ),
                             ),
                             message=e.message,
+                            related_information=get_helps(document, e, endln, end_col)
                         )
                     )
                 break
