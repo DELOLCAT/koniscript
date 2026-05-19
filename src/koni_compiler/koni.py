@@ -260,7 +260,7 @@ def show_err_or_warn(e: Failed | Warn):
     eprint()
     eprint(f'{tag}: {msg}:')
     
-    lns = file_content.splitlines(True)
+    lns = file_content.splitlines()
     eprint(
         f'at {filepath}{f"<green>:{raw(str(ln + 1))}" if ln is not None else " <red>No line data available" + f":{str(col + 1)}" if col is not None else ""}',
     )
