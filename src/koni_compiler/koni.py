@@ -255,7 +255,7 @@ def show_err_or_warn(e: Failed | Warn):
         end_line = None
     if end_col == col:
         end_col = None
-    RADIUS = 5
+    RADIUS = 2
 
     eprint()
     eprint(f'<b>{tag}{end_color}: {msg}:')
@@ -306,7 +306,7 @@ def show_err_or_warn(e: Failed | Warn):
                 if not big:
                     eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
                 else:
-                    if start + 4 > n or n > end-3:
+                    if start + 4 > n or n > end-4:
                         eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
                     elif n == start + 4:
                         eprint('<blue><b>      ...')
