@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import Field, dataclass, field
 from typing import Any, Collection, Generator, Literal, assert_never
 from koni_compiler import base_env
 from koni_compiler.runtime import (
@@ -17,69 +17,69 @@ from enum import Enum, auto
 
 
 class TokenType(Enum):
-    ADD = 'ADD'
-    INTEGER = 'INT'
+    ADD = '+'
+    INTEGER = 'INTEGER'
     INT = INTEGER
     IDENTIFIER = 'IDENTIFIER'
-    ASSIGN = 'ASSIGN'
+    ASSIGN = '='
     NEWLINE = 'NEWLINE'
     EOF = 'EOF'
-    DIVIDE = 'DIV'
+    DIVIDE = '/'
     DIV = DIVIDE
-    MULTIPLY = 'MUL'
+    MULTIPLY = '*'
     MUL = MULTIPLY
-    POWER = 'POW'
+    POWER = '**'
     POW = POWER
-    SUBTRACT = 'SUB'
+    SUBTRACT = '-'
     SUB = SUBTRACT
-    RPAREN = 'RPAREN'
-    LPAREN = 'LPAREN'
+    RPAREN = ')'
+    LPAREN = '('
     STRING = 'STRING'
-    COMMA = 'COMMA'
-    LBRACE = 'LBRACE'
-    RBRACE = 'RBRACE'
-    FUNC = 'FUNC'
-    RETURN = 'RETURN'
+    COMMA = ','
+    LBRACE = '{'
+    RBRACE = '}'
+    FUNC = 'func'
+    RETURN = 'return'
     BOOLEAN = 'BOOLEAN'
     BOOL = BOOLEAN
-    GREATER_THAN = 'GT'
+    GREATER_THAN = '>'
     GT = GREATER_THAN
-    LESS_THAN = 'LT'
+    LESS_THAN = '<'
     LT = LESS_THAN
-    LTE = 'LTE'
-    GTE = 'GTE'
-    EQUAL_TO = 'EQ'
-    NOT_EQUAL_TO = 'NEQ'
-    IF = 'IF'
-    ELSE = 'ELSE'
-    OR = 'OR'
-    AND = 'AND'
+    LTE = '<='
+    GTE = '>='
+    EQUAL_TO = '=='
+    NOT_EQUAL_TO = '!='
+    IF = 'if'
+    ELSE = 'else'
+    OR = 'or'
+    AND = 'and'
     FLOAT = 'FLOAT'
-    WHILE = 'WHILE'
-    DOT = 'DOT'
-    IMPORT = 'IMPORT'
-    EXPORT = 'EXPORT'
-    LBRACKET = 'LBRACKET'
-    RBRACKET = 'RBRACKET'
-    AT_RATE = 'AT_RATE'
-    NOT = 'NOT'
-    PLUS_ASSIGN = 'PLUS_ASSIGN'
-    SUB_ASSIGN = 'SUB_ASSIGN'
-    MUL_ASSIGN = 'MUL_ASSIGN'
-    DIV_ASSIGN = 'DIV_ASSIGN'
-    MOD = 'MOD'
-    NULL = 'NULL'
-    DICT_STARTER = 'DICT_STARTER'
-    COLON = 'COLON'
-    BREAK = 'BREAK'
-    BACKTICK = 'BACKTICK'
+    WHILE = 'while'
+    DOT = '.'
+    IMPORT = 'import'
+    EXPORT = 'export'
+    LBRACKET = '['
+    RBRACKET = ']'
+    AT_RATE = '@'
+    NOT = 'not'
+    PLUS_ASSIGN = '+='
+    SUB_ASSIGN = '-='
+    MUL_ASSIGN = '*='
+    DIV_ASSIGN = '/='
+    MOD = '%'
+    NULL = 'null'
+    DICT_STARTER = '${'
+    COLON = ':'
+    BREAK = 'break'
+    BACKTICK = '`'
     FStringStart = 'FStringStart'
     FStringExpr = 'FStringExpr'
     FStringExprEnd = 'FStringExprEnd'
     FStringEnd = 'FStringEnd'
-    CONTINUE = 'CONTINUE'
-    LET = 'LET'
-    CONST = 'CONST'
+    CONTINUE = 'continue'
+    LET = 'let'
+    CONST = 'const'
 
 
 PRECEDENCE = {
@@ -92,31 +92,31 @@ PRECEDENCE = {
 
 
 @dataclass
+class DiagHelp:
+    value: str
+
+
+@dataclass
 class CompilationException(Exception):
     code: int
-    msg: str
+    message: str
     line: int
     col: int
-    end_line: int
-    end_col: int
+    end_line: int | None
+    end_col: int | None
     fp: str
-
-
-@dataclass
-class ParserError(CompilationException):
-    file_content: str
-    pass
-
+    helps: list[DiagHelp] = field(default_factory=list)
 
 @dataclass
-class CompilerError(CompilationException):
-    pass
-
-
-@dataclass
-class TokenizerError(CompilationException):
-    file_content: str
-    pass
+class Warn:
+    code: int
+    message: str
+    line: int
+    col: int
+    end_line: int | None
+    end_col: int | None
+    fp: str
+    helps: list[DiagHelp] = field(default_factory=list)
 
 
 KEYWORDS = {
@@ -135,7 +135,7 @@ KEYWORDS = {
     'break': TokenType.BREAK,
     'continue': TokenType.CONTINUE,
     'let': TokenType.LET,
-    'const': TokenType.CONST
+    'const': TokenType.CONST,
 }
 
 
@@ -262,15 +262,14 @@ class Tokenizer:
                 value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
             self.advance()
         if self.get_current_char() != char:
-            raise TokenizerError(
+            raise CompilationException(
                 1,
                 'Unterminated string literal',
                 start_line,
                 start_col,
-                self.line,
-                self.col + 1,
+                None,
+                None,
                 self.fp,
-                self.string,
             )
         self.advance()
         return Token(
@@ -319,15 +318,14 @@ class Tokenizer:
                     value += self.get_current_char()  # pyright: ignore[reportOperatorIssue]
                     self.advance()
             if self.get_current_char() != '`':
-                raise TokenizerError(
+                raise CompilationException(
                     1,
                     'Unterminated string literal',
                     start_line,
                     start_col,
                     self.line,
-                    self.col + 1,
+                    self.col,
                     self.fp,
-                    self.string,
                 )
 
             self.advance()
@@ -375,51 +373,47 @@ class Tokenizer:
             self.advance()
             c = self.get_current_char()
             if c is None:
-                raise TokenizerError(
+                raise CompilationException(
                     3,
                     'Unexpected EOF when decoding escape code',
                     self.line,
                     self.col,
-                    self.line,
-                    self.col,
+                    None,
+                    None,
                     self.fp,
-                    self.string,
                 )
             if hex_check(c):
-                raise TokenizerError(
+                raise CompilationException(
                     17,
                     'Invalid hexadecimal escape code',
                     self.line,
                     self.col,
-                    self.line,
-                    self.col + 1,
+                    None,
+                    None,
                     self.fp,
-                    self.string,
                 )
             for _ in range(amnt - 1):
                 self.advance()
                 tmp = self.get_current_char()
                 if tmp is None:
-                    raise TokenizerError(
+                    raise CompilationException(
                         3,
                         'Unexpected EOF when decoding escape code',
                         self.line,
                         self.col,
-                        self.line,
-                        self.col + 1,
+                        None,
+                        None,
                         self.fp,
-                        self.string,
                     )
                 if hex_check(tmp):
-                    raise TokenizerError(
+                    raise CompilationException(
                         17,
                         'Invalid hexadecimal escape code',
                         self.line,
                         self.col,
-                        self.line,
-                        self.col + 1,
+                        None,
+                        None,
                         self.fp,
-                        self.string,
                     )
                 c += tmp
             return chr(int(c, 16))
@@ -452,15 +446,14 @@ class Tokenizer:
             case _:
                 if self.get_current_char() == char:
                     return char
-                raise TokenizerError(
+                raise CompilationException(
                     17,
                     f'Invalid escape sequence \\{self.get_current_char()}',
                     self.line,
                     self.col,
-                    self.line,
-                    self.col + 1,
+                    None,
+                    None,
                     self.fp,
-                    self.string,
                 )
 
     def get_next_token(self):  # sourcery skip: extract-method, low-code-quality
@@ -726,15 +719,14 @@ class Tokenizer:
                 tok_type, to_return, start_line, start_col, self.line, self.col
             )
 
-        raise TokenizerError(
+        raise CompilationException(
             2,
             f'Unexpected character "{current_char}"',
             self.line,
             self.col,
-            self.line,
-            self.col + 1,
+            None,
+            None,
             self.fp,
-            self.string,
         )
 
 
@@ -830,24 +822,6 @@ class UnaryOpType(Enum):
     NOT = TokenType.NOT
 
 
-@dataclass
-class Warn:  # TODO: make a warning code
-    message: str
-    line: int
-    col: int
-    end_line: int
-    end_col: int
-    fp: str
-
-
-@dataclass
-class ParserWarn(Warn):  # TODO: make a warning code
-    parser: Parser
-
-
-@dataclass
-class CompilerWarn(Warn):
-    compiler: Compiler
 
 
 class Parser:
@@ -876,15 +850,14 @@ class Parser:
     def eat(self, token_type: TokenType):
         out = self.current_token
         if self.current_token.type != token_type:
-            raise ParserError(
+            raise CompilationException(
                 3,
-                f'Expected {token_type}, got {self.current_token.type}',
+                f'Expected token `{token_type.value}`, got token `{self.current_token.type.value}`',
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
                 self.fp,
-                self.file_content,
             )
         self.advance()
         return out
@@ -896,7 +869,7 @@ class Parser:
         else:
             self.current_token = Token(TokenType.EOF, None, 0, 0, 0, 0)
 
-    def arithmetic_expr(self) -> Generator[ParserWarn, None, ASTNode]:
+    def arithmetic_expr(self) -> Generator[Warn, None, ASTNode]:
         node = yield from self.term()
         while self.current_token and self.current_token.type in (
             TokenType.ADD,
@@ -934,7 +907,7 @@ class Parser:
 
         return node
 
-    def logical_not(self) -> Generator[ParserWarn, None, ASTNode]:
+    def logical_not(self) -> Generator[Warn, None, ASTNode]:
         if self.current_token.type == TokenType.NOT:
             self.eat(TokenType.NOT)
             e = yield from self.logical_not()
@@ -966,7 +939,7 @@ class Parser:
             )
         return node
 
-    def comparison(self) -> Generator[ParserWarn, None, ASTNode]:
+    def comparison(self) -> Generator[Warn, None, ASTNode]:
         node = yield from self.arithmetic_expr()
         while self.current_token.type in (
             TokenType.LT,
@@ -988,7 +961,7 @@ class Parser:
             )
         return node
 
-    def equality(self) -> Generator[ParserWarn, None, ASTNode]:
+    def equality(self) -> Generator[Warn, None, ASTNode]:
         node = yield from self.comparison()
         while self.current_token.type in (TokenType.EQUAL_TO, TokenType.NOT_EQUAL_TO):
             op = self.current_token.type
@@ -1005,7 +978,7 @@ class Parser:
             )
         return node
 
-    def term(self) -> Generator[ParserWarn, None, ASTNode]:
+    def term(self) -> Generator[Warn, None, ASTNode]:
         node = yield from self.power()
         while self.current_token and self.current_token.type in (
             TokenType.MUL,
@@ -1026,7 +999,7 @@ class Parser:
             )
         return node
 
-    def power(self) -> Generator[ParserWarn, None, ASTNode]:
+    def power(self) -> Generator[Warn, None, ASTNode]:
         node = yield from self.factor()
         if self.current_token and self.current_token.type == TokenType.POW:
             op = self.current_token.type
@@ -1043,7 +1016,7 @@ class Parser:
             )  # right-associative
         return node
 
-    def factor(self) -> Generator[ParserWarn, None, ASTNode]:
+    def factor(self) -> Generator[Warn, None, ASTNode]:
         token = self.current_token
         if token.type == TokenType.SUB:
             self.eat(TokenType.SUB)
@@ -1059,7 +1032,7 @@ class Parser:
         r = yield from self.postfix()
         return r
 
-    def postfix(self) -> Generator[ParserWarn, None, ASTNode]:
+    def postfix(self) -> Generator[Warn, None, ASTNode]:
         node = yield from self.primary()
 
         while self.current_token.type in (
@@ -1072,7 +1045,7 @@ class Parser:
                 dot_col = self.current_token.col
                 self.eat(TokenType.DOT)
                 if self.current_token.type != TokenType.IDENTIFIER:
-                    raise ParserError(
+                    raise CompilationException(
                         4,
                         "Expected identifier after '.'",
                         self.current_token.line,
@@ -1080,7 +1053,6 @@ class Parser:
                         self.current_token.end_line,
                         self.current_token.end_col,
                         self.fp,
-                        self.file_content,
                     )
 
                 end_tok = self.eat(TokenType.IDENTIFIER)
@@ -1133,7 +1105,7 @@ class Parser:
         while self.current_token.type == TokenType.NEWLINE:
             self.eat(TokenType.NEWLINE)
 
-    def primary(self) -> Generator[ParserWarn, None, ASTNode]:
+    def primary(self) -> Generator[Warn, None, ASTNode]:
         token = self.current_token
         if token.type == TokenType.INT:
             self.eat(TokenType.INT)
@@ -1233,25 +1205,32 @@ class Parser:
                     t = yield from self.expr()
                     out.append(t)
             if len(out) == 1:
-                yield ParserWarn(
+                yield Warn(
+                    2,
                     'Format string with no expressions',
                     start_line,
                     start_col,
                     self.current_token.end_line,
                     self.current_token.end_col,
                     self.fp,
-                    self,
+                    [
+                        DiagHelp('consider changing this to a regular string'),
+                        DiagHelp('consider adding an expression via `${expr}` inside the format string')
+                    ]
                 )
                 return out[0]
             if len(out) == 0:
-                yield ParserWarn(
+                yield Warn(
+                    2,
                     'Empty format string',
                     token.line,
                     token.col,
                     token.end_line,
                     token.end_col,
                     self.fp,
-                    self,
+                    [
+                        DiagHelp('consider changing this to a regular empty string')
+                    ]
                 )
                 return String(start_line, start_col, start_line, start_col + 1, '')
             rhs = out[1]
@@ -1297,22 +1276,21 @@ class Parser:
             self.skip_newline()
             self.eat(TokenType.RPAREN)
             return node
-        raise ParserError(
+        raise CompilationException(
             3,
-            f'Unexpected token {token.type}{f" `{token.value}`" if token.value is not None else ""}',
+            f'Unexpected token `{token.type.value}`',
             token.line,
             token.col,
             token.end_line,
             token.end_col,
             self.fp,
-            self.file_content,
         )
 
-    def export(self) -> Generator[ParserWarn, None, ASTNode]:
-        self.eat(TokenType.EXPORT)
+    def export(self) -> Generator[Warn, None, ASTNode]:
+        e = self.eat(TokenType.EXPORT)
         out = yield from self.statement()
         if out is None:
-            raise ParserError(
+            raise CompilationException(
                 3,
                 'Expected a statement',
                 self.current_token.line,
@@ -1320,10 +1298,9 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 self.fp,
-                self.file_content,
             )
         if not isinstance(out, Declare):
-            raise ParserError(
+            raise CompilationException(
                 5,
                 'Cannot export anything other than an declaration or function',
                 out.line,
@@ -1331,18 +1308,21 @@ class Parser:
                 self.current_token.end_line,
                 self.current_token.end_col,
                 self.fp,
-                self.file_content,
             )
         if out.value is None:
-            raise ParserError(
+            raise CompilationException(
                 5,
                 'Exported declarations must have a value',
-                out.line,
-                out.col,
+                e.line,
+                e.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
                 self.fp,
-                self.file_content,
+                helps=[
+                    DiagHelp(
+                        f"consider setting a value to the declaration, done with `export let {out.name} = 'foo'`"
+                    )
+                ],
             )
         name = out.name
         ln = out.line
@@ -1367,7 +1347,7 @@ class Parser:
             case _:
                 return False
 
-    def statement(self) -> Generator[ParserWarn, None, ASTNode | None]:
+    def statement(self) -> Generator[Warn, None, ASTNode | None]:
         self.skip_newline()
         if self.current_token.type == TokenType.RBRACE:
             return None
@@ -1473,7 +1453,7 @@ class Parser:
             self.eat(TokenType.ASSIGN)
             expr = yield from self.expr()
             return Const(const.line, const.col, expr.end_line, expr.end_col, name, expr)
-        
+
         e = yield from self.expr()
 
         if self.current_token.type in (
@@ -1503,7 +1483,7 @@ class Parser:
                     value,
                 )
             if not self.is_assignable(e):
-                raise ParserError(
+                raise CompilationException(
                     18,
                     'Invalid assignment target',
                     e.line,
@@ -1511,7 +1491,11 @@ class Parser:
                     value.end_line,
                     value.end_col,
                     self.fp,
-                    self.file_content,
+                    helps=[
+                        DiagHelp(
+                            'you can only assign to variables, indexes, and attributes'
+                        )
+                    ],
                 )
             match e:
                 case Variable():
@@ -1541,7 +1525,7 @@ class Parser:
 
         return e
 
-    def if_decl(self) -> Generator[ParserWarn, None, If]:
+    def if_decl(self) -> Generator[Warn, None, If]:
         ln = self.current_token.line
         col = self.current_token.col
         self.eat(TokenType.IF)
@@ -1580,7 +1564,7 @@ class Parser:
         body = yield from self.block()
         return While(ln, col, body.end_line, body.end_col, expr, body)
 
-    def function_decl(self) -> Generator[ParserWarn, None, ASTNode]:
+    def function_decl(self) -> Generator[Warn, None, ASTNode]:
         ln = self.current_token.line
         col = self.current_token.col
         self.eat(TokenType.FUNC)
@@ -1608,7 +1592,7 @@ class Parser:
                 params[-1].end_col = params[-1].option.end_col
                 params[-1].end_line = params[-1].option.end_line
             elif optional:
-                raise ParserError(
+                raise CompilationException(
                     7,
                     'Cannot have a non-optional argument after an optional argument',
                     self.current_token.line,
@@ -1616,7 +1600,11 @@ class Parser:
                     self.current_token.end_line,
                     self.current_token.end_col,
                     self.fp,
-                    self.file_content,
+                    helps=[
+                        DiagHelp(
+                            'consider moving the non-optional argument before optional arguments'
+                        )
+                    ],
                 )
             while self.current_token.type == TokenType.COMMA:
                 self.eat(TokenType.COMMA)
@@ -1636,7 +1624,7 @@ class Parser:
                     params[-1].option = yield from self.primary()
                     params[-1].end_col = self.current_token.col
                 elif optional:
-                    raise ParserError(
+                    raise CompilationException(
                         7,
                         'Cannot have a non-optional argument after an optional argument',
                         self.current_token.line,
@@ -1644,7 +1632,11 @@ class Parser:
                         self.current_token.end_line,
                         self.current_token.end_col,
                         self.fp,
-                        self.file_content,
+                        helps=[
+                            DiagHelp(
+                                'consider moving the non-optional argument before optional arguments'
+                            )
+                        ],
                     )
         self.eat(TokenType.RPAREN)
 
@@ -1667,19 +1659,18 @@ class Parser:
     def parse(self):
         node = yield from self.statement()
         if self.current_token.type != TokenType.EOF:
-            raise ParserError(
+            raise CompilationException(
                 3,
-                f'Unexpected token of type {self.current_token.type}: {self.current_token.value}',
+                f'Unexpected token `{self.current_token.type}`',
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
                 self.current_token.end_col,
                 self.fp,
-                self.file_content,
             )
         return node
 
-    def program(self) -> Generator[ParserWarn, None, Program]:
+    def program(self) -> Generator[Warn, None, Program]:
         statements: list = []
         while self.current_token.type != TokenType.EOF:
             if self.current_token.type == TokenType.NEWLINE:
@@ -1700,7 +1691,7 @@ class Parser:
                 break
         return Program(0, 0, end_line, end_col, statements)
 
-    def block(self) -> Generator[ParserWarn, None, Block]:
+    def block(self) -> Generator[Warn, None, Block]:
         self.eat(TokenType.LBRACE)
         statements = []
         line = self.current_token.line
@@ -1850,15 +1841,18 @@ class Declare(ASTNode):
     name: str
     value: ASTNode | None
 
+
 @dataclass
 class Const(ASTNode):
     name: str
     value: ASTNode
 
+
 @dataclass
 class ConstValue(ASTNode):
     idx: int
     value: ASTNode
+
 
 @dataclass
 class String(ASTNode):
@@ -2002,6 +1996,7 @@ def can_be_constant(node: ASTNode):
         case _:
             return False
 
+
 class Compiler:
     def __init__(
         self,
@@ -2092,15 +2087,18 @@ class Compiler:
     class Result:
         value: str
 
-    def make_warn(self, node: ASTNode, msg: str):
-        yield CompilerWarn(
+    def make_warn(self, node: ASTNode,code: int,  msg: str, helps: list[DiagHelp] | None = None):
+        if helps is None:
+            helps = []
+        yield Warn(
+            code,
             msg,
             node.line,
             node.col,
             node.end_line,
             node.end_col,
             self.mod_stack[-1].fp,
-            self,
+            helps
         )
 
     def enter_scope(self, var_map=None, args=None):
@@ -2170,19 +2168,28 @@ class Compiler:
             if item == fp:
                 self.source_info.append(i)
         return idx
+
     def fold_node(self, node: ASTNode, fp: str) -> ASTNode:
         def add(s: BinOp) -> ASTNode:
             a = s.left
             b = s.right
             match a, b:
                 case (Number(), Number()):
-                    return Number(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+                    return Number(
+                        s.line, s.col, s.end_line, s.end_col, a.value + b.value
+                    )
                 case (String(), String()):
-                    return String(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+                    return String(
+                        s.line, s.col, s.end_line, s.end_col, a.value + b.value
+                    )
                 case (Float(), Float()):
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value + b.value
+                    )
                 case (Float(), Number()) | (Number(), Float()):
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value + b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value + b.value
+                    )
             return node
 
         def sub(s: BinOp) -> ASTNode:
@@ -2190,9 +2197,13 @@ class Compiler:
             b = s.right
             match a, b:
                 case (Number(), Number()):
-                    return Number(s.line, s.col, s.end_line, s.end_col, a.value - b.value)
+                    return Number(
+                        s.line, s.col, s.end_line, s.end_col, a.value - b.value
+                    )
                 case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value - b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value - b.value
+                    )
             return s
 
         def div(s: BinOp) -> ASTNode:
@@ -2203,11 +2214,15 @@ class Compiler:
                 case (Number(), Number()):
                     if b.value == 0:
                         raise FoldingError(s, fp, FER.DivByZero)
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value / b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value / b.value
+                    )
                 case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
                     if b.value == 0:
                         raise FoldingError(s, fp, FER.DivByZero)
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value / b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value / b.value
+                    )
             return s
 
         def mul(s: BinOp) -> ASTNode:
@@ -2215,13 +2230,19 @@ class Compiler:
             b = s.right
             match a, b:
                 case (Number(), Number()):
-                    return Number(s.line, s.col, s.end_line, s.end_col, a.value * b.value)
+                    return Number(
+                        s.line, s.col, s.end_line, s.end_col, a.value * b.value
+                    )
                 case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value * b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value * b.value
+                    )
                 case (String(), Number()):
                     if b.value < 0:
                         raise FoldingError(s, fp, FER.MulStrByNeg)
-                    return String(s.line, s.col, s.end_line, s.end_col, a.value * b.value)
+                    return String(
+                        s.line, s.col, s.end_line, s.end_col, a.value * b.value
+                    )
             return s
 
         def mod(s: BinOp) -> ASTNode:
@@ -2232,11 +2253,15 @@ class Compiler:
                 case (Number(), Number()):
                     if b.value == 0:
                         raise FoldingError(s, fp, FER.DivByZero)
-                    return Number(s.line, s.col, s.end_line, s.end_col, a.value % b.value)
+                    return Number(
+                        s.line, s.col, s.end_line, s.end_col, a.value % b.value
+                    )
                 case (Float(), Number()) | (Number(), Float()) | (Float(), Float()):
                     if b.value == 0:
                         raise FoldingError(s, fp, FER.DivByZero)
-                    return Float(s.line, s.col, s.end_line, s.end_col, a.value % b.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, a.value % b.value
+                    )
             return s
 
         def or_(s: BinOp) -> ASTNode:
@@ -2245,7 +2270,9 @@ class Compiler:
 
             match a, b:
                 case (Bool(), Bool()):
-                    return Bool(s.line, s.col, s.end_line, s.end_col, a.value or b.value)
+                    return Bool(
+                        s.line, s.col, s.end_line, s.end_col, a.value or b.value
+                    )
             return s
 
         def and_(s: BinOp) -> ASTNode:
@@ -2254,7 +2281,9 @@ class Compiler:
 
             match a, b:
                 case (Bool(), Bool()):
-                    return Bool(s.line, s.col, s.end_line, s.end_col, a.value and b.value)
+                    return Bool(
+                        s.line, s.col, s.end_line, s.end_col, a.value and b.value
+                    )
             return s
 
         def eq(s: BinOp) -> ASTNode:
@@ -2269,7 +2298,9 @@ class Compiler:
                     | (Float(), Float())
                     | (Bool(), Bool())
                 ):
-                    return Bool(s.line, s.col, s.end_line, s.end_col, a.value == b.value)
+                    return Bool(
+                        s.line, s.col, s.end_line, s.end_col, a.value == b.value
+                    )
             return s
 
         def neq(s: BinOp) -> ASTNode:
@@ -2284,7 +2315,9 @@ class Compiler:
                     | (Float(), Float())
                     | (Bool(), Bool())
                 ):
-                    return Bool(s.line, s.col, s.end_line, s.end_col, a.value != b.value)
+                    return Bool(
+                        s.line, s.col, s.end_line, s.end_col, a.value != b.value
+                    )
             return s
 
         def pow(s: BinOp) -> ASTNode:
@@ -2293,7 +2326,9 @@ class Compiler:
 
             match a, b:
                 case (Number(), Number()):
-                    return Number(s.line, s.col, s.end_line, s.end_col, a.value**b.value)
+                    return Number(
+                        s.line, s.col, s.end_line, s.end_col, a.value**b.value
+                    )
                 case (Number(), Float()) | (Float(), Number()) | (Float(), Float()):
                     return Float(s.line, s.col, s.end_line, s.end_col, a.value**b.value)
             return s
@@ -2320,7 +2355,9 @@ class Compiler:
                     | (Float(), Number())
                     | (Float(), Float())
                 ):
-                    return Bool(s.line, s.col, s.end_line, s.end_col, a.value <= b.value)
+                    return Bool(
+                        s.line, s.col, s.end_line, s.end_col, a.value <= b.value
+                    )
             return s
 
         def gt(s: BinOp) -> ASTNode:
@@ -2348,15 +2385,21 @@ class Compiler:
                     | (Float(), Number())
                     | (Float(), Float())
                 ):
-                    return Bool(s.line, s.col, s.end_line, s.end_col, a.value >= b.value)
+                    return Bool(
+                        s.line, s.col, s.end_line, s.end_col, a.value >= b.value
+                    )
             return s
 
         def neg(s: UnaryOp) -> ASTNode:
             match s.right:
                 case Number():
-                    return Number(s.line, s.col, s.end_line, s.end_col, 0 - s.right.value)
+                    return Number(
+                        s.line, s.col, s.end_line, s.end_col, 0 - s.right.value
+                    )
                 case Float():
-                    return Float(s.line, s.col, s.end_line, s.end_col, 0 - s.right.value)
+                    return Float(
+                        s.line, s.col, s.end_line, s.end_col, 0 - s.right.value
+                    )
             return s
 
         def not_(s: UnaryOp) -> ASTNode:
@@ -2414,10 +2457,13 @@ class Compiler:
                 o = self.get_var_obj(node.name)
                 if o is None:
                     return node
-                if isinstance(o[0], self.ScopeItem) and isinstance(o[0].value, ConstValue):
+                if isinstance(o[0], self.ScopeItem) and isinstance(
+                    o[0].value, ConstValue
+                ):
                     return o[0].value.value
 
         return node
+
     def decl_funcs(self, statements: list[ASTNode]):
         for node in statements:
             if isinstance(node, Declare) and isinstance(node.value, Function):
@@ -2430,7 +2476,7 @@ class Compiler:
         program: Program,
         features: Collection[Literal['source'] | Literal['line']] = [],
         input_source: str | None = None,
-    ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, list[str]]:
+    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, list[str]]:
         if input_source is None and 'source' in features:
             if len(program.statements) == 0:
                 end_line = 0
@@ -2438,7 +2484,7 @@ class Compiler:
             else:
                 end_line = program.statements[-1].end_line
                 end_col = program.statements[-1].end_col
-            raise CompilerError(
+            raise CompilationException(
                 8,
                 'Compiler needs input source to compile with source info.',
                 0,
@@ -2519,17 +2565,21 @@ class Compiler:
             end_line = node.end_line
             if illegal:
                 if unsure:
-                    yield CompilerWarn(
-                        f'CRITICAL: This may need the `{req}` requirement, and is in an illegal zone. Perhaps add `@require {req}` to the top of your program?',  # TODO: warning priorities
+                    yield Warn(
+                        99,
+                        f'CRITICAL: This may need the `{req}` requirement, and is in an illegal zone',  # TODO: warning priorities
                         ln,
                         col,
                         end_line,
                         end_col,
                         self.mod_stack[-1].fp,
-                        self,
+                                                [
+                            DiagHelp(f'consider adding `@require {req}` to the top of your program, or wrap this in an `@require {req}` block')
+                        ]
+
                     )
                 else:
-                    raise CompilerError(
+                    raise CompilationException(
                         14,
                         f'Attempted using a(n) {name} when it requires `{req}` in an illegal area',
                         ln,
@@ -2540,25 +2590,32 @@ class Compiler:
                     )
             else:
                 if unsure:
-                    yield CompilerWarn(
-                        f'This may need the `{req}` requirement. Perhaps add `@require {req}` to the top of your program?',
+                    yield Warn(
+                        1,
+                        f'This may need the `{req}` requirement',
                         ln,
                         col,
                         end_line,
                         end_col,
                         self.mod_stack[-1].fp,
-                        self,
+                        [
+                            DiagHelp(f'consider adding `@require {req}` to the top of your program, or wrap this in an `@require {req}` block')
+                        ]
                     )
                 else:
                     self.reqs.append(req)
-                    yield CompilerWarn(
-                        f'{second_name} implicitly adds the `{req}` requirement. Perhaps add `@require {req}` to the top of your program to make it explicit?',
+                    yield Warn(
+                        1,
+                        f'{second_name} implicitly adds the `{req}` requirement',
                         ln,
                         col,
                         end_line,
                         end_col,
                         self.mod_stack[-1].fp,
-                        self,
+                                                [
+                            DiagHelp(f'consider adding `@require {req}` to the top of your program, or wrap this in an `@require {req}` block')
+                        ]
+
                     )
 
     def compile_declare(self, node: Declare, dup: bool = False):
@@ -2573,13 +2630,22 @@ class Compiler:
         else:
             idx = self.get_var(node.name)
             if idx is None:
-                raise CompilerError(13, '(internal) Function was not hoisted to the top of its scope. Report this bug to koniscript\'s bug tracker on GitHub', node.line, node.col, node.end_line, node.end_col, self.mod_stack[-1].fp)
+                raise CompilationException(
+                    13,
+                    "(internal) Function was not hoisted to the top of its scope. Report this bug to koniscript's bug tracker on GitHub",
+                    node.line,
+                    node.col,
+                    node.end_line,
+                    node.end_col,
+                    self.mod_stack[-1].fp,
+                )
             idx = idx[0]
         if isinstance(node.value, Function):
             yield from self.compile_ins(v)
         if dup:
             self.emit(node.line, 'DUP')
         self.emit(node.line, OP_SET_VAR, idx, 0)
+
     def add_constant_for_node(self, node):
         if isinstance(node, String):
             idx = self.add_constant([T_STRING, node.value])
@@ -2610,11 +2676,12 @@ class Compiler:
             yield from self.compile_ins(stmnt)
         if create_scope:
             self.emit(block.end_line, 'EXIT_SCOPE')
-            self.scopes[-1].next_local = old_nl # pyright: ignore[reportPossiblyUnboundVariable]
-            self.scopes[-1].var_map = old_map # pyright: ignore[reportPossiblyUnboundVariable]
+            self.scopes[-1].next_local = old_nl  # pyright: ignore[reportPossiblyUnboundVariable]
+            self.scopes[-1].var_map = old_map  # pyright: ignore[reportPossiblyUnboundVariable]
+
     def compile_ins(
         self, node: ASTNode, *other
-    ) -> Generator[CompilerWarn | ModuleRequest, ModuleReceived | None, Any]:
+    ) -> Generator[Warn | ModuleRequest, ModuleReceived | None, Any]:
         node = self.fold_node(node, self.mod_stack[-1].fp)
         if isinstance(node, String):
             self.add_constant_for_node(node)
@@ -2651,7 +2718,7 @@ class Compiler:
             # if node.name in self.scopes[-1].var_map:
             idx = self.get_var(node.name)
             if idx is None:
-                raise CompilerError(
+                raise CompilationException(
                     9,
                     f'Variable {node.name} not declared',
                     node.line,
@@ -2662,10 +2729,16 @@ class Compiler:
                 )
             if idx[1] == 'user':
                 o = self.get_var_obj(node.name)
-                if o is not None and isinstance(o[0], self.ScopeItem) and isinstance(o[0].value, ConstValue):
+                if (
+                    o is not None
+                    and isinstance(o[0], self.ScopeItem)
+                    and isinstance(o[0].value, ConstValue)
+                ):
                     self.emit(node.line, OP_PUSH_CONST, o[0].idx)
                 else:
-                    self.emit(node.line, OP_GET_VAR, idx[0], idx[2])  # RETRIEVE idx depth
+                    self.emit(
+                        node.line, OP_GET_VAR, idx[0], idx[2]
+                    )  # RETRIEVE idx depth
             else:
                 if node.name == '_name':
                     yield from self.raise_for_req(
@@ -2676,7 +2749,7 @@ class Compiler:
             yield from self.compile_ins(node.value)
             s = self.set_local(node.name, node.value)
             if s is None:
-                raise CompilerError(
+                raise CompilationException(
                     9,
                     f'Undeclared variable {node.name}',
                     node.line,
@@ -2684,13 +2757,16 @@ class Compiler:
                     node.end_line,
                     node.end_col,
                     self.mod_stack[-1].fp,
+                    helps=[
+                        DiagHelp(f'consider changing to `let {node.name}` if you meant to declare a new variable')
+                    ]
                 )
             self.emit(node.line, OP_SET_VAR, s[1], s[0])
         elif isinstance(node, Const):
             val = self.fold_node(node.value, self.mod_stack[-1].fp)
-            
+
             if not can_be_constant(val):
-                raise CompilerError(
+                raise CompilationException(
                     21,
                     'This value cannot be folded into a constant',
                     node.value.line,
@@ -2698,10 +2774,17 @@ class Compiler:
                     node.value.end_line,
                     node.value.end_col,
                     self.mod_stack[-1].fp,
+                    helps=[
+                        DiagHelp('only strings, integers, floats, `null`s, and booleans which are constant can be folded down to a constant'),
+                        DiagHelp('consider changing `const` to `let`'),
+                    ]
                 )
-            
+
             idx = self.add_constant_for_node(val)
-            self.declare_local(node.name, ConstValue(node.line, node.col, node.end_line, node.end_col, idx, val)) # pyright: ignore[reportArgumentType]
+            self.declare_local(
+                node.name,
+                ConstValue(node.line, node.col, node.end_line, node.end_col, idx, val),# pyright: ignore[reportArgumentType]
+            )  
         elif isinstance(node, Declare):
             yield from self.compile_declare(node)
 
@@ -2732,7 +2815,7 @@ class Compiler:
                                 req.append(item)
                         if not (len(req) <= len(node.args) <= len(params)):
                             if not len(req) == len(params):
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
@@ -2742,7 +2825,7 @@ class Compiler:
                                     self.mod_stack[-1].fp,
                                 )
                             else:
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
@@ -2756,7 +2839,7 @@ class Compiler:
                 ):
                     if itm.value.max_args is None:
                         if not (itm.value.req_args <= len(node.args)):
-                            raise CompilerError(
+                            raise CompilationException(
                                 11,
                                 f'Expected at least {itm.value.req_args} args, got {len(node.args)}',
                                 node.line,
@@ -2770,7 +2853,7 @@ class Compiler:
                             itm.value.req_args <= len(node.args) <= itm.value.max_args
                         ):
                             if itm.value.req_args == itm.value.max_args:
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected exactly {itm.value.req_args} args, got {len(node.args)}',
                                     node.line,
@@ -2780,7 +2863,7 @@ class Compiler:
                                     self.mod_stack[-1].fp,
                                 )
                             else:
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
                                     node.line,
@@ -2809,7 +2892,7 @@ class Compiler:
                             break
                     if atr_itm is None:
                         if 'types.dicts' not in self.reqs:  # TODO
-                            raise CompilerError(
+                            raise CompilationException(
                                 12,
                                 f'No attribute `{node.func.attr}` found',
                                 node.line,
@@ -2827,7 +2910,7 @@ class Compiler:
                                 req.append(item)
                         if not (len(req) <= len(node.args) <= len(params)):
                             if not len(req) == len(params):
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
@@ -2837,7 +2920,7 @@ class Compiler:
                                     self.mod_stack[-1].fp,
                                 )
                             else:
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
@@ -2861,7 +2944,7 @@ class Compiler:
                     max_args = atr_itm[2]
                     if not (min_args <= len(node.args) <= max_args):
                         if min_args == max_args:
-                            raise CompilerError(
+                            raise CompilationException(
                                 11,
                                 f'Expected exactly {min_args} args, got {len(node.args)}',
                                 node.line,
@@ -2871,7 +2954,7 @@ class Compiler:
                                 self.mod_stack[-1].fp,
                             )
                         else:
-                            raise CompilerError(
+                            raise CompilationException(
                                 11,
                                 f'Expected {min_args} to {max_args} args, got {len(node.args)}',
                                 node.line,
@@ -2890,7 +2973,7 @@ class Compiler:
 
                         if not (min_args <= len(node.args) <= max_args):
                             if min_args == max_args:
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected exactly {min_args} args, got {len(node.args)}',
                                     node.line,
@@ -2900,7 +2983,7 @@ class Compiler:
                                     self.mod_stack[-1].fp,
                                 )
                             else:
-                                raise CompilerError(
+                                raise CompilationException(
                                     11,
                                     f'Expected {min_args} to {max_args} args, got {len(node.args)}',
                                     node.line,
@@ -2931,14 +3014,14 @@ class Compiler:
                                     yield from self.compile_ins(item.option)
                         self.emit(node.line, OpcodeType.CALL, len(params))
                     else:
-                        yield CompilerWarn(
+                        yield Warn(
+                            99,
                             'Could not detect how many min and max arguments for function call',
                             node.line,
                             node.col,
                             node.end_line,
                             node.end_col,
                             self.mod_stack[-1].fp,
-                            self,
                         )
                         self.emit(node.line, OpcodeType.CALL, len(node.args))
                 elif isinstance(itm, self.BuiltinScopeItem):
@@ -2989,16 +3072,16 @@ class Compiler:
                 if node.expr.value:
                     compelse = False
                     if node.else_body:
-                        yield from self.make_warn(node.else_body, 'Unreachable block')
+                        yield from self.make_warn(node.else_body, 3, 'Unreachable block', [DiagHelp('consider removing the block')])
                     else:
-                        yield from self.make_warn(node, 'Condition will always run')
+                        yield from self.make_warn(node, 4, 'redundant if statement', [DiagHelp('consider moving the inner statements out of the if statement')])
                 else:
                     compif = False
                     if not node.else_body:
-                        yield from self.make_warn(node, 'Block will never run')
+                        yield from self.make_warn(node, 3, 'Unreachable block', [DiagHelp('consider removing the block')])
                         return
                     else:
-                        yield from self.make_warn(node.body, 'Block will never run')
+                        yield from self.make_warn(node.body, 3, 'Unreachable block', [DiagHelp('consider removing the block')])
             if compif:
                 yield from self.compile_ins(node.body)
             if node.else_body and compelse:
@@ -3055,13 +3138,13 @@ class Compiler:
             self.code[jmp] = ('JMP', len(self.code))
             idx = self.add_constant([T_STRING, node.name])
             self.emit(
-                    node.line,
-                    'MAKE_FUNCTION',
-                    fn_entry,
-                    local_count,
-                    len(node.params),
-                    idx,
-                )
+                node.line,
+                'MAKE_FUNCTION',
+                fn_entry,
+                local_count,
+                len(node.params),
+                idx,
+            )
         elif isinstance(node, Return):
             if node.value is None:
                 idx = self.add_constant((T_NULL, ''))
@@ -3079,7 +3162,7 @@ class Compiler:
                     node.name,
                     node.lhs,
                 ),
-                True
+                True,
             )
             idx = self.add_constant((T_STRING, node.name))
             self.mod_stack[-1].exports.append(self.ExportItem(node.name, node.lhs))
@@ -3088,14 +3171,15 @@ class Compiler:
             yield from self.raise_for_req('attributes', 'Attribute', 'Attributes', node)
             broken = False
             if 'types.dicts' in self.reqs:
-                yield CompilerWarn(
+                yield Warn(
+                    99,
                     'Dictionaries are enabled, so koniscript cannot check arguments or whether this attribute exists. This will be fixed once koniscript releases a proper type checker',
                     node.line,
                     node.col,
                     node.end_line,
                     node.end_col,
                     self.mod_stack[-1].fp,
-                    self,
+                    
                 )
             else:
                 if isinstance(node.val, Variable):
@@ -3112,7 +3196,7 @@ class Compiler:
                             broken = True
                             break
                     if not broken:
-                        raise CompilerError(
+                        raise CompilationException(
                             12,
                             f'Could not find attribute {node.attr}',
                             node.line,
@@ -3160,7 +3244,7 @@ class Compiler:
             pass
         elif isinstance(node, Break):
             if len(self.break_stack) == 0:
-                raise CompilerError(
+                raise CompilationException(
                     15,
                     'Cannot break outside of a loop',
                     node.line,
@@ -3175,7 +3259,7 @@ class Compiler:
 
         elif isinstance(node, Continue):
             if len(self.continue_stack) == 0:
-                raise CompilerError(
+                raise CompilationException(
                     15,
                     'Cannot continue outside of a loop',
                     node.line,
@@ -3189,7 +3273,7 @@ class Compiler:
                 self.continue_stack[-1].append(idx)
 
         else:
-            raise CompilerError(
+            raise CompilationException(
                 13,
                 f'Did not implement {node} yet :<',
                 node.line,

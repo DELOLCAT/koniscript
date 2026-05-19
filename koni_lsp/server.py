@@ -9,17 +9,31 @@ from pygls.workspace import TextDocument
 from koni_compiler import base_env
 from koni_compiler.main import (
     Compiler,
-    CompilerError,
-    CompilerWarn,
     Parser,
-    ParserError,
     TokenType,
     Tokenizer,
-    TokenizerError,
-    Token
+    Token,
+    CompilationException,
+    Warn,
 )
 
-ADDITION = re.compile(r"^\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)?$")
+ADDITION = re.compile(r'^\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)?$')
+
+
+def get_helps(document: TextDocument, w: CompilationException | Warn, endln: int, end_col: int):
+    return [
+        types.DiagnosticRelatedInformation(
+            types.Location(
+                document.uri,
+                types.Range(
+                    types.Position(w.line, w.col),
+                    types.Position(endln, end_col),
+                ),
+            ),
+            help.value,
+        )
+        for help in w.helps
+    ]
 
 
 class PublishDiagnosticServer(LanguageServer):
@@ -36,7 +50,7 @@ class PublishDiagnosticServer(LanguageServer):
 
         ast_env, compiler_env, attrs = base_env.make_fresh_env()
 
-        logging.info("SOURCEa:\n%s", document.source)
+        logging.info('SOURCEa:\n%s', document.source)
         tkns: list[Token] | None = None
         try:
             tknr = Tokenizer(document.source)
@@ -51,17 +65,26 @@ class PublishDiagnosticServer(LanguageServer):
                 if tkns[-1].type == TokenType.EOF:
                     break
             logging.info('break')
-        except TokenizerError as e:
+        except CompilationException as e:
+            if e.end_line is None:
+                endln = e.line
+            else:
+                endln = e.end_line
+            if e.end_col is None:
+                end_col = e.col
+            else:
+                end_col = e.end_col
             diagnostics.append(
                 types.Diagnostic(
-                    message=e.msg,
+                    message=e.message,
                     range=types.Range(
                         start=types.Position(
                             line=e.line,
                             character=e.col,
                         ),
-                        end=types.Position(line=e.end_line, character=e.end_col),
+                        end=types.Position(line=endln, character=end_col),
                     ),
+                    related_information=get_helps(document, e, endln, end_col)
                 )
             )
         program = None
@@ -72,28 +95,49 @@ class PublishDiagnosticServer(LanguageServer):
                 while True:
                     try:
                         w = next(p)
+                        if w.end_line is None:
+                            endln = w.line
+                        else:
+                            endln = w.end_line
+                        if w.end_col is None:
+                            end_col = w.col
+                        else:
+                            end_col = w.end_col
+                        helps = get_helps(document, w, endln, end_col)
                         diagnostics.append(
                             types.Diagnostic(
-                                message = w.message,
-                                severity= types.DiagnosticSeverity.Warning,
-                                range = types.Range(
-                                    start = types.Position(line= w.line, character = w.col),
-                                    end= types.Position(line= w.end_line, character= w.end_col)
+                                message=w.message,
+                                severity=types.DiagnosticSeverity.Warning,
+                                range=types.Range(
+                                    start=types.Position(line=w.line, character=w.col),
+                                    end=types.Position(line=endln, character=end_col),
                                 ),
+                                related_information=helps,
                             )
                         )
                         logging.info(w)
                     except StopIteration as e:
                         program = e.value
                         break
-            except ParserError as e:
+            except CompilationException as e:
+                if e.end_line is None:
+                    endln = e.line
+                else:
+                    endln = e.end_line
+                if e.end_col is None:
+                    end_col = e.col
+                else:
+                    end_col = e.end_col
+                helps = get_helps(document, e, endln, end_col)
+
                 diagnostics.append(
                     types.Diagnostic(
-                        message=e.msg,
+                        message=e.message,
                         range=types.Range(
                             start=types.Position(line=e.line, character=e.col),
-                            end=types.Position(line=e.end_line, character=e.end_col),
+                            end=types.Position(line=endln, character=end_col),
                         ),
+                        related_information=helps,
                     )
                 )
         if program is not None:
@@ -108,53 +152,67 @@ class PublishDiagnosticServer(LanguageServer):
                 try:
                     a = next(it)
                     logging.info(a)
-                    if isinstance(a, CompilerWarn):
+                    if isinstance(a, Warn):
+                        if a.end_line is None:
+                            endln = a.line
+                        else:
+                            endln = a.end_line
+                        if a.end_col is None:
+                            end_col = a.col
+                        else:
+                            end_col = a.end_col
+
+
                         diagnostics.append(
                             types.Diagnostic(
                                 range=types.Range(
                                     start=types.Position(line=a.line, character=a.col),
-                                    end=types.Position(
-                                        line=a.end_line, character=a.end_col
-                                    ),
+                                    end=types.Position(line=endln, character=end_col),
                                 ),
                                 message=a.message,
                                 severity=types.DiagnosticSeverity.Warning,
+                                related_information=get_helps(document, a, endln, end_col),
                             )
                         )
                 except StopIteration:
                     break
-                except CompilerError as e:
-                    if e.line is not None:
-                        diagnostics.append(
-                            types.Diagnostic(
-                                range=types.Range(
-                                    start=types.Position(
-                                        line=e.line,
-                                        character=e.col if e.col is not None else 0,
-                                    ),
-                                    end=types.Position(
-                                        line=(
-                                            e.end_line
-                                            if e.end_line is not None
-                                            else e.line
-                                        ),
-                                        character=(
-                                            e.end_col if e.end_col is not None else 1
-                                        ),
-                                    ),
+                except CompilationException as e:
+                    if e.end_line is None:
+                        endln = e.line
+                    else:
+                        endln = e.end_line
+                    if e.end_col is None:
+                        end_col = e.col
+                    else:
+                        end_col = e.end_col
+
+                    helps = get_helps(document, e, endln, end_col)
+
+                    diagnostics.append(
+                        types.Diagnostic(
+                            range=types.Range(
+                                start=types.Position(
+                                    line=e.line,
+                                    character=e.col
                                 ),
-                                message=e.msg,
-                            )
+                                end=types.Position(
+                                    line=endln,
+                                    character=end_col,
+                                ),
+                            ),
+                            message=e.message,
+                            related_information=get_helps(document, e, endln, end_col)
                         )
-                    break
+                    )
+                break
 
         self.diagnostics[document.uri] = (document.version, diagnostics)
         # ... run compiler ...
         after = len(base_env.compiler_env)
-        logging.info("ASTenv size before: %d, after: %d", before, after)
+        logging.info('ASTenv size before: %d, after: %d', before, after)
 
 
-server = PublishDiagnosticServer("diagnostic-server", "v1")
+server = PublishDiagnosticServer('diagnostic-server', 'v1')
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
@@ -173,6 +231,19 @@ def did_open(ls: PublishDiagnosticServer, params: types.DidOpenTextDocumentParam
         )
 
 
+@server.feature(
+    types.TEXT_DOCUMENT_COMPLETION,
+    types.CompletionOptions(trigger_characters=['.', ' ']),
+)
+def completions(ls: PublishDiagnosticServer, params: types.CompletionParams):
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    # Use your AST/compiler env to suggest symbols
+    items = []
+    for name in base_env.compiler_env:
+        items.append(types.CompletionItem(label=name))
+    return types.CompletionList(is_incomplete=False, items=items)
+
+
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
 def did_change(ls: PublishDiagnosticServer, params: types.DidOpenTextDocumentParams):
     """Parse each document when it is changed"""
@@ -189,6 +260,6 @@ def did_change(ls: PublishDiagnosticServer, params: types.DidOpenTextDocumentPar
         )
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
     server.start_io()

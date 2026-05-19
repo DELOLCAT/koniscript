@@ -1,6 +1,6 @@
-# Compiler and VM Errors in koniscript
+# Compiler/VM Errors and Warnings in koniscript
 
-This document describes the errors that can be raised by the compiler and VM in koniscript.
+This document describes the errors and warnings that can be raised by the compiler and VM in koniscript.
 
 ## Compiler Errors
 
@@ -213,6 +213,110 @@ const foo = 2 * 2
 
 will work
 
+## Compiler Warnings
+
+### 1: Requirement Implicitly added
+
+Used when you use a feature that needs a requirement not added.
+
+```koniscript
+let a = ['foo'] # arrays need the types.arrays requirement
+a.push('bar')
+println(a)
+println('Completed!')
+```
+
+There are 2 fixes:
+
+- add `@require <req>` to the __top__ of your script (note that bare requires get collected into one, thus it doesn't matter where they are). This means that your whole script will refuse to start on runtimes without that requirement:
+
+```diff
++ @require types.arrays
+  let a = ['foo'] # arrays need the types.arrays requirement
+  a.push('bar')
+  println(a)
+  println('Completed!')
+```
+
+- wrap the statement and related statements into an `@require` block, optionally with an `else` fallback. Use this if your program doesn't use that requirement as a core part of the way it works
+
+```diff
++ @require types.arrays {
+      let a = ['foo'] # arrays need the types.arrays requirement
+      a.push('bar')
+      println(a)
++ } else {
+      println('Arrays are not supported')
++ }
+
+  println('Completed!')
+```
+
+### 2: Format string with no expressions
+
+Used when you have a format string without any expressions:
+
+```koniscript
+println(`this is a format string`)
+```
+
+To fix, replace the format string with a regular string char, like `'` or `"`. Note that using a format string with no expressions has no performance impact
+
+### 3: Unreachable blocks
+
+Used when a block is unreachable:
+
+```koniscript
+if false {
+    println('idk what to type anymore')
+}
+```
+
+To fix, remove the block
+
+### 4: Redundant if statements
+
+Used when you have an if statement that always runs:
+
+```koniscript
+if true {
+    println('windows sucks')
+}
+```
+
+To fix:
+
+- Move the statements outside of the if statement:
+
+```diff
+- if true {
+      println('windows sucks')
+- }
+```
+
+- Move the statements to their own block, if anything inside needs to be separated from the outside scope:
+
+```diff
+- if true {
++ {
+      println('windows sucks')
+  }
+```
+
+### 99: Type checker missing warnings
+
+These warnings come up because koniscript has no type checker, so it warns you on things that it cannot check:
+
+```koniscript
+func run_with_message(task, fn) {
+    println(`Starting task ${task}...`)
+    fn() # <- Could not detect how many min and max arguments for function call
+    println(`Finished task ${task}!)
+}
+```
+
+As development on the type checker is right after writing this section of this document (at the time of writing, warning codes have just been added), these warnings are temporary, and there aren't many examples
+
 ## Runtime (VM) errors
 
 This section is for errors raised by the runtime (`kovm`)
@@ -258,7 +362,7 @@ print('hello') # But this script has been ran in a pipe that has closed
 
 ### 5: Invalid Bytecode
 
-Used when the runtime finds an invalid instruction. Should ***NOT*** be raised normally:
+Used when the runtime finds an invalid instruction. Should *__NOT__* be raised normally:
 
 (note that the following is compiled):
 
@@ -278,7 +382,7 @@ println(foo) # The compiler somehow didn't catch that `foo` has never been decla
 
 ### 7: StackUnderflow
 
-Used when the runtime attempts to pop the stack, but it is empty. This should ***NOT*** be raised in normal circumstances, so this example is for compiled code:
+Used when the runtime attempts to pop the stack, but it is empty. This should *__NOT__* be raised in normal circumstances, so this example is for compiled code:
 
 ```omc
 PUSH_CONST 0
@@ -297,11 +401,11 @@ println(len(2)) # You cannot find the `len` of an `int`
 
 ### 9: FuncNameStr
 
-Used when a function with a non-string name is found. This should ***NOT*** be raised in normal circumstances. For instance, if the name is stored in the constant pool at `2` and the runtime finds an `int` instead of a `str`, this error would be raised.
+Used when a function with a non-string name is found. This should *__NOT__* be raised in normal circumstances. For instance, if the name is stored in the constant pool at `2` and the runtime finds an `int` instead of a `str`, this error would be raised.
 
 ### 10: InvalidLocal
 
-Used when a variable is fetched with an invalid local index. This should ***NOT*** be raised in normal circumstances (although there is a known edge case, discussed [in this error](#6-variable-not-found)).
+Used when a variable is fetched with an invalid local index. This should *__NOT__* be raised in normal circumstances (although there is a known edge case, discussed [in this error](#6-variable-not-found)).
 
 For instance, let's say that we have this variable table:
 
@@ -341,7 +445,7 @@ And completely stop, not even beginning the program
 
 ### 12: NoCode
 
-Used when the runtime opens a file with no `.code` segment. This error should ***NOT*** be raised under normal circumstances, so this example is compiled:
+Used when the runtime opens a file with no `.code` segment. This error should *__NOT__* be raised under normal circumstances, so this example is compiled:
 
 ```omc
 .version

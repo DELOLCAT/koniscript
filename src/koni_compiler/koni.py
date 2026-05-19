@@ -7,8 +7,6 @@ import sys
 from pathlib import Path
 from colorama import init
 from koni_compiler.main import (
-    CompilerError,
-    ParserError,
     Tokenizer,
     Parser,
     TokenType,
@@ -16,9 +14,6 @@ from koni_compiler.main import (
     Program,
     Compiler,
     CompilationException,
-    ParserWarn,
-    CompilerWarn,
-    TokenizerError,
     Warn
 )
 from koni_compiler import base_env
@@ -58,7 +53,6 @@ class CompilationResult:
 
 @dataclass
 class Failed(CompilationResult):
-    compiler: Compiler | None
     exception: CompilationException
 
 
@@ -69,6 +63,7 @@ class Success(CompilationResult):
 
 def get_program(file_content: str, fp: str):
     try:
+        SOURCES[str(fp)] = file_content
         current_env = copy.copy(base_env.compiler_env)
         tknr = Tokenizer(file_content, fp)
         tkns: list[Token] = []
@@ -84,7 +79,7 @@ def get_program(file_content: str, fp: str):
         program: Program = yield from psr.program()
         return program, current_env
     except CompilationException as e:
-        return Failed(None, e)
+        return Failed(e)
 
 
 def comp(
@@ -106,7 +101,7 @@ def comp(
     try:
         cmp = compiler.compile(program, features, file_content)
     except CompilationException as e:
-        return Failed(compiler, e)
+        return Failed(e)
     result = None
     while True:
         try:
@@ -117,7 +112,7 @@ def comp(
                 elif (Path(filepath).parent / 'packages' / (f'{a.name}.kn')).is_file():
                     fp = Path(filepath).parent / 'packages' / (f'{a.name}.kn')
                 else:
-                    raise CompilerError(
+                    raise CompilationException(
                         6,
                         f'Could not resolve module `{a.name}`',
                         a.line,
@@ -128,6 +123,7 @@ def comp(
                     )  # TODO: columns
 
                 content = fp.read_text()
+                SOURCES[str(fp)] = content
                 tmp = yield from get_program(content, fp)
                 if isinstance(tmp, Failed):
                     return tmp
@@ -140,8 +136,10 @@ def comp(
         except StopIteration as e:
             return Success(e.value)
         except CompilationException as e:
-            return Failed(compiler, e)
-
+            return Failed(e)
+SOURCES: dict[str, str] = {
+    
+}
 
 @app.command()
 def compile(
@@ -199,7 +197,7 @@ def compile(
             match value:
                 case Warn():
                     warns += 1
-                    show_err_or_warn(value, file_content)
+                    show_err_or_warn(value)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
@@ -207,7 +205,7 @@ def compile(
             elif isinstance(e.value, Failed):
                 if tracebacks:  # To show Python tracebacks for development
                     raise e.value.exception
-                show_err_or_warn(e.value, file_content)
+                show_err_or_warn(e.value)
                 if warns > 0:
                     print(
                         f'<b><red>Failed in {round(perf_counter() - start_time, 3)} seconds, </red><yellow>{warns} warnings emitted</yellow></b>'
@@ -231,92 +229,90 @@ def compile(
     print(f'Wrote to {fp}')
 
 
-def show_err_or_warn(e: Failed | Warn, file_content: str):
+def show_err_or_warn(e: Failed | Warn):
+    def eprint(*args: str):
+        print(*args, file=sys.stderr)
     if isinstance(e, Failed):
         color = '<red><b>'
         tag = f'<red><b>E{e.exception.code:02}'
         end_color = '</b></red>'
-        ln = e.exception.line
-        col = e.exception.col
-        msg = e.exception.msg
-        end_col = e.exception.end_col
-        end_line = e.exception.end_line
-        
-        match e.exception:
-            case CompilerError(fp):
-                filepath = fp
-                if e.compiler is None:
-                    ln = None
-                else:
-                    file_content = e.compiler.sources[e.exception.fp]
-            case TokenizerError():
-                file_content = e.exception.file_content
-            case ParserError():
-                file_content = e.exception.file_content
-
-        if isinstance(e.exception, CompilerError):
-            filepath = e.exception.fp
-            if e.compiler is None:
-                ln = None
-            else:
-                file_content = e.compiler.sources[e.exception.fp]
-        else:
-            filepath = e.exception.fp
+        cls = e.exception
 
     else:
         color = '<yellow><b>'
         end_color = '</b></yellow>'
         tag = '<yellow><b>Warning'
-        col = e.col
-        end_col = e.end_col
-        end_line = e.end_line
-        ln = e.line
-        msg = e.message
-        filepath = e.fp
-        match e:
-            case CompilerWarn():
-                file_content = e.compiler.sources[e.fp]
-            case ParserWarn():
-                if e.parser.file_content:
-                    file_content = e.parser.file_content
-                else:
-                    file_content = '<unknown>'
-            case _:
-                file_content = '<unknown>' # just in case somebody uses this function for their own Warn type
-            
+        cls = e
+    col = cls.col
+    end_col = cls.end_col
+    end_line = cls.end_line
+    ln = cls.line
+    msg = cls.message
+    filepath = cls.fp
 
-    print(file=sys.stderr)
-    print(f'{tag}: {msg}:', file=sys.stderr)
+    file_content = SOURCES[str(filepath)]+' ' # `+ ''` so splitlines() includes the last line if empty
+    if end_line == ln:
+        end_line = None
+    if end_col == col:
+        end_col = None
+    RADIUS = 5
+
+    eprint()
+    eprint(f'{tag}: {msg}:')
     
-    print(
+    lns = file_content.splitlines()
+    eprint(
         f'at {filepath}{f"<green>:{raw(str(ln + 1))}" if ln is not None else " <red>No line data available" + f":{str(col + 1)}" if col is not None else ""}',
-        file=sys.stderr,
     )
-    if ln is not None: # TODO: make the following more readable
-        splitted = file_content.splitlines()
-        if end_line is None or end_line == ln:
-            from_lines = max(0, min(ln - 3, len(splitted)))
-            to_lines = max(0, min(ln + 4, len(splitted)))
-            for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-                arr = f'{color}->{end_color}' if ln == i - 1 else '  '
-                if ln == i-2 and col is not None:
-                    print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (end_col - col if end_col else 1))}', file=sys.stderr) 
-                print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
-        elif end_col is not None:
-            from_lines = max(0, min(ln - 3, len(splitted)))
-            to_lines = max(0, min(end_line + 4, len(splitted)))
-            for i, cln in enumerate(splitted[from_lines:to_lines], from_lines + 1):
-                arr = f'{color}->{end_color}' if ln == i - 1 else '  '
-                if ln == i-2 and col is not None:
-                    print('<blue><d>        ... </d></blue>', file=sys.stderr)
-                elif not ln < i-1 < end_line:
-                    print(f'{arr}<blue><d>{i:7} | </d></blue>{raw(cln)}', file=sys.stderr)
-                if ln <= i-1 <= end_line and col is not None:
-                    if ln == i-1:
-                        print(f'<blue><d>          | </d></blue>{color}{' ' * col}{('^' * (len(cln) - col))}', file=sys.stderr)
-                    elif end_line == i-1:
-                        print(f'<blue><d>          | </d></blue>{color}{('^' * end_col)}', file=sys.stderr)
-
+    def get_info_nl():
+        start = max(ln - RADIUS, 0)
+        end = min(ln + RADIUS, len(lns))
+        c = enumerate(lns[start:end+1], start+1)
+        return c
+    if end_line is None and end_col is None:
+        c = get_info_nl()
+        for n, lnc in c:
+            if n == ln+1:
+                eprint(f'{color}-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
+                eprint(f'<blue><b>        |</b></blue>{color}{(col+1) * ' '}^')
+            else:
+                eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+    elif end_line is None and end_col is not None:
+        c = get_info_nl()
+        dist = end_col - col
+        for n, lnc in c:
+            if n == ln+1:
+                eprint(f'{color}-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
+                eprint(f'<blue><b>        |</b></blue>{color}{(col+1) * ' '}{'^' * dist}')
+            else:
+                eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+    elif end_line is not None and end_col is not None: # these conditions are big so Pyright knows the types
+        start = max(ln - RADIUS, 0)
+        end = min(end_line + RADIUS, len(lns))
+        c = enumerate(lns[start:end+1], start+1)
+        if end - start > 10:
+            big = True
+        else:
+            big = False
+        for n, lnc in c:
+            if n == ln+1:
+                dist = len(lnc) - col
+                eprint(f'{color}-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
+                eprint(f'<blue><b>        |</b></blue>{color} {(col) * ' '}{'^' * dist} from here')
+            elif n == end_line+1:
+                eprint(f'{color}<blue><b>{n: 7} |</b></blue>{end_color} {lnc}')
+                eprint(f'<blue><b>        |</b></blue>{color} {'^' * end_col} to here')
+            else:
+                if not big:
+                    eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+                else:
+                    if start + 4 > n or n > end-3:
+                        eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+                    elif n == start + 4:
+                        eprint('<blue><b>      ...')
+    for help in cls.helps:
+        eprint(f'    <b><blue>help: </blue>{help.value}')
+            
 
 @app.command()
 def run(
@@ -332,8 +328,8 @@ def run(
     while True:
         try:
             value = next(it)
-            if isinstance(value, CompilerWarn):
-                show_err_or_warn(value, file_content)
+            if isinstance(value, Warn):
+                show_err_or_warn(value)
         except StopIteration as e:
             if isinstance(e.value, Success):
                 instructions = e.value.instructions
@@ -341,7 +337,7 @@ def run(
             elif isinstance(e.value, Failed):  # `elif` for IDE type recognition
                 if tracebacks:
                     raise e.value.exception
-                show_err_or_warn(e.value, file_content)
+                show_err_or_warn(e.value)
                 exit(1)  # Abort
             else:
                 raise  # Impossible
