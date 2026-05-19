@@ -1,8 +1,8 @@
 # The Platform File Specification (tentative)
 
-This document describes how **platform files** will work in a future version of koniscript (v0.2.0 or v0.3.0).
+This document describes how **platform files** will work in a future version of koniscript (v0.2.0 or v0.3.0). They will come out *after* the type checker.
 
-This is the second revision of this document.
+This is the third revision of this document.
 
 ## What are Platform Files
 

@@ -31,7 +31,7 @@ pub struct Env {
     pub values: Vec<Option<Value>>,
     pub parent: Option<Rc<RefCell<Env>>>,
     pub exports: HashMap<String, Export>,
-    pub markers: Vec<usize>
+    pub markers: Vec<usize>,
 }
 
 impl PartialEq for Env {
@@ -892,11 +892,7 @@ fn add(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
             Ok(Value::String(out.into()))
         }
         _ => Err(VmError {
-            msg: format!(
-                "Cannot add a {} with a {}",
-                a.display(),
-                b.display()
-            ),
+            msg: format!("Cannot add a {} with a {}", a.display(), b.display()),
             errcode: ErrCode::TypeError,
         }),
     }
@@ -910,11 +906,7 @@ fn sub(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         (Value::Float(va), Value::Float(vb)) => Ok(Value::Float(va - vb)),
 
         _ => Err(VmError {
-            msg: format!(
-                "Cannot subtract a {} with a {}",
-                a.display(),
-                b.display()
-            ),
+            msg: format!("Cannot subtract a {} with a {}", a.display(), b.display()),
             errcode: ErrCode::TypeError,
         }),
     }
@@ -965,11 +957,7 @@ fn div(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         }
 
         _ => Err(VmError {
-            msg: format!(
-                "Cannot divide a {} with a {}",
-                a.display(),
-                b.display()
-            ),
+            msg: format!("Cannot divide a {} with a {}", a.display(), b.display()),
             errcode: ErrCode::TypeError,
         }),
     }
@@ -1019,11 +1007,7 @@ fn vm_mod(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         }
 
         _ => Err(VmError {
-            msg: format!(
-                "Cannot modulo a {} with a {}",
-                a.display(),
-                b.display()
-            ),
+            msg: format!("Cannot modulo a {} with a {}", a.display(), b.display()),
             errcode: ErrCode::TypeError,
         }),
     }
@@ -1052,11 +1036,7 @@ fn mul(a: Value, b: Value, _vm: &mut VM) -> Result<Value, VmError> {
         }
 
         _ => Err(VmError {
-            msg: format!(
-                "Cannot multiply a {} with a {}",
-                a.display(),
-                b.display()
-            ),
+            msg: format!("Cannot multiply a {} with a {}", a.display(), b.display()),
             errcode: ErrCode::TypeError,
         }),
     }
