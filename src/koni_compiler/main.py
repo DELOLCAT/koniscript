@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import Field, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Collection, Generator, Literal, assert_never
 from koni_compiler import base_env
 from koni_compiler.runtime import (
@@ -264,7 +264,7 @@ class Tokenizer:
         if self.get_current_char() != char:
             raise CompilationException(
                 1,
-                'Unterminated string literal',
+                'unterminated string literal',
                 start_line,
                 start_col,
                 None,
@@ -320,7 +320,7 @@ class Tokenizer:
             if self.get_current_char() != '`':
                 raise CompilationException(
                     1,
-                    'Unterminated string literal',
+                    'unterminated string literal',
                     start_line,
                     start_col,
                     self.line,
@@ -375,7 +375,7 @@ class Tokenizer:
             if c is None:
                 raise CompilationException(
                     3,
-                    'Unexpected EOF when decoding escape code',
+                    'unexpected EOF when decoding escape code',
                     self.line,
                     self.col,
                     None,
@@ -385,7 +385,7 @@ class Tokenizer:
             if hex_check(c):
                 raise CompilationException(
                     17,
-                    'Invalid hexadecimal escape code',
+                    'invalid hexadecimal escape code',
                     self.line,
                     self.col,
                     None,
@@ -398,7 +398,7 @@ class Tokenizer:
                 if tmp is None:
                     raise CompilationException(
                         3,
-                        'Unexpected EOF when decoding escape code',
+                        'unexpected EOF when decoding escape code',
                         self.line,
                         self.col,
                         None,
@@ -408,7 +408,7 @@ class Tokenizer:
                 if hex_check(tmp):
                     raise CompilationException(
                         17,
-                        'Invalid hexadecimal escape code',
+                        'invalid hexadecimal escape code',
                         self.line,
                         self.col,
                         None,
@@ -448,7 +448,7 @@ class Tokenizer:
                     return char
                 raise CompilationException(
                     17,
-                    f'Invalid escape sequence \\{self.get_current_char()}',
+                    f'invalid escape sequence \\{self.get_current_char()}',
                     self.line,
                     self.col,
                     None,
@@ -721,7 +721,7 @@ class Tokenizer:
 
         raise CompilationException(
             2,
-            f'Unexpected character "{current_char}"',
+            f'unexpected character "{current_char}"',
             self.line,
             self.col,
             None,
@@ -852,7 +852,7 @@ class Parser:
         if self.current_token.type != token_type:
             raise CompilationException(
                 3,
-                f'Expected token `{token_type.value}`, got token `{self.current_token.type.value}`',
+                f'expected token `{token_type.value}`, got token `{self.current_token.type.value}`',
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
@@ -1047,7 +1047,7 @@ class Parser:
                 if self.current_token.type != TokenType.IDENTIFIER:
                     raise CompilationException(
                         4,
-                        "Expected identifier after '.'",
+                        "expected identifier after '.'",
                         self.current_token.line,
                         self.current_token.col,
                         self.current_token.end_line,
@@ -1207,7 +1207,7 @@ class Parser:
             if len(out) == 1:
                 yield Warn(
                     2,
-                    'Format string with no expressions',
+                    'format string with no expressions',
                     start_line,
                     start_col,
                     self.current_token.end_line,
@@ -1222,7 +1222,7 @@ class Parser:
             if len(out) == 0:
                 yield Warn(
                     2,
-                    'Empty format string',
+                    'empty format string',
                     token.line,
                     token.col,
                     token.end_line,
@@ -1278,7 +1278,7 @@ class Parser:
             return node
         raise CompilationException(
             3,
-            f'Unexpected token `{token.type.value}`',
+            f'unexpected token `{token.type.value}`',
             token.line,
             token.col,
             token.end_line,
@@ -1292,7 +1292,7 @@ class Parser:
         if out is None:
             raise CompilationException(
                 3,
-                'Expected a statement',
+                'expected a statement',
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
@@ -1302,7 +1302,7 @@ class Parser:
         if not isinstance(out, Declare):
             raise CompilationException(
                 5,
-                'Cannot export anything other than an declaration or function',
+                'cannot export anything other than an declaration or function',
                 out.line,
                 out.col,
                 self.current_token.end_line,
@@ -1312,7 +1312,7 @@ class Parser:
         if out.value is None:
             raise CompilationException(
                 5,
-                'Exported declarations must have a value',
+                'exported declarations must have a value',
                 e.line,
                 e.col,
                 self.current_token.end_line,
@@ -1485,7 +1485,7 @@ class Parser:
             if not self.is_assignable(e):
                 raise CompilationException(
                     18,
-                    'Invalid assignment target',
+                    'invalid assignment target',
                     e.line,
                     e.col,
                     value.end_line,
@@ -1594,7 +1594,7 @@ class Parser:
             elif optional:
                 raise CompilationException(
                     7,
-                    'Cannot have a non-optional argument after an optional argument',
+                    'cannot have a non-optional argument after an optional argument',
                     self.current_token.line,
                     self.current_token.col,
                     self.current_token.end_line,
@@ -1626,7 +1626,7 @@ class Parser:
                 elif optional:
                     raise CompilationException(
                         7,
-                        'Cannot have a non-optional argument after an optional argument',
+                        'cannot have a non-optional argument after an optional argument',
                         self.current_token.line,
                         self.current_token.col,
                         self.current_token.end_line,
@@ -1661,7 +1661,7 @@ class Parser:
         if self.current_token.type != TokenType.EOF:
             raise CompilationException(
                 3,
-                f'Unexpected token `{self.current_token.type}`',
+                f'unexpected token `{self.current_token.type}`',
                 self.current_token.line,
                 self.current_token.col,
                 self.current_token.end_line,
@@ -2486,7 +2486,7 @@ class Compiler:
                 end_col = program.statements[-1].end_col
             raise CompilationException(
                 8,
-                'Compiler needs input source to compile with source info.',
+                'compiler needs input source to compile with source info.',
                 0,
                 0,
                 end_line,
@@ -2581,7 +2581,7 @@ class Compiler:
                 else:
                     raise CompilationException(
                         14,
-                        f'Attempted using a(n) {name} when it requires `{req}` in an illegal area',
+                        f'attempted using a(n) {name} when it requires `{req}` in an illegal area',
                         ln,
                         col,
                         end_line,
@@ -2592,7 +2592,7 @@ class Compiler:
                 if unsure:
                     yield Warn(
                         1,
-                        f'This may need the `{req}` requirement',
+                        f'this may need the `{req}` requirement',
                         ln,
                         col,
                         end_line,
@@ -2632,7 +2632,7 @@ class Compiler:
             if idx is None:
                 raise CompilationException(
                     13,
-                    "(internal) Function was not hoisted to the top of its scope. Report this bug to koniscript's bug tracker on GitHub",
+                    "(internal) function was not hoisted to the top of its scope. Report this bug to koniscript's bug tracker on GitHub",
                     node.line,
                     node.col,
                     node.end_line,
@@ -2720,7 +2720,7 @@ class Compiler:
             if idx is None:
                 raise CompilationException(
                     9,
-                    f'Variable {node.name} not declared',
+                    f'variable {node.name} not declared',
                     node.line,
                     node.col,
                     node.end_line,
@@ -2751,7 +2751,7 @@ class Compiler:
             if s is None:
                 raise CompilationException(
                     9,
-                    f'Undeclared variable {node.name}',
+                    f'undeclared variable {node.name}',
                     node.line,
                     node.col,
                     node.end_line,
@@ -2768,7 +2768,7 @@ class Compiler:
             if not can_be_constant(val):
                 raise CompilationException(
                     21,
-                    'This value cannot be folded into a constant',
+                    'this value cannot be folded into a constant',
                     node.value.line,
                     node.value.col,
                     node.value.end_line,
@@ -2817,7 +2817,7 @@ class Compiler:
                             if not len(req) == len(params):
                                 raise CompilationException(
                                     11,
-                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
+                                    f'expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2827,7 +2827,7 @@ class Compiler:
                             else:
                                 raise CompilationException(
                                     11,
-                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}',
+                                    f'expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2841,7 +2841,7 @@ class Compiler:
                         if not (itm.value.req_args <= len(node.args)):
                             raise CompilationException(
                                 11,
-                                f'Expected at least {itm.value.req_args} args, got {len(node.args)}',
+                                f'expected at least {itm.value.req_args} args, got {len(node.args)}',
                                 node.line,
                                 node.col,
                                 node.end_line,
@@ -2855,7 +2855,7 @@ class Compiler:
                             if itm.value.req_args == itm.value.max_args:
                                 raise CompilationException(
                                     11,
-                                    f'Expected exactly {itm.value.req_args} args, got {len(node.args)}',
+                                    f'expected exactly {itm.value.req_args} args, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2865,7 +2865,7 @@ class Compiler:
                             else:
                                 raise CompilationException(
                                     11,
-                                    f'Expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
+                                    f'expected {itm.value.req_args} to {itm.value.max_args} args, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2894,7 +2894,7 @@ class Compiler:
                         if 'types.dicts' not in self.reqs:  # TODO
                             raise CompilationException(
                                 12,
-                                f'No attribute `{node.func.attr}` found',
+                                f'no attribute `{node.func.attr}` found',
                                 node.line,
                                 node.col,
                                 node.end_line,
@@ -2912,7 +2912,7 @@ class Compiler:
                             if not len(req) == len(params):
                                 raise CompilationException(
                                     11,
-                                    f'Expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
+                                    f'expected {len(req)} to {len(params)} arguments, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2922,7 +2922,7 @@ class Compiler:
                             else:
                                 raise CompilationException(
                                     11,
-                                    f'Expected exactly {len(req)} arguments, got {len(node.args)}',
+                                    f'expected exactly {len(req)} arguments, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2946,7 +2946,7 @@ class Compiler:
                         if min_args == max_args:
                             raise CompilationException(
                                 11,
-                                f'Expected exactly {min_args} args, got {len(node.args)}',
+                                f'expected exactly {min_args} args, got {len(node.args)}',
                                 node.line,
                                 node.col,
                                 node.end_line,
@@ -2956,7 +2956,7 @@ class Compiler:
                         else:
                             raise CompilationException(
                                 11,
-                                f'Expected {min_args} to {max_args} args, got {len(node.args)}',
+                                f'expected {min_args} to {max_args} args, got {len(node.args)}',
                                 node.line,
                                 node.col,
                                 node.end_line,
@@ -2975,7 +2975,7 @@ class Compiler:
                             if min_args == max_args:
                                 raise CompilationException(
                                     11,
-                                    f'Expected exactly {min_args} args, got {len(node.args)}',
+                                    f'expected exactly {min_args} args, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -2985,7 +2985,7 @@ class Compiler:
                             else:
                                 raise CompilationException(
                                     11,
-                                    f'Expected {min_args} to {max_args} args, got {len(node.args)}',
+                                    f'expected {min_args} to {max_args} args, got {len(node.args)}',
                                     node.line,
                                     node.col,
                                     node.end_line,
@@ -3016,7 +3016,7 @@ class Compiler:
                     else:
                         yield Warn(
                             99,
-                            'Could not detect how many min and max arguments for function call',
+                            'could not detect how many min and max arguments for function call',
                             node.line,
                             node.col,
                             node.end_line,
@@ -3072,16 +3072,16 @@ class Compiler:
                 if node.expr.value:
                     compelse = False
                     if node.else_body:
-                        yield from self.make_warn(node.else_body, 3, 'Unreachable block', [DiagHelp('consider removing the block')])
+                        yield from self.make_warn(node.else_body, 3, 'unreachable block', [DiagHelp('consider removing the block')])
                     else:
                         yield from self.make_warn(node, 4, 'redundant if statement', [DiagHelp('consider moving the inner statements out of the if statement')])
                 else:
                     compif = False
                     if not node.else_body:
-                        yield from self.make_warn(node, 3, 'Unreachable block', [DiagHelp('consider removing the block')])
+                        yield from self.make_warn(node, 3, 'unreachable block', [DiagHelp('consider removing the block')])
                         return
                     else:
-                        yield from self.make_warn(node.body, 3, 'Unreachable block', [DiagHelp('consider removing the block')])
+                        yield from self.make_warn(node.body, 3, 'unreachable block', [DiagHelp('consider removing the block')])
             if compif:
                 yield from self.compile_ins(node.body)
             if node.else_body and compelse:
@@ -3173,7 +3173,7 @@ class Compiler:
             if 'types.dicts' in self.reqs:
                 yield Warn(
                     99,
-                    'Dictionaries are enabled, so koniscript cannot check arguments or whether this attribute exists. This will be fixed once koniscript releases a proper type checker',
+                    'dictionaries are enabled, so koniscript cannot check arguments or whether this attribute exists. This will be fixed once koniscript releases a proper type checker',
                     node.line,
                     node.col,
                     node.end_line,
@@ -3198,7 +3198,7 @@ class Compiler:
                     if not broken:
                         raise CompilationException(
                             12,
-                            f'Could not find attribute {node.attr}',
+                            f'could not find attribute {node.attr}',
                             node.line,
                             node.col,
                             node.end_line,
@@ -3246,7 +3246,7 @@ class Compiler:
             if len(self.break_stack) == 0:
                 raise CompilationException(
                     15,
-                    'Cannot break outside of a loop',
+                    'cannot break outside of a loop',
                     node.line,
                     node.col,
                     node.end_line,
@@ -3261,7 +3261,7 @@ class Compiler:
             if len(self.continue_stack) == 0:
                 raise CompilationException(
                     15,
-                    'Cannot continue outside of a loop',
+                    'cannot continue outside of a loop',
                     node.line,
                     node.col,
                     node.end_line,
@@ -3275,7 +3275,7 @@ class Compiler:
         else:
             raise CompilationException(
                 13,
-                f'Did not implement {node} yet :<',
+                f'did not implement {node} yet :<',
                 node.line,
                 node.col,
                 node.end_line,
