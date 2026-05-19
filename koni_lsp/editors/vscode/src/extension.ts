@@ -18,7 +18,7 @@ export function activate(context: ExtensionContext) {
     args: ['uv', "run", "server.py"],
     transport: TransportKind.stdio,
     options: {
-      cwd: "/home/ahmad/coding/OmniScript/koni_lsp",
+      cwd: "/home/ahmad/coding/koniscript/koni_lsp",
     },
   };
   let channel = window.createOutputChannel("koniscript LSP Trace");

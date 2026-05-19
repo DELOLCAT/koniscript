@@ -255,7 +255,7 @@ def show_err_or_warn(e: Failed | Warn):
         end_line = None
     if end_col == col:
         end_col = None
-    RADIUS = 5
+    RADIUS = 2
 
     eprint()
     eprint(f'<b>{tag}{end_color}: {msg}:')
@@ -282,8 +282,8 @@ def show_err_or_warn(e: Failed | Warn):
         dist = end_col - col
         for n, lnc in c:
             if n == ln+1:
-                eprint(f'{color}<b>-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
-                eprint(f'<blue><b>        |</blue>{color}{(col+1) * ' '}{'^' * dist}')
+                eprint(f'{color}<b>-><blue>{n: 5} |</blue></b>{end_color} {lnc}')
+                eprint(f'<b><blue>        |</blue>{color}{(col+1) * ' '}{'^' * dist}')
             else:
                 eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
     elif end_line is not None and end_col is not None: # these conditions are big so Pyright knows the types
@@ -306,7 +306,7 @@ def show_err_or_warn(e: Failed | Warn):
                 if not big:
                     eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
                 else:
-                    if start + 4 > n or n > end-3:
+                    if start + 4 > n or n > end-4:
                         eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
                     elif n == start + 4:
                         eprint('<blue><b>      ...')
