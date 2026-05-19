@@ -233,15 +233,15 @@ def show_err_or_warn(e: Failed | Warn):
     def eprint(*args: str):
         print(*args, file=sys.stderr)
     if isinstance(e, Failed):
-        color = '<red><b>'
-        tag = f'<red><b>E{e.exception.code:02}'
-        end_color = '</b></red>'
+        color = '<red>'
+        tag = f'{color}error[E{e.exception.code:03}]'
+        end_color = '</red>'
         cls = e.exception
 
     else:
-        color = '<yellow><b>'
-        end_color = '</b></yellow>'
-        tag = '<yellow><b>Warning'
+        color = '<yellow>'
+        end_color = '</yellow>'
+        tag = f'{color}warn[W{e.code:03}]'
         cls = e
     col = cls.col
     end_col = cls.end_col
@@ -258,7 +258,7 @@ def show_err_or_warn(e: Failed | Warn):
     RADIUS = 5
 
     eprint()
-    eprint(f'{tag}: {msg}:')
+    eprint(f'<b>{tag}{end_color}: {msg}:')
     
     lns = file_content.splitlines()
     eprint(
@@ -273,7 +273,7 @@ def show_err_or_warn(e: Failed | Warn):
         c = get_info_nl()
         for n, lnc in c:
             if n == ln+1:
-                eprint(f'{color}-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
+                eprint(f'{color}<b>-><blue>{n: 5} |</blue></b>{end_color} {lnc}')
                 eprint(f'<blue><b>        |</b></blue>{color}{(col+1) * ' '}^')
             else:
                 eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
@@ -282,8 +282,8 @@ def show_err_or_warn(e: Failed | Warn):
         dist = end_col - col
         for n, lnc in c:
             if n == ln+1:
-                eprint(f'{color}-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
-                eprint(f'<blue><b>        |</b></blue>{color}{(col+1) * ' '}{'^' * dist}')
+                eprint(f'{color}<b>-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
+                eprint(f'<blue><b>        |</blue>{color}{(col+1) * ' '}{'^' * dist}')
             else:
                 eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
     elif end_line is not None and end_col is not None: # these conditions are big so Pyright knows the types
@@ -297,11 +297,11 @@ def show_err_or_warn(e: Failed | Warn):
         for n, lnc in c:
             if n == ln+1:
                 dist = len(lnc) - col
-                eprint(f'{color}-><blue><b>{n: 5} |</b></blue>{end_color} {lnc}')
-                eprint(f'<blue><b>        |</b></blue>{color} {(col) * ' '}{'^' * dist} from here')
+                eprint(f'{color}<b>-><blue><b>{n: 5} |</b></blue></b>{end_color} {lnc}')
+                eprint(f'<b><blue>        |</blue>{color} {(col) * ' '}{'^' * dist} from here')
             elif n == end_line+1:
-                eprint(f'{color}<blue><b>{n: 7} |</b></blue>{end_color} {lnc}')
-                eprint(f'<blue><b>        |</b></blue>{color} {'^' * end_col} to here')
+                eprint(f'{color}<b><blue><b>{n: 7} |</b></blue></b>{end_color} {lnc}')
+                eprint(f'<b><blue>        |</blue>{color} {'^' * end_col} to here')
             else:
                 if not big:
                     eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
