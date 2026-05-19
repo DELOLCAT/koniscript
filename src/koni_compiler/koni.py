@@ -250,22 +250,23 @@ def show_err_or_warn(e: Failed | Warn):
     msg = cls.message
     filepath = cls.fp
 
-    file_content = SOURCES[str(filepath)]
+    file_content = SOURCES[str(filepath)]+' ' # `+ ''` so splitlines() includes the last line if empty
     if end_line == ln:
         end_line = None
-    
+    if end_col == col:
+        end_col = None
     RADIUS = 5
 
     eprint()
     eprint(f'{tag}: {msg}:')
     
-    lns = file_content.splitlines()
+    lns = file_content.splitlines(True)
     eprint(
         f'at {filepath}{f"<green>:{raw(str(ln + 1))}" if ln is not None else " <red>No line data available" + f":{str(col + 1)}" if col is not None else ""}',
     )
     def get_info_nl():
         start = max(ln - RADIUS, 0)
-        end = min(ln + RADIUS, len(file_content.splitlines()))
+        end = min(ln + RADIUS, len(lns))
         c = enumerate(lns[start:end+1], start+1)
         return c
     if end_line is None and end_col is None:
@@ -287,8 +288,12 @@ def show_err_or_warn(e: Failed | Warn):
                 eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
     elif end_line is not None and end_col is not None: # these conditions are big so Pyright knows the types
         start = max(ln - RADIUS, 0)
-        end = min(end_line + RADIUS, len(file_content.splitlines()))
+        end = min(end_line + RADIUS, len(lns))
         c = enumerate(lns[start:end+1], start+1)
+        if end - start > 10:
+            big = True
+        else:
+            big = False
         for n, lnc in c:
             if n == ln+1:
                 dist = len(lnc) - col
@@ -298,7 +303,13 @@ def show_err_or_warn(e: Failed | Warn):
                 eprint(f'{color}<blue><b>{n: 7} |</b></blue>{end_color} {lnc}')
                 eprint(f'<blue><b>        |</b></blue>{color} {'^' * end_col} to here')
             else:
-                eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+                if not big:
+                    eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+                else:
+                    if start + 4 > n or n > end-3:
+                        eprint(f'<blue><b>{n: 7} |</b></blue> {lnc}')
+                    elif n == start + 4:
+                        eprint('<blue><b>      ...')
     for help in cls.helps:
         eprint(f'    <b><blue>help: </blue>{help.value}')
             
